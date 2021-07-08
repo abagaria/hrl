@@ -1,8 +1,64 @@
-from .mdp_wrapper import MDPWrapper
+import numpy as np
+from gym import Wrapper
 
-class GoadConditionedMDPWrapper(MDPWrapper):
+
+class GoalConditionedMDPWrapper(Wrapper):
     """
-    this wrapper represents a goal conditioned MDP
+    this abstract class is a wrapper that represents a goal conditioned MDP
+    user must specify a start and goal state, and a goal tolerance that represents
+    an ball around the goal state.
+    All the methods in the class should be batched
     """
-    def __init__(self, env) -> None:
-        super().__init__()
+    def __init__(self, env, start_state, goal_state, goal_tolerance=0.6):
+        super().__init__(env)
+        self.env = env
+        self.start_state = start_state
+        self.goal_state = goal_state
+        self.goal_tolerance = np.asarray(goal_tolerance)
+        self.current_state = self.reset()  # need this?
+    
+    def sparse_gc_reward_func(self, states, goals):
+        """
+        always overwrite this function to provide the sparse reward func
+        """
+        pass
+
+    def dense_gc_reward_func(self, states, goals):
+        """
+        always overwrite this function to provide the dense reward func
+        """
+        pass
+
+    def reset(self):
+        return self.env.reset()
+    
+    def step(self, action):
+        """
+        overwrite the step function for gc MDP.
+        """
+        next_state, reward, done, info = self.env.step(action)
+        self.current_state = next_state
+        return next_state, reward, done, info
+    
+    def is_start_region(self, states):
+        """
+        given a batch of states, return a boolean array indicating whether states are in start region
+        always overwrite this function
+        """
+        pass
+
+    def is_goal_region(self, states):
+        """
+        given a batch of states, return a boolean array indicating whether states are in goal region
+        always overwrite this function
+        """
+        pass
+
+    def extract_features_for_initiation_classifier(self, states):
+        """
+        take as input a batch of `states` of shape `N x D` and return the state 
+        dimensions relevant for learning the initiation set classifier 
+        (shape `N x K`; e.g, K=2 for navigation).
+        always overwrite this function
+        """
+        pass

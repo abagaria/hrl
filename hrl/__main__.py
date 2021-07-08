@@ -1,17 +1,23 @@
 import time
-import torch
 import argparse
+
+import gym
+import d4rl
+import torch
+import seeding
 import numpy as np
+
+from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
-from hrl.mdp.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
-    parser.add_argument("--environment", type=str, help="umaze, 4-room")
+    parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
+                        help="name of the gym environment")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
@@ -44,12 +50,15 @@ if __name__ == "__main__":
     if args.clear_option_buffers:
         assert not args.use_global_value_function
 
-    if args.environment == "umaze":
-        mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=args.seed)
+    if args.environment in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
+        env = gym.make(args.environment)
+        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=np.array((0, 8)))
+        seeding.seed(0, torch, np)
+        seeding.seed(args.seed, gym, env)
     else:
-        raise RuntimeError("Environment not supported!")
+        raise NotImplementedError("Environment not supported!")
 
-    exp = RobustDSC(mdp=mdp,
+    exp = RobustDSC(mdp=env,
                     gestation_period=args.gestation_period,
                     experiment_name=args.experiment_name,
                     device=torch.device(args.device),
