@@ -1,3 +1,4 @@
+from hrl.mdp.SalientEventClass import SalientEvent
 import numpy as np
 from gym import Wrapper
 
@@ -14,8 +15,17 @@ class GoalConditionedMDPWrapper(Wrapper):
         self.env = env
         self.start_state = start_state
         self.goal_state = goal_state
+        self.salient_positions = [goal_state]
         self.goal_tolerance = np.asarray(goal_tolerance)
-        self.current_state = self.reset()  # need this?
+        self.cur_state = self.reset()
+        self.cur_done = False
+    
+    def get_original_target_events(self):
+        """
+        return the original salient events
+        """
+        saleint_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
+        return saleint_events
     
     def sparse_gc_reward_func(self, states, goals):
         """
@@ -37,7 +47,8 @@ class GoalConditionedMDPWrapper(Wrapper):
         overwrite the step function for gc MDP.
         """
         next_state, reward, done, info = self.env.step(action)
-        self.current_state = next_state
+        self.cur_state = next_state
+        self.cur_done = done
         return next_state, reward, done, info
     
     def is_start_region(self, states):

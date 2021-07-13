@@ -6,10 +6,18 @@ from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
 class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 	def __init__(self, env, start_state, goal_state):
+		self.env = env
 		self.norm_func = lambda x: np.linalg.norm(x, axis=-1) if isinstance(x, np.ndarray) else torch.norm(x, dim=-1)
+		self._determine_x_y_lims()
 		super().__init__(env, start_state, goal_state)
+
+	def state_space_size(self):
+		return self.env.observation_space.shape[0]
 	
-	def sparse_gc_reward_func(self, states, goals):
+	def action_space_size(self):
+		return self.env.action_space.shape[0]
+	
+	def sparse_gc_reward_func(self, states, goals, batched=False):
 		"""
 		overwritting sparse gc reward function for antmaze
 		"""
@@ -17,8 +25,13 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		assert isinstance(states, (np.ndarray, torch.Tensor))
 		assert isinstance(goals, (np.ndarray, torch.Tensor))
 
-		current_positions = states[:, :2]
-		goal_positions = goals[:, :2]
+		# TODO: change this to batched operation
+		if batched:
+			current_positions = states[:,:2]
+			goal_positions = goals[:,:2]
+		else:
+			current_positions = states[:2]
+			goal_positions = goals[:2]
 		distances = self.norm_func(current_positions-goal_positions)
 		dones = distances <= self.goal_tolerance
 
@@ -28,15 +41,20 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 
 		return rewards, dones
 	
-	def dense_gc_reward_func(self, states, goals):
+	def dense_gc_reward_func(self, states, goals, batched=False):
 		"""
 		overwritting dense gc reward function for antmaze
 		"""
 		assert isinstance(states, (np.ndarray, torch.Tensor))
 		assert isinstance(goals, (np.ndarray, torch.Tensor))
 
-		current_positions = states[:, :2]
-		goal_positions = goals[:, :2]
+		# TODO: change this to batched operation
+		if batched:
+			current_positions = states[:,:2]
+			goal_positions = goals[:,:2]
+		else:
+			current_positions = states[:2]
+			goal_positions = goals[:2]
 		distances = self.norm_func(current_positions - goal_positions)
 		dones = distances <= self.goal_tolerance
 
@@ -48,8 +66,12 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		return rewards, dones
 	
 	def step(self, action):
+		next_state, reward, done, info = self.env.step(action)
+		self.cur_state = next_state
+		self.cur_done == done
 		# TODO:
-		pass
+		# apply reward function
+		return next_state, reward, done, info
 
 	def is_start_region(self, states):
 		dist_to_start = self.norm_func(states - self.start_state)
@@ -77,3 +99,27 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		ylow, yhigh = min(y), max(y)
 		self.xlims = (xlow, xhigh)
 		self.ylims = (ylow, yhigh)
+	
+    # ---------------------------------
+    # Used during testing only
+    # ---------------------------------
+
+	def sample_random_state(self, cond=lambda x: True):
+		num_tries = 0
+		rejected = True
+		while rejected and num_tries < 200:
+			low = np.array((self.xlims[0], self.ylims[0]))
+			high = np.array((self.xlims[1], self.ylims[1]))
+			sampled_point = np.random.uniform(low=low, high=high)
+			rejected = self.env.env.wrapped_env._is_in_collision(sampled_point) or not cond(sampled_point)
+			num_tries += 1
+
+			if not rejected:
+				return sampled_point
+	
+	@staticmethod
+	def get_position(state):
+		"""
+		position in the antmaze is the x, y coordinates
+		"""
+		return state[:2]

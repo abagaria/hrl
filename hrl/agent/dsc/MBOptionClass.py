@@ -129,7 +129,7 @@ class ModelBasedOption(object):
 
     def extract_features_for_initiation_classifier(self, state):
         features = state if isinstance(state, np.ndarray) else state.features()
-        if "push" in self.mdp.env_name:
+        if "push" in self.mdp.unwrapped.spec.id:
             return features[:4]
         return features[:2]
 
@@ -157,11 +157,11 @@ class ModelBasedOption(object):
         features = self.extract_features_for_initiation_classifier(state)
         return self.pessimistic_classifier.predict([features])[0] == 1
 
-    def is_at_local_goal(self, state, goal):
+    def is_at_local_goal(self, state, done, goal):
         """ Goal-conditioned termination condition. """
 
-        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, {})[1]
-        reached_term = self.is_term_true(state) or state.is_terminal()
+        reached_goal = self.mdp.sparse_gc_reward_func(state, goal)[1]
+        reached_term = self.is_term_true(state) or done
         return reached_goal and reached_term
 
     # ------------------------------------------------------------
@@ -179,7 +179,7 @@ class ModelBasedOption(object):
         """ Epsilon-greedy action selection. """
 
         if random.random() < self._get_epsilon():
-            return self.mdp.sample_random_action()
+            return self.mdp.action_space.sample()
 
         if self.use_model:
             assert isinstance(self.solver, MPC), f"{type(self.solver)}"
@@ -190,10 +190,10 @@ class ModelBasedOption(object):
         augmented_state = self.get_augmented_state(state, goal)
         return self.solver.act(augmented_state, evaluation_mode=False)
 
-    def update_model(self, state, action, reward, next_state):
+    def update_model(self, state, action, reward, next_state, next_done):
         """ Learning update for option model/actor/critic. """
 
-        self.solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+        self.solver.step(state, action, reward, next_state, next_done)
 
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
@@ -221,32 +221,33 @@ class ModelBasedOption(object):
         option_transitions = []
 
         state = deepcopy(self.mdp.cur_state)
+        done = deepcopy(self.mdp.cur_done)
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
-        print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
+        print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
 
         self.num_executions += 1
 
-        while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
+        while not self.is_at_local_goal(state, done, goal) and step_number < self.max_steps and num_steps < self.timeout:
 
             # Control
             action = self.act(state, goal)
-            reward, next_state = self.mdp.execute_agent_action(action)
+            next_state, reward, next_done, _ = self.mdp.step(action)
 
             if self.use_model:
-                self.update_model(state, action, reward, next_state)
+                self.update_model(state, action, reward, next_state, next_done)
 
             # Logging
             num_steps += 1
             step_number += 1
             total_reward += reward
             visited_states.append(state)
-            option_transitions.append((state, action, reward, next_state))
+            option_transitions.append((state, action, reward, done, next_state))
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
         self.success_curve.append(self.is_term_true(state))
-        self.effect_set.append(state.features())
+        self.effect_set.append(state)
 
         if self.is_term_true(state):
             self.num_goal_hits += 1
@@ -282,7 +283,7 @@ class ModelBasedOption(object):
 
     def extract_goal_dimensions(self, goal):
         goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
-        if "ant" in self.mdp.env_name:
+        if "ant" in self.mdp.unwrapped.spec.id:
             return goal_features[:2]
         raise NotImplementedError(f"{self.mdp.env_name}")
 
@@ -290,17 +291,17 @@ class ModelBasedOption(object):
         assert goal is not None and isinstance(goal, np.ndarray)
 
         goal_position = self.extract_goal_dimensions(goal)
-        return np.concatenate((state.features(), goal_position))
+        return np.concatenate((state, goal_position))
 
     def experience_replay(self, trajectory, goal_state):
-        for state, action, reward, next_state in trajectory:
+        for state, action, reward, done, next_state in trajectory:
             augmented_state = self.get_augmented_state(state, goal=goal_state)
             augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
-            done = self.is_at_local_goal(next_state, goal_state)
+            done = self.is_at_local_goal(next_state, done, goal_state)
 
-            reward_func = self.overall_mdp.dense_gc_reward_function if self.dense_reward \
-                else self.overall_mdp.sparse_gc_reward_function
-            reward, global_done = reward_func(next_state, goal_state, info={})
+            reward_func = self.overall_mdp.dense_gc_reward_func if self.dense_reward \
+                else self.overall_mdp.sparse_gc_reward_func
+            reward, global_done = reward_func(next_state, goal_state)
 
             if not self.use_global_vf or self.global_init:
                 self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)

@@ -62,32 +62,33 @@ class RobustDSC(object):
             if option.is_init_true(state) and not option.is_term_true(state):
                 return option
 
-    def act(self, state):
+    def act(self, state, done):
         # current_option = self._pick_earliest_option(state, self.chain)
         # return current_option if current_option is not None else self.global_option
         for option in self.chain:
             if option.is_init_true(state):
                 subgoal = option.get_goal_for_rollout()
-                if not option.is_at_local_goal(state, subgoal):
+                if not option.is_at_local_goal(state, done, subgoal):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
 
     def random_rollout(self, num_steps):
         step_number = 0
-        while step_number < num_steps and not self.mdp.cur_state.is_terminal():
+        while step_number < num_steps and not self.mdp.cur_done:
             state = deepcopy(self.mdp.cur_state)
-            action = self.mdp.sample_random_action()
-            reward, next_state = self.mdp.execute_agent_action(action)
-            self.global_option.update_model(state, action, reward, next_state)
+            action = self.mdp.action_space.sample()
+            next_state, reward, done, _ = self.mdp.step(action)
+            self.global_option.update_model(state, action, reward, next_state, done)
             step_number += 1
         return step_number
 
     def dsc_rollout(self, num_steps):
         step_number = 0
-        while step_number < num_steps and not self.mdp.cur_state.is_terminal():
+        while step_number < num_steps and not self.mdp.cur_done:
             state = deepcopy(self.mdp.cur_state)
+            done = deepcopy(self.mdp.cur_done)
             
-            selected_option, subgoal = self.act(state)
+            selected_option, subgoal = self.act(state, done)
 
             # Overwrite the subgoal for the global-option
             if selected_option == self.global_option and self.use_global_option_subgoals:
@@ -270,7 +271,7 @@ class RobustDSC(object):
 def test_agent(exp, num_experiments, num_steps):
     def rollout():
         step_number = 0
-        while step_number < num_steps and not exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
+        while step_number < num_steps and not exp.mdp.sparse_gc_reward_func(exp.mdp.cur_state, exp.mdp.goal_state)[1]:
 
             state = deepcopy(exp.mdp.cur_state)
             selected_option, subgoal = exp.act(state)
