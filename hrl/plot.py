@@ -27,7 +27,7 @@ def plot_learning_curve(file_path):
 			success_rates.append(step_data['success'])
 	# plot
 	plt.figure()
-	plt.plot(time_steps, success_rates)
+	plt.plot(time_steps, success_rates, 'o-')
 	plt.title('learning curve')
 	plt.xlabel('time step')
 	plt.ylabel('success')
