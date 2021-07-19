@@ -242,7 +242,7 @@ class ModelBasedOption(object):
             step_number += 1
             total_reward += reward
             visited_states.append(state)
-            option_transitions.append((state, action, reward, done, next_state))
+            option_transitions.append((state, action, reward, next_state, next_done))
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
@@ -294,10 +294,10 @@ class ModelBasedOption(object):
         return np.concatenate((state, goal_position))
 
     def experience_replay(self, trajectory, goal_state):
-        for state, action, reward, done, next_state in trajectory:
+        for state, action, reward, next_state, next_done in trajectory:
             augmented_state = self.get_augmented_state(state, goal=goal_state)
             augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
-            done = self.is_at_local_goal(next_state, done, goal_state)
+            done = self.is_at_local_goal(next_state, next_done, goal_state)
 
             reward_func = self.overall_mdp.dense_gc_reward_func if self.dense_reward \
                 else self.overall_mdp.sparse_gc_reward_func
