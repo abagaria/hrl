@@ -111,9 +111,9 @@ class MPC:
         if vf is None:
             return np.zeros((final_states.shape[0], ))
 
-        goal = goal[:2]
+        goal = np.array(goal[:2])
 
-        assert isinstance(goal, np.ndarray), f"{type(goal)}"
+        assert isinstance(goal, np.ndarray), f"{goal} of type {type(goal)}"
         assert goal.shape == (2,), f"Expected shape (2,), got {goal.shape}"
 
         # Repeat the same goal `num_rollouts` number of times
