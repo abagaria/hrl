@@ -5,9 +5,10 @@ from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
 
 class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
-	def __init__(self, env, start_state, goal_state):
+	def __init__(self, env, start_state, goal_state, use_dense_reward=False):
 		self.env = env
 		self.norm_func = lambda x: np.linalg.norm(x, axis=-1) if isinstance(x, np.ndarray) else torch.norm(x, dim=-1)
+		self.reward_func = self.dense_gc_reward_func if use_dense_reward else self.sparse_gc_reward_func
 		self._determine_x_y_lims()
 		super().__init__(env, start_state, goal_state)
 
@@ -67,11 +68,13 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 	
 	def step(self, action):
 		next_state, reward, done, info = self.env.step(action)
+		reward, done = self.reward_func(next_state, self.get_current_goal())
 		self.cur_state = next_state
 		self.cur_done == done
-		# TODO:
-		# apply reward function
 		return next_state, reward, done, info
+
+	def get_current_goal(self):
+		return self.get_position(self.goal_state)
 
 	def is_start_region(self, states):
 		dist_to_start = self.norm_func(states - self.start_state)
