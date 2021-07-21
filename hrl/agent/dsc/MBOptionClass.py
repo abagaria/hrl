@@ -9,6 +9,7 @@ from thundersvm import OneClassSVM, SVC
 
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
+from hrl.mdp.d4rl_ant_maze.D4RLAntMazeStateClass import D4RLAntMazeState
 
 
 class ModelBasedOption(object):
@@ -287,7 +288,9 @@ class ModelBasedOption(object):
         raise NotImplementedError(f"{self.mdp.env_name}")
 
     def get_augmented_state(self, state, goal):
-        assert goal is not None and isinstance(goal, np.ndarray)
+        if isinstance(goal, D4RLAntMazeState):
+            goal = goal.features()
+        assert goal is not None and isinstance(goal, np.ndarray), f"goal is {goal}"
 
         goal_position = self.extract_goal_dimensions(goal)
         return np.concatenate((state.features(), goal_position))
