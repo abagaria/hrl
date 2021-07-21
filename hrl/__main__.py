@@ -1,4 +1,5 @@
 import time
+import os
 import argparse
 
 import gym
@@ -15,6 +16,8 @@ from hrl.agent.dsc.dsc import RobustDSC
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--results_dir", type=str, default='results',
+                        help='the name of the directory used to store results')
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
                         help="name of the gym environment")
@@ -81,11 +84,12 @@ if __name__ == "__main__":
                     maze_type=args.maze_type,
                     use_global_option_subgoals=args.use_global_option_subgoals)
 
-    create_log_dir(args.experiment_name)
-    create_log_dir("initiation_set_plots/")
-    create_log_dir("value_function_plots/")
-    create_log_dir(f"initiation_set_plots/{args.experiment_name}")
-    create_log_dir(f"value_function_plots/{args.experiment_name}")
+    saving_dir = os.path.join(args.results_dir, args.experiment_name)
+    create_log_dir(saving_dir)
+    create_log_dir(os.path.join(args.results_dir, "initiation_set_plots/"))
+    create_log_dir(os.path.join(args.results_dir, "value_function_plots/"))
+    create_log_dir(os.path.join(args.results_dir, f"initiation_set_plots/{args.experiment_name}"))
+    create_log_dir(os.path.join(args.results_dir, f"value_function_plots/{args.experiment_name}"))
 
     start_time = time.time()
     durations = exp.run_loop(args.episodes, args.steps)

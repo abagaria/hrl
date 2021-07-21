@@ -9,6 +9,8 @@ def parse_args():
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('--experiment_name', type=str, default='test',
 						help='a subdirectory name for the saved results')
+	parser.add_argument("--results_dir", type=str, default='results',
+                        help='the name of the directory used to store results')
 	args = parser.parse_args()
 	return args
 
@@ -37,10 +39,10 @@ def plot_learning_curve(file_path):
 def main():
 	args = parse_args()
 
-	experiment_dir = os.path.join(args.experiment_name, "log_file_0.pkl")
+	experiment_dir = os.path.join(args.results_dir, args.experiment_name, "log_file_0.pkl")
 	plot_learning_curve(experiment_dir)
 
-	img_save_path = os.path.join(args.experiment_name, "learning_curve.png")
+	img_save_path = os.path.join(args.results_dir, args.experiment_name, "learning_curve.png")
 	plt.savefig(img_save_path)
 
 

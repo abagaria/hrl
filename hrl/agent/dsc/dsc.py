@@ -136,7 +136,7 @@ class RobustDSC(object):
             self.log[episode]["success"] = success
             self.log[episode]["step-count"] = step_count[0]
 
-            with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
+            with open(f"results/{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
                 pickle.dump(self.log, log_file)
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
