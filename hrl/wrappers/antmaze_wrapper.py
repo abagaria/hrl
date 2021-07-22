@@ -70,7 +70,7 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		next_state, reward, done, info = self.env.step(action)
 		reward, done = self.reward_func(next_state, self.get_current_goal())
 		self.cur_state = next_state
-		self.cur_done == done
+		self.cur_done = done
 		return next_state, reward, done, info
 
 	def get_current_goal(self):

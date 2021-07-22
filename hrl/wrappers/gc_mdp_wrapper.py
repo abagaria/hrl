@@ -17,6 +17,8 @@ class GoalConditionedMDPWrapper(Wrapper):
         self.goal_state = goal_state
         self.salient_positions = [goal_state]
         self.goal_tolerance = np.asarray(goal_tolerance)
+
+        # set initial states
         self.cur_state = self.reset()
         self.cur_done = False
     
