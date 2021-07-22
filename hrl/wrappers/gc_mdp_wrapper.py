@@ -1,3 +1,4 @@
+from copy import deepcopy
 from hrl.mdp.SalientEventClass import SalientEvent
 import numpy as np
 from gym import Wrapper
@@ -42,7 +43,10 @@ class GoalConditionedMDPWrapper(Wrapper):
         pass
 
     def reset(self):
-        return self.env.reset()
+        self.init_state = self.env.reset()
+        self.cur_state = deepcopy(self.init_state)
+        self.cur_done = False
+        return self.init_state
     
     def step(self, action):
         """

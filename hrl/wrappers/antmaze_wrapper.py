@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 import torch
 
@@ -89,6 +91,15 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		for antmaze, the features are the x, y coordinates (first 2 dimensions)
 		"""
 		return states[:, :2]
+	
+	def set_xy(self, position):
+		""" Used at test-time only. """
+		position = tuple(position)  # `maze_model.py` expects a tuple
+		self.env.env.set_xy(position)
+		obs = np.concatenate((np.array(position), self.init_state[2:]), axis=0)
+		self.cur_state = obs
+		self.cur_done = False
+		self.init_state = deepcopy(self.cur_state)
 
     # --------------------------------
     # Used for visualizations only
