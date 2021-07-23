@@ -78,7 +78,8 @@ class RobustDSC(object):
             state = deepcopy(self.mdp.cur_state)
             action = self.mdp.action_space.sample()
             next_state, reward, done, _ = self.mdp.step(action)
-            self.global_option.update_model(state, action, reward, next_state, done)
+            if self.use_model:
+                self.global_option.update_model(state, action, reward, next_state, done)
             step_number += 1
         return step_number
 
