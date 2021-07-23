@@ -116,7 +116,7 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
 
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.title("{} Initiation Set".format(option.name))
-    saving_path = os.path.join('results', experiment_name, '{}_initiation_classifier_{}.png'.format(name, seed))
+    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', '{}_initiation_classifier_{}.png'.format(name, seed))
     plt.savefig(saving_path)
     plt.close()
 
@@ -141,7 +141,7 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
     plt.scatter(data[:, 0], data[:, 1], c=pvalues)
     plt.colorbar()
     plt.title("Density Estimator Fitted on Pessimistic Classifier")
-    saving_path = os.path.join('results', experiment_name, '{}_initiation_distribution_{}.png'.format(option.name, episode))
+    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', '{}_initiation_distribution_{}.png'.format(option.name, episode))
     plt.savefig(saving_path)
     plt.close()
 
