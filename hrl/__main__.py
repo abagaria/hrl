@@ -1,5 +1,6 @@
 import time
 import os
+import random
 import argparse
 
 import gym
@@ -56,7 +57,7 @@ if __name__ == "__main__":
     if args.environment in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
         env = gym.make(args.environment)
         env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=np.array((0, 8)), use_dense_reward=args.use_dense_rewards)
-        seeding.seed(0, torch, np)
+        seeding.seed(0, random, torch, np)
         seeding.seed(args.seed, gym, env)
     else:
         raise NotImplementedError("Environment not supported!")
