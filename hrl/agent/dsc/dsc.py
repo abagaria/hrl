@@ -274,7 +274,8 @@ def test_agent(exp, num_experiments, num_steps):
         while step_number < num_steps and not exp.mdp.sparse_gc_reward_func(exp.mdp.cur_state, exp.mdp.goal_state)[1]:
 
             state = deepcopy(exp.mdp.cur_state)
-            selected_option, subgoal = exp.act(state)
+            done = deepcopy(exp.mdp.cur_done)
+            selected_option, subgoal = exp.act(state, done)
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
             step_number += len(transitions)
         return step_number

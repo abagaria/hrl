@@ -113,6 +113,12 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		ylow, yhigh = min(y), max(y)
 		self.xlims = (xlow, xhigh)
 		self.ylims = (ylow, yhigh)
+
+	def get_x_y_low_lims(self):
+		return self.xlims[0], self.ylims[0]
+
+	def get_x_y_high_lims(self):
+		return self.xlims[1], self.ylims[1]
 	
     # ---------------------------------
     # Used during testing only

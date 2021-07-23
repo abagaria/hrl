@@ -128,7 +128,8 @@ class ModelBasedOption(object):
         return "initiation_done"
 
     def extract_features_for_initiation_classifier(self, state):
-        features = state if isinstance(state, np.ndarray) else state.features()
+        assert isinstance(state, np.ndarray)
+        features = state
         if "push" in self.mdp.unwrapped.spec.id:
             return features[:4]
         return features[:2]
@@ -224,7 +225,7 @@ class ModelBasedOption(object):
         done = deepcopy(self.mdp.cur_done)
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
-        print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
+        print(f"[Step: {step_number}] Rolling out {self.name}, from {state[:2]} targeting {goal}")
 
         self.num_executions += 1
 
@@ -282,7 +283,8 @@ class ModelBasedOption(object):
         self.value_learner.target_critic.load_state_dict(self.global_value_learner.target_critic.state_dict())
 
     def extract_goal_dimensions(self, goal):
-        goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
+        assert isinstance(goal, np.ndarray)
+        goal_features = goal
         if "ant" in self.mdp.unwrapped.spec.id:
             return goal_features[:2]
         raise NotImplementedError(f"{self.mdp.env_name}")
