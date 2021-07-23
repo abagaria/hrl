@@ -85,12 +85,11 @@ if __name__ == "__main__":
                     maze_type=args.maze_type,
                     use_global_option_subgoals=args.use_global_option_subgoals)
 
+    # create the saving directories
     saving_dir = os.path.join(args.results_dir, args.experiment_name)
     create_log_dir(saving_dir)
-    create_log_dir(os.path.join(args.results_dir, "initiation_set_plots/"))
-    create_log_dir(os.path.join(args.results_dir, "value_function_plots/"))
-    create_log_dir(os.path.join(args.results_dir, f"initiation_set_plots/{args.experiment_name}"))
-    create_log_dir(os.path.join(args.results_dir, f"value_function_plots/{args.experiment_name}"))
+    create_log_dir(os.path.join(saving_dir, "initiation_set_plots/"))
+    create_log_dir(os.path.join(saving_dir, "value_function_plots/"))
 
     start_time = time.time()
     durations = exp.run_loop(args.episodes, args.steps)

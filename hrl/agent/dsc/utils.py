@@ -1,3 +1,5 @@
+import os
+
 import torch
 import scipy
 import numpy as np
@@ -114,7 +116,8 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
 
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.title("{} Initiation Set".format(option.name))
-    plt.savefig("results/initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, seed))
+    saving_path = os.path.join('results', experiment_name, '{}_initiation_classifier_{}.png'.format(name, seed))
+    plt.savefig(saving_path)
     plt.close()
 
 
@@ -138,7 +141,8 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
     plt.scatter(data[:, 0], data[:, 1], c=pvalues)
     plt.colorbar()
     plt.title("Density Estimator Fitted on Pessimistic Classifier")
-    plt.savefig(f"results/initiation_set_plots/{experiment_name}/{option.name}_initiation_distribution_{episode}.png")
+    saving_path = os.path.join('results', experiment_name, '{}_initiation_distribution_{}.png'.format(option.name, episode))
+    plt.savefig(saving_path)
     plt.close()
 
 
@@ -179,7 +183,8 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     else:
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}_option_{option_idx}"
     plt.title(f"VF Targeting {np.round(goal, 2)}")
-    plt.savefig(f"results/value_function_plots/{experiment_name}/{file_name}.png")
+    saving_path = os.path.join('results', experiment_name, 'value_function_plots', '{}.png'.format(file_name))
+    plt.savefig(saving_path)
     plt.close()
 
     return qvalues.max()
