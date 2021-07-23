@@ -1,9 +1,6 @@
 import numpy as np
-from hrl.mdp.StateClass import State
 from scipy.spatial import distance
 from sklearn.svm import OneClassSVM
-import ipdb
-
 
 
 class SalientEvent(object):

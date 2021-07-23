@@ -1,13 +1,10 @@
-import os
-import ipdb
-import time
-import torch
 import pickle
-import argparse
-import numpy as np
 from copy import deepcopy
 from functools import reduce
 from collections import deque
+
+import numpy as np
+
 from hrl.agent.dsc.utils import *
 from hrl.agent.dsc.MBOptionClass import ModelBasedOption
 

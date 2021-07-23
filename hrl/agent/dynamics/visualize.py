@@ -1,11 +1,11 @@
-import torch
-import pickle
-import numpy as np
-import matplotlib.pyplot as plt
 from copy import deepcopy
 
-from mdp.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+
 from agent.dynamics.mpc import MPC
+
 
 def generate_data(mdp, epochs):
     states = []

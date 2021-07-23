@@ -1,5 +1,5 @@
 from copy import deepcopy
-from hrl.mdp.SalientEventClass import SalientEvent
+from hrl.salient_event.SalientEventClass import SalientEvent
 import numpy as np
 from gym import Wrapper
 

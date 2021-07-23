@@ -1,22 +1,20 @@
 import os
 import pickle
+from copy import deepcopy
 
 import torch
 import numpy as np
 import torch.nn as nn
-
-from copy import deepcopy
 from torch.optim import Adam
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from hrl.agent.dynamics.dynamics_model import DynamicsModel
 from hrl.agent.dynamics.dynamics_model import DynamicsModel
 from hrl.agent.dynamics.replay_buffer import ReplayBuffer
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
-from tqdm import tqdm
-import ipdb
 
 class MPC:
     def __init__(self, mdp, state_size, action_size, dense_reward, device, multithread=False):
