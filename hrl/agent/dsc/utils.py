@@ -114,9 +114,9 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-    plt.title("{} Initiation Set".format(option.name))
-    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', '{}_initiation_classifier_{}.png'.format(name, seed))
+    name = option.name if episode is None else option.name + f"_{experiment_name}_{episode}"
+    plt.title(f"{option.name} Initiation Set")
+    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{name}_initiation_classifier_{seed}.png')
     plt.savefig(saving_path)
     plt.close()
 
@@ -141,7 +141,7 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
     plt.scatter(data[:, 0], data[:, 1], c=pvalues)
     plt.colorbar()
     plt.title("Density Estimator Fitted on Pessimistic Classifier")
-    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', '{}_initiation_distribution_{}.png'.format(option.name, episode))
+    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{option.name}_initiation_distribution_{episode}.png')
     plt.savefig(saving_path)
     plt.close()
 
@@ -183,7 +183,7 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     else:
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}_option_{option_idx}"
     plt.title(f"VF Targeting {np.round(goal, 2)}")
-    saving_path = os.path.join('results', experiment_name, 'value_function_plots', '{}.png'.format(file_name))
+    saving_path = os.path.join('results', experiment_name, 'value_function_plots', f'{file_name}.png')
     plt.savefig(saving_path)
     plt.close()
 
