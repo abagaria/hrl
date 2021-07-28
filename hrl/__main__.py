@@ -23,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
                         help="name of the gym environment")
     parser.add_argument("--seed", type=int, help="Random seed")
+
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
     parser.add_argument("--episodes", type=int, default=150)
@@ -39,6 +40,8 @@ if __name__ == "__main__":
     parser.add_argument("--evaluation_frequency", type=int, default=10)
 
     parser.add_argument("--maze_type", type=str)
+    parser.add_argument("--goal_state", nargs="+", type=float, default=[],
+                        help="specify the goal state of the environment, (0, 8) for example")
     parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
 
     parser.add_argument("--clear_option_buffers", action="store_true", default=False)
@@ -56,7 +59,14 @@ if __name__ == "__main__":
 
     if args.environment in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
         env = gym.make(args.environment)
-        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=np.array((0, 8)), use_dense_reward=args.use_dense_rewards)
+        # pick a goal state for the env
+        if args.goal_state:
+            goal_state = np.array(args.goal_state)
+        else:
+            # default to D4RL goal state
+            goal_state = np.array(env.target_goal)
+        print(f'using goal state {goal_state} in env {args.environment}')
+        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=args.use_dense_rewards)
         seeding.seed(0, random, torch, np)
         seeding.seed(args.seed, gym, env)
     else:
