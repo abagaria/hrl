@@ -90,7 +90,11 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		"""
 		for antmaze, the features are the x, y coordinates (first 2 dimensions)
 		"""
-		return states[:, :2]
+		assert isinstance(states, np.ndarray)
+		features = states
+		if "push" in self.unwrapped.spec.id:
+			return features[:4]
+		return features[:2]
 	
 	def set_xy(self, position):
 		""" Used at test-time only. """

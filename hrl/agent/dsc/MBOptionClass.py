@@ -127,13 +127,6 @@ class ModelBasedOption(object):
             return "gestation"
         return "initiation_done"
 
-    def extract_features_for_initiation_classifier(self, state):
-        assert isinstance(state, np.ndarray)
-        features = state
-        if "push" in self.mdp.unwrapped.spec.id:
-            return features[:4]
-        return features[:2]
-
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
@@ -141,7 +134,7 @@ class ModelBasedOption(object):
         if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
-        features = self.extract_features_for_initiation_classifier(state)
+        features = self.mdp.extract_features_for_initiation_classifier(state)
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
@@ -155,7 +148,7 @@ class ModelBasedOption(object):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
 
-        features = self.extract_features_for_initiation_classifier(state)
+        features = self.mdp.extract_features_for_initiation_classifier(state)
         return self.pessimistic_classifier.predict([features])[0] == 1
 
     def is_at_local_goal(self, state, done, goal):
@@ -425,7 +418,7 @@ class ModelBasedOption(object):
 
     def construct_feature_matrix(self, examples):
         states = list(itertools.chain.from_iterable(examples))
-        positions = [self.extract_features_for_initiation_classifier(state) for state in states]
+        positions = [self.mdp.extract_features_for_initiation_classifier(state) for state in states]
         return np.array(positions)
 
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
