@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from copy import deepcopy
 from hrl.salient_event.SalientEventClass import SalientEvent
 import numpy as np
@@ -30,12 +31,14 @@ class GoalConditionedMDPWrapper(Wrapper):
         saleint_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
         return saleint_events
     
+    @abstractmethod
     def sparse_gc_reward_func(self, states, goals):
         """
         always overwrite this function to provide the sparse reward func
         """
         pass
 
+    @abstractmethod
     def dense_gc_reward_func(self, states, goals):
         """
         always overwrite this function to provide the dense reward func
@@ -57,6 +60,7 @@ class GoalConditionedMDPWrapper(Wrapper):
         self.cur_done = done
         return next_state, reward, done, info
     
+    @abstractmethod
     def is_start_region(self, states):
         """
         given a batch of states, return a boolean array indicating whether states are in start region
@@ -64,6 +68,7 @@ class GoalConditionedMDPWrapper(Wrapper):
         """
         pass
 
+    @abstractmethod
     def is_goal_region(self, states):
         """
         given a batch of states, return a boolean array indicating whether states are in goal region
@@ -71,6 +76,7 @@ class GoalConditionedMDPWrapper(Wrapper):
         """
         pass
 
+    @abstractmethod
     def extract_features_for_initiation_classifier(self, states):
         """
         take as input a batch of `states` of shape `N x D` and return the state 

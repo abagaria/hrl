@@ -28,7 +28,6 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		assert isinstance(states, (np.ndarray, torch.Tensor))
 		assert isinstance(goals, (np.ndarray, torch.Tensor))
 
-		# TODO: change this to batched operation
 		if batched:
 			current_positions = states[:,:2]
 			goal_positions = goals[:,:2]
@@ -51,7 +50,6 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		assert isinstance(states, (np.ndarray, torch.Tensor))
 		assert isinstance(goals, (np.ndarray, torch.Tensor))
 
-		# TODO: change this to batched operation
 		if batched:
 			current_positions = states[:,:2]
 			goal_positions = goals[:,:2]
