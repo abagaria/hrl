@@ -59,13 +59,13 @@ class RobustDSC(object):
             if option.is_init_true(state) and not option.is_term_true(state):
                 return option
 
-    def act(self, state, done):
+    def act(self, state):
         # current_option = self._pick_earliest_option(state, self.chain)
         # return current_option if current_option is not None else self.global_option
         for option in self.chain:
             if option.is_init_true(state):
                 subgoal = option.get_goal_for_rollout()
-                if not option.is_at_local_goal(state, done, subgoal):
+                if not option.is_at_local_goal(state, subgoal):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
 
@@ -84,9 +84,8 @@ class RobustDSC(object):
         step_number = 0
         while step_number < num_steps and not self.mdp.cur_done:
             state = deepcopy(self.mdp.cur_state)
-            done = deepcopy(self.mdp.cur_done)
             
-            selected_option, subgoal = self.act(state, done)
+            selected_option, subgoal = self.act(state)
 
             # Overwrite the subgoal for the global-option
             if selected_option == self.global_option and self.use_global_option_subgoals:
@@ -272,8 +271,7 @@ def test_agent(exp, num_experiments, num_steps):
         while step_number < num_steps and not exp.mdp.sparse_gc_reward_func(exp.mdp.cur_state, exp.mdp.goal_state)[1]:
 
             state = deepcopy(exp.mdp.cur_state)
-            done = deepcopy(exp.mdp.cur_done)
-            selected_option, subgoal = exp.act(state, done)
+            selected_option, subgoal = exp.act(state)
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
             step_number += len(transitions)
         return step_number

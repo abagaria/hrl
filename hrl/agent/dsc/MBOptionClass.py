@@ -151,11 +151,11 @@ class ModelBasedOption(object):
         features = self.mdp.extract_features_for_initiation_classifier(state)
         return self.pessimistic_classifier.predict([features])[0] == 1
 
-    def is_at_local_goal(self, state, done, goal):
+    def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
 
         reached_goal = self.mdp.sparse_gc_reward_func(state, goal)[1]
-        reached_term = self.is_term_true(state) or done
+        reached_term = self.is_term_true(state)
         return reached_goal and reached_term
 
     # ------------------------------------------------------------
@@ -215,14 +215,13 @@ class ModelBasedOption(object):
         option_transitions = []
 
         state = deepcopy(self.mdp.cur_state)
-        done = deepcopy(self.mdp.cur_done)
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state[:2]} targeting {goal}")
 
         self.num_executions += 1
 
-        while not self.is_at_local_goal(state, done, goal) and step_number < self.max_steps and num_steps < self.timeout:
+        while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
 
             # Control
             action = self.act(state, goal)
@@ -292,7 +291,7 @@ class ModelBasedOption(object):
         for state, action, reward, next_state, next_done in trajectory:
             augmented_state = self.get_augmented_state(state, goal=goal_state)
             augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
-            done = self.is_at_local_goal(next_state, next_done, goal_state)
+            done = self.is_at_local_goal(next_state, goal_state)
 
             reward_func = self.overall_mdp.dense_gc_reward_func if self.dense_reward \
                 else self.overall_mdp.sparse_gc_reward_func
