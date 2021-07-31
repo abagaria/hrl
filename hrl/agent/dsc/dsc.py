@@ -9,10 +9,10 @@ from hrl.agent.dsc.utils import *
 from hrl.agent.dsc.MBOptionClass import ModelBasedOption
 
 
-class RobustDSC(object):
+class RobustDSC:
     def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, lr_c, lr_a, clear_option_buffers,
-                 use_global_option_subgoals, maze_type, experiment_name, device,
+                 use_global_option_subgoals, experiment_name, device,
                  logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
 
         self.lr_c = lr_c
