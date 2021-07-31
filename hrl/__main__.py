@@ -43,15 +43,18 @@ class Trial:
         """
         parser = argparse.ArgumentParser()
         # system 
-        parser.add_argument("--experiment_name", type=str, 
-                            help="Experiment Name")
+        parser.add_argument("--experiment_name", type=str, default='test',
+                            help="Experiment Name, also used as the directory name to save results")
         parser.add_argument("--results_dir", type=str, default='results',
                             help='the name of the directory used to store results')
-        parser.add_argument("--device", type=str, 
+        parser.add_argument("--device", type=str, default='cuda:1',
                             help="cpu/cuda:0/cuda:1")
-        parser.add_argument("--logging_frequency", type=int, default=50, help="Draw init sets, etc after every _ episodes")
-        parser.add_argument("--generate_init_gif", action="store_true", default=False)
-        parser.add_argument("--evaluation_frequency", type=int, default=10)
+        parser.add_argument("--logging_frequency", type=int, default=50, 
+                            help="Draw init sets, etc after every _ episodes")
+        parser.add_argument("--generate_init_gif", action="store_true", default=False,
+                            help='whether to generate initiation area gifs')
+        parser.add_argument("--evaluation_frequency", type=int, default=10,
+                            help='evaluation frequency')
         # environments
         parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
                             help="name of the gym environment")
@@ -61,24 +64,15 @@ class Trial:
                             help="specify the goal state of the environment, (0, 8) for example")
         parser.add_argument('--num_envs', type=int, default=1,
                             help='Number of env instances to run in parallel')
-        # learning specs
-        parser.add_argument("--gestation_period", type=int, default=3)
-        parser.add_argument("--buffer_length", type=int, default=50)
-        parser.add_argument("--episodes", type=int, default=150)
-        parser.add_argument("--steps", type=int, default=1000)
-        parser.add_argument("--warmup_episodes", type=int, default=5)
-        parser.add_argument("--use_value_function", action="store_true", default=False)
-        parser.add_argument("--use_global_value_function", action="store_true", default=False)
-        parser.add_argument("--use_model", action="store_true", default=False)
-        parser.add_argument("--multithread_mpc", action="store_true", default=False)
-        parser.add_argument("--use_diverse_starts", action="store_true", default=False)
-        parser.add_argument("--use_dense_rewards", action="store_true", default=False)
-        parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
-        parser.add_argument("--clear_option_buffers", action="store_true", default=False)
-        parser.add_argument("--lr_c", type=float, help="critic learning rate")
-        parser.add_argument("--lr_a", type=float, help="actor learning rate")
-
-        args = parser.parse_args()
+        # hyperparams
+        parser.add_argument('--hyperparams', type=str, default='hyperparams/default.csv',
+                            help='path to the hyperparams file to use')
+        args, unknown = parser.parse_known_args()
+        other_args = {
+            (utils.remove_prefix(key, '--'), val)
+            for (key, val) in zip(unknown[::2], unknown[1::2])
+        }
+        args.other_args = other_args
         return args
 
     def check_params_validity(self):

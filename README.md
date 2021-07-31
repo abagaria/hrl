@@ -4,18 +4,17 @@ Robust deep skill chaining
 # Robustly Learning Composable Options in Deep Reinforcement Learning
 
 ## Installation & Dependencies
-
-Our code builds on top of the simple_rl library. We recommend using Anaconda and creating an environment from the **environment.yml** file (which includes all dependencies and their versions). Users will need a mujoco license to run experiments.
+ Users will need a mujoco license to run experiments.
 
 In addition, users will need to install d4rl version 1.1: https://github.com/rail-berkeley/d4rl
 
  
 
 ## Running The Code
-
-With an iPython terminal running in this directory, the following command is an example of how run our DSC++ experiments:
-
-    python -u simple_rl/agents/func_approx/dsc/experiments/online_mbrl_skill_chaining.py --experiment_name='experiment-name' --device="cuda" --environment="4-room"  --gestation_period=10 --episodes=2001 --steps=1000 --warmup_episodes=50 --use_value_function --use_global_value_function --use_model --use_diverse_starts --logging_frequency=2000 --seed=0 --lr_c=1e-5 --lr_a=1e-5 --evaluation_frequency=10 --buffer_length=50
+To train a DSC model
+```python
+python -m hrl --environment antmaze-umaze-v0 [--options]
+```
 
 Some noteworthy arguments are:
 
@@ -24,3 +23,5 @@ Some noteworthy arguments are:
  - `lr_c, lr_a`: Denotes learning rates of critic and actor networks for TD3
 
 To run model-free DSC simply remove the `--use_model` flag. 
+
+the `hyperparams/default.csv` params is currently set to the same as as model_based for antmaze

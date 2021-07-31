@@ -15,13 +15,13 @@ class RobustDSC:
         self.lr_c = params['lr_c']
         self.lr_a = params['lr_a']
 
-        self.device = params['device']
-        self.use_vf = params['use_vf']
-        self.use_global_vf = params['use_global_vf']
+        self.device = torch.device(params['device'])
+        self.use_vf = params['use_value_function']
+        self.use_global_vf = params['use_global_value_function']
         self.use_model = params['use_model']
         self.experiment_name = params['experiment_name']
         self.warmup_episodes = params['warmup_episodes']
-        self.max_steps = params['max_steps']
+        self.max_steps = params['steps']
         self.use_diverse_starts = params['use_diverse_starts']
         self.use_dense_rewards = params['use_dense_rewards']
         self.clear_option_buffers = params['clear_option_buffers']
@@ -30,8 +30,8 @@ class RobustDSC:
         self.multithread_mpc = params['multithread_mpc']
 
         self.seed = params['seed']
-        self.logging_freq = params['logging_freq']
-        self.evaluation_freq = params['evaluation_freq']
+        self.logging_freq = params['logging_frequency']
+        self.evaluation_freq = params['evaluation_frequency']
         self.generate_init_gif = params['generate_init_gif']
 
         self.buffer_length = params['buffer_length']
