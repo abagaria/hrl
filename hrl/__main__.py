@@ -114,27 +114,7 @@ class Trial:
 
         # set up env and experiment
         self.env = make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'], self.params['goal_state'], self.params['use_dense_rewards'])
-        self.exp = RobustDSC(mdp=env,
-                        gestation_period=args.gestation_period,
-                        experiment_name=args.experiment_name,
-                        device=torch.device(args.device),
-                        warmup_episodes=args.warmup_episodes,
-                        max_steps=args.steps,
-                        use_model=args.use_model,
-                        use_vf=args.use_value_function,
-                        use_global_vf=args.use_global_value_function,
-                        use_diverse_starts=args.use_diverse_starts,
-                        use_dense_rewards=args.use_dense_rewards,
-                        multithread_mpc=args.multithread_mpc,
-                        logging_freq=args.logging_frequency,
-                        evaluation_freq=args.evaluation_frequency,
-                        buffer_length=args.buffer_length,
-                        generate_init_gif=args.generate_init_gif,
-                        seed=args.seed,
-                        lr_c=args.lr_c,
-                        lr_a=args.lr_a,
-                        clear_option_buffers=args.clear_option_buffers,
-                        use_global_option_subgoals=args.use_global_option_subgoals)
+        self.exp = RobustDSC(mdp=self.env, params=self.params)
 
     def run(self):
         """
