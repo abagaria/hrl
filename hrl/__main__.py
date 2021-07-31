@@ -5,6 +5,7 @@ import argparse
 
 import gym
 import d4rl
+import pfrl
 import torch
 import seeding
 import numpy as np
@@ -14,16 +15,29 @@ from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
 
 
-if __name__ == "__main__":
+def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    # system 
+    parser.add_argument("--experiment_name", type=str, 
+                        help="Experiment Name")
     parser.add_argument("--results_dir", type=str, default='results',
                         help='the name of the directory used to store results')
-    parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
+    parser.add_argument("--device", type=str, 
+                        help="cpu/cuda:0/cuda:1")
+    parser.add_argument("--logging_frequency", type=int, default=50, help="Draw init sets, etc after every _ episodes")
+    parser.add_argument("--generate_init_gif", action="store_true", default=False)
+    parser.add_argument("--evaluation_frequency", type=int, default=10)
+    # environments
     parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
                         help="name of the gym environment")
-    parser.add_argument("--seed", type=int, help="Random seed")
-
+    parser.add_argument("--seed", type=int, default=0,
+                        help="Random seed")
+    parser.add_argument("--maze_type", type=str)
+    parser.add_argument("--goal_state", nargs="+", type=float, default=[],
+                        help="specify the goal state of the environment, (0, 8) for example")
+    parser.add_argument('--num_envs', type=int, default=1,
+                        help='Number of env instances to run in parallel')
+    # learning specs
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
     parser.add_argument("--episodes", type=int, default=150)
@@ -35,20 +49,17 @@ if __name__ == "__main__":
     parser.add_argument("--multithread_mpc", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
-    parser.add_argument("--logging_frequency", type=int, default=50, help="Draw init sets, etc after every _ episodes")
-    parser.add_argument("--generate_init_gif", action="store_true", default=False)
-    parser.add_argument("--evaluation_frequency", type=int, default=10)
-
-    parser.add_argument("--maze_type", type=str)
-    parser.add_argument("--goal_state", nargs="+", type=float, default=[],
-                        help="specify the goal state of the environment, (0, 8) for example")
     parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
-
     parser.add_argument("--clear_option_buffers", action="store_true", default=False)
     parser.add_argument("--lr_c", type=float, help="critic learning rate")
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
+
     args = parser.parse_args()
 
+    return args
+
+
+def check_arguments(args):
     assert args.use_model or args.use_value_function
 
     if not args.use_value_function:
@@ -57,21 +68,52 @@ if __name__ == "__main__":
     if args.clear_option_buffers:
         assert not args.use_global_value_function
 
-    if args.environment in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
-        env = gym.make(args.environment)
+
+def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True):
+    if env_name in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
+        env = gym.make(env_name)
         # pick a goal state for the env
-        if args.goal_state:
-            goal_state = np.array(args.goal_state)
+        if goal_state:
+            goal_state = np.array(goal_state)
         else:
             # default to D4RL goal state
             goal_state = np.array(env.target_goal)
-        print(f'using goal state {goal_state} in env {args.environment}')
-        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=args.use_dense_rewards)
-        seeding.seed(0, random, torch, np)
-        seeding.seed(args.seed, gym, env)
+        print(f'using goal state {goal_state} in env {env_name}')
+        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=use_dense_rewards)
+        # seed the environment
+        env.seed(env_seed)
     else:
         raise NotImplementedError("Environment not supported!")
+    return env
 
+
+def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rewards=True):
+    # get a batch of seeds
+    process_seeds = np.arange(num_envs) + base_seed * num_envs
+    assert process_seeds.max() < 2 ** 32
+    # make vector env
+    vec_env = pfrl.envs.MultiprocessVectorEnv(
+        [
+            (lambda: make_env(env_name, process_seeds[idx], goal_state))
+            for idx, env in enumerate(range(num_envs))
+        ]
+    )
+    # default to Frame Stacking
+    vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
+    return vec_env
+
+
+def main():
+    # get arguments and make sure they are valid
+    args = parse_args()
+    check_arguments(args)
+
+    # setting random seeds
+    seeding.seed(0, random, torch, np)
+    pfrl.utils.set_random_seed(args.seed)
+
+    # make environment and agent
+    env = make_batch_env(args.environment, args.num_envs, args.seed, args.goal_state, args.use_dense_rewards)
     exp = RobustDSC(mdp=env,
                     gestation_period=args.gestation_period,
                     experiment_name=args.experiment_name,
@@ -107,3 +149,6 @@ if __name__ == "__main__":
 
     print("Time taken: ", end_time - start_time)
 
+
+if __name__ == "__main__":
+    main()
