@@ -109,8 +109,11 @@ class Trial:
         utils.create_log_dir(os.path.join(saving_dir, "initiation_set_plots/"))
         utils.create_log_dir(os.path.join(saving_dir, "value_function_plots/"))
 
+        # save the hyperparams
+        utils.save_hyperparams(os.path.join(saving_dir, "hyperparams.csv"), self.params)
+
         # set up env and experiment
-        self.env = make_batch_env(args.environment, args.num_envs, args.seed, args.goal_state, args.use_dense_rewards)
+        self.env = make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'], self.params['goal_state'], self.params['use_dense_rewards'])
         self.exp = RobustDSC(mdp=env,
                         gestation_period=args.gestation_period,
                         experiment_name=args.experiment_name,
