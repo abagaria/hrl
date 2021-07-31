@@ -6,7 +6,7 @@ from collections import deque
 import numpy as np
 
 from hrl.agent.dsc.utils import *
-from hrl.agent.dsc.MBOptionClass import ModelBasedOption
+from hrl.option import ModelBasedOption
 
 
 class RobustDSC:
