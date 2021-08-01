@@ -70,7 +70,7 @@ class Trial:
         args, unknown = parser.parse_known_args()
         other_args = {
             (utils.remove_prefix(key, '--'), val)
-            for (key, val) in zip(unknown[::2], unknown[1::2])
+            for (key, val) in zip (unknown[::2], unknown[1::2])
         }
         args.other_args = other_args
         return args
@@ -107,7 +107,7 @@ class Trial:
         utils.save_hyperparams(os.path.join(saving_dir, "hyperparams.csv"), self.params)
 
         # set up env and experiment
-        self.env = make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'], self.params['goal_state'], self.params['use_dense_rewards'])
+        self.env = make_env(self.params['environment'], self.params['seed'], self.params['goal_state'], use_dense_rewards=self.params['use_dense_rewards'])
         self.exp = RobustDSC(mdp=self.env, params=self.params)
 
     def run(self):
