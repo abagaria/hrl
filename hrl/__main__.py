@@ -56,7 +56,7 @@ class Trial:
         parser.add_argument("--evaluation_frequency", type=int, default=10,
                             help='evaluation frequency')
         # environments
-        parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
+        parser.add_argument("--environment", type=str, 
                             help="name of the gym environment")
         parser.add_argument("--seed", type=int, default=0,
                             help="Random seed")
@@ -132,10 +132,17 @@ def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True):
             goal_state = np.array(env.target_goal)
         print(f'using goal state {goal_state} in env {env_name}')
         env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=use_dense_rewards)
-        # seed the environment
-        env.seed(env_seed)
     else:
-        raise NotImplementedError("Environment not supported!")
+        # can also make atari/gym environments
+        env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
+            pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60),  # 30 min with 60 fps
+            episode_life=True,
+            clip_rewards=True,
+            flicker=False,
+            frame_stack=True,
+        )
+     # seed the environment
+    env.seed(env_seed)
     return env
 
 
