@@ -42,14 +42,14 @@ class TrainOptionTrial:
         """
         parser = argparse.ArgumentParser()
         # system 
-        parser.add_argument("--experiment_name", type=str, default='test',
+        parser.add_argument("--experiment_name", type=str, default='monte',
                             help="Experiment Name, also used as the directory name to save results")
         parser.add_argument("--results_dir", type=str, default='results',
                             help='the name of the directory used to store results')
         parser.add_argument("--device", type=str, default='cuda:1',
                             help="cpu/cuda:0/cuda:1")
         # environments
-        parser.add_argument("--environment", type=str, required=True,
+        parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
                             help="name of the gym environment")
         parser.add_argument("--seed", type=int, default=0,
                             help="Random seed")
