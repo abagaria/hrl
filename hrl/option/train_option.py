@@ -53,10 +53,10 @@ class TrainOptionTrial:
                             help="name of the gym environment")
         parser.add_argument("--seed", type=int, default=0,
                             help="Random seed")
-        parser.add_argument("--goal_state", nargs="+", type=float, required=True,
+        parser.add_argument("--goal_state", nargs="+", type=float, default=[0, 8],
                             help="specify the goal state of the environment, (0, 8) for example")
         # hyperparams
-        parser.add_argument('--hyperparams', type=str, default='hyperparams/default.csv',
+        parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
                             help='path to the hyperparams file to use')
         args, unknown = parser.parse_known_args()
         other_args = {
