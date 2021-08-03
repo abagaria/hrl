@@ -59,9 +59,10 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		distances = self.norm_func(current_positions - goal_positions)
 		dones = distances <= self.goal_tolerance
 
-		assert distances.shape == dones.shape == (states.shape[0], ) == (goals.shape[0], )
+		if batched:
+			assert distances.shape == dones.shape == (states.shape[0], ) == (goals.shape[0], )
 
-		rewards = -distances
+		rewards = np.array(-distances)
 		rewards[dones==True] = 0
 
 		return rewards, dones

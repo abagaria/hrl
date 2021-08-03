@@ -10,9 +10,10 @@ import torch
 import seeding
 import numpy as np
 
-from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
+from hrl.wrappers import D4RLAntMazeWrapper, VectorEnvWrapper
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
+from hrl.envs import MultiprocessVectorEnv
 
 
 class Trial:
@@ -144,14 +145,16 @@ def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rew
     process_seeds = np.arange(num_envs) + base_seed * num_envs
     assert process_seeds.max() < 2 ** 32
     # make vector env
-    vec_env = pfrl.envs.MultiprocessVectorEnv(
+    vec_env = MultiprocessVectorEnv(
         [
-            (lambda: make_env(env_name, process_seeds[idx], goal_state))
+            (lambda: make_env(env_name, process_seeds[idx], goal_state, use_dense_rewards))
             for idx, env in enumerate(range(num_envs))
-        ]
+        ],
+        make_env(env_name, 0, goal_state, use_dense_rewards)
     )
     # default to Frame Stacking
-    vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
+    vec_env = VectorEnvWrapper(vec_env)
+    # vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
     return vec_env
 
 
