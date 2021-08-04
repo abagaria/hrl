@@ -100,6 +100,8 @@ class Trial:
 
         # create the saving directories
         saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
+        if os.path.exists(saving_dir):  # remove all existing contents
+            shutil.rmtree(saving_dir)
         utils.create_log_dir(saving_dir)
         utils.create_log_dir(os.path.join(saving_dir, "initiation_set_plots/"))
         utils.create_log_dir(os.path.join(saving_dir, "value_function_plots/"))
