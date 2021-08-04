@@ -1,3 +1,7 @@
+# VS Code
+.vscode/
+setup.cfg
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -137,6 +141,4 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-initiation_set_plots/
-new_repo_check/
-value_function_plots/
+results/

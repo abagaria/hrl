@@ -1,18 +1,29 @@
 import time
-import torch
+import os
+import random
 import argparse
+
+import gym
+import d4rl
+import torch
+import seeding
 import numpy as np
+
+from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
-from hrl.mdp.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--results_dir", type=str, default='results',
+                        help='the name of the directory used to store results')
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
-    parser.add_argument("--environment", type=str, help="umaze, 4-room")
+    parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
+                        help="name of the gym environment")
     parser.add_argument("--seed", type=int, help="Random seed")
+
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
     parser.add_argument("--episodes", type=int, default=150)
@@ -29,6 +40,8 @@ if __name__ == "__main__":
     parser.add_argument("--evaluation_frequency", type=int, default=10)
 
     parser.add_argument("--maze_type", type=str)
+    parser.add_argument("--goal_state", nargs="+", type=float, default=[],
+                        help="specify the goal state of the environment, (0, 8) for example")
     parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
 
     parser.add_argument("--clear_option_buffers", action="store_true", default=False)
@@ -44,12 +57,22 @@ if __name__ == "__main__":
     if args.clear_option_buffers:
         assert not args.use_global_value_function
 
-    if args.environment == "umaze":
-        mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=args.seed)
+    if args.environment in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
+        env = gym.make(args.environment)
+        # pick a goal state for the env
+        if args.goal_state:
+            goal_state = np.array(args.goal_state)
+        else:
+            # default to D4RL goal state
+            goal_state = np.array(env.target_goal)
+        print(f'using goal state {goal_state} in env {args.environment}')
+        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=args.use_dense_rewards)
+        seeding.seed(0, random, torch, np)
+        seeding.seed(args.seed, gym, env)
     else:
-        raise RuntimeError("Environment not supported!")
+        raise NotImplementedError("Environment not supported!")
 
-    exp = RobustDSC(mdp=mdp,
+    exp = RobustDSC(mdp=env,
                     gestation_period=args.gestation_period,
                     experiment_name=args.experiment_name,
                     device=torch.device(args.device),
@@ -72,11 +95,11 @@ if __name__ == "__main__":
                     maze_type=args.maze_type,
                     use_global_option_subgoals=args.use_global_option_subgoals)
 
-    create_log_dir(args.experiment_name)
-    create_log_dir("initiation_set_plots/")
-    create_log_dir("value_function_plots/")
-    create_log_dir(f"initiation_set_plots/{args.experiment_name}")
-    create_log_dir(f"value_function_plots/{args.experiment_name}")
+    # create the saving directories
+    saving_dir = os.path.join(args.results_dir, args.experiment_name)
+    create_log_dir(saving_dir)
+    create_log_dir(os.path.join(saving_dir, "initiation_set_plots/"))
+    create_log_dir(os.path.join(saving_dir, "value_function_plots/"))
 
     start_time = time.time()
     durations = exp.run_loop(args.episodes, args.steps)

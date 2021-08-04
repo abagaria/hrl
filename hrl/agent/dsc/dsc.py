@@ -1,13 +1,10 @@
-import os
-import ipdb
-import time
-import torch
 import pickle
-import argparse
-import numpy as np
 from copy import deepcopy
 from functools import reduce
 from collections import deque
+
+import numpy as np
+
 from hrl.agent.dsc.utils import *
 from hrl.agent.dsc.MBOptionClass import ModelBasedOption
 
@@ -74,17 +71,18 @@ class RobustDSC(object):
 
     def random_rollout(self, num_steps):
         step_number = 0
-        while step_number < num_steps and not self.mdp.cur_state.is_terminal():
+        while step_number < num_steps and not self.mdp.cur_done:
             state = deepcopy(self.mdp.cur_state)
-            action = self.mdp.sample_random_action()
-            reward, next_state = self.mdp.execute_agent_action(action)
-            self.global_option.update_model(state, action, reward, next_state)
+            action = self.mdp.action_space.sample()
+            next_state, reward, done, _ = self.mdp.step(action)
+            if self.use_model:
+                self.global_option.update_model(state, action, reward, next_state, done)
             step_number += 1
         return step_number
 
     def dsc_rollout(self, num_steps):
         step_number = 0
-        while step_number < num_steps and not self.mdp.cur_state.is_terminal():
+        while step_number < num_steps and not self.mdp.cur_done:
             state = deepcopy(self.mdp.cur_state)
             
             selected_option, subgoal = self.act(state)
@@ -135,7 +133,7 @@ class RobustDSC(object):
             self.log[episode]["success"] = success
             self.log[episode]["step-count"] = step_count[0]
 
-            with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
+            with open(f"results/{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
                 pickle.dump(self.log, log_file)
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
@@ -270,7 +268,7 @@ class RobustDSC(object):
 def test_agent(exp, num_experiments, num_steps):
     def rollout():
         step_number = 0
-        while step_number < num_steps and not exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
+        while step_number < num_steps and not exp.mdp.sparse_gc_reward_func(exp.mdp.cur_state, exp.mdp.goal_state)[1]:
 
             state = deepcopy(exp.mdp.cur_state)
             selected_option, subgoal = exp.act(state)

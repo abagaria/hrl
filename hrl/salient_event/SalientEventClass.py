@@ -1,9 +1,6 @@
 import numpy as np
-from hrl.mdp.StateClass import State
 from scipy.spatial import distance
 from sklearn.svm import OneClassSVM
-import ipdb
-
 
 
 class SalientEvent(object):
@@ -36,8 +33,6 @@ class SalientEvent(object):
         Returns:
             is_satisfied: bool or bool array depending on the shape of states.
         """
-        if isinstance(states, State):
-            return self.is_init_true(states)
         if len(states.shape) == 1:
             return self.is_init_true(states)
         return self.batched_is_init_true(states)
@@ -144,7 +139,8 @@ class SalientEvent(object):
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
+        assert isinstance(state, np.ndarray)
+        position = state[:2]
         assert isinstance(position, np.ndarray), type(position)
         return position
 

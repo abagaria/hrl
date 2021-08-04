@@ -1,9 +1,9 @@
-import ipdb
-import torch
 import random
 import itertools
-import numpy as np
 from copy import deepcopy
+
+import torch
+import numpy as np
 from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
 
@@ -128,12 +128,6 @@ class ModelBasedOption(object):
             return "gestation"
         return "initiation_done"
 
-    def extract_features_for_initiation_classifier(self, state):
-        features = state if isinstance(state, np.ndarray) else state.features()
-        if "push" in self.mdp.env_name:
-            return features[:4]
-        return features[:2]
-
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
@@ -141,7 +135,7 @@ class ModelBasedOption(object):
         if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
-        features = self.extract_features_for_initiation_classifier(state)
+        features = self.mdp.extract_features_for_initiation_classifier(state)
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
@@ -155,14 +149,14 @@ class ModelBasedOption(object):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
 
-        features = self.extract_features_for_initiation_classifier(state)
+        features = self.mdp.extract_features_for_initiation_classifier(state)
         return self.pessimistic_classifier.predict([features])[0] == 1
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
 
-        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, {})[1]
-        reached_term = self.is_term_true(state) or state.is_terminal()
+        reached_goal = self.mdp.sparse_gc_reward_func(state, goal)[1]
+        reached_term = self.is_term_true(state)
         return reached_goal and reached_term
 
     # ------------------------------------------------------------
@@ -180,7 +174,7 @@ class ModelBasedOption(object):
         """ Epsilon-greedy action selection. """
 
         if random.random() < self._get_epsilon():
-            return self.mdp.sample_random_action()
+            return self.mdp.action_space.sample()
 
         if self.use_model:
             assert isinstance(self.solver, MPC), f"{type(self.solver)}"
@@ -191,10 +185,10 @@ class ModelBasedOption(object):
         augmented_state = self.get_augmented_state(state, goal)
         return self.solver.act(augmented_state, evaluation_mode=False)
 
-    def update_model(self, state, action, reward, next_state):
+    def update_model(self, state, action, reward, next_state, next_done):
         """ Learning update for option model/actor/critic. """
 
-        self.solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+        self.solver.step(state, action, reward, next_state, next_done)
 
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
@@ -224,7 +218,7 @@ class ModelBasedOption(object):
         state = deepcopy(self.mdp.cur_state)
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
-        print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
+        print(f"[Step: {step_number}] Rolling out {self.name}, from {state[:2]} targeting {goal}")
 
         self.num_executions += 1
 
@@ -232,22 +226,22 @@ class ModelBasedOption(object):
 
             # Control
             action = self.act(state, goal)
-            reward, next_state = self.mdp.execute_agent_action(action)
+            next_state, reward, next_done, _ = self.mdp.step(action)
 
             if self.use_model:
-                self.update_model(state, action, reward, next_state)
+                self.update_model(state, action, reward, next_state, next_done)
 
             # Logging
             num_steps += 1
             step_number += 1
             total_reward += reward
             visited_states.append(state)
-            option_transitions.append((state, action, reward, next_state))
+            option_transitions.append((state, action, reward, next_state, next_done))
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
         self.success_curve.append(self.is_term_true(state))
-        self.effect_set.append(state.features())
+        self.effect_set.append(state)
 
         if self.is_term_true(state):
             self.num_goal_hits += 1
@@ -282,8 +276,9 @@ class ModelBasedOption(object):
         self.value_learner.target_critic.load_state_dict(self.global_value_learner.target_critic.state_dict())
 
     def extract_goal_dimensions(self, goal):
-        goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
-        if "ant" in self.mdp.env_name:
+        assert isinstance(goal, np.ndarray)
+        goal_features = goal
+        if "ant" in self.mdp.unwrapped.spec.id:
             return goal_features[:2]
         raise NotImplementedError(f"{self.mdp.env_name}")
 
@@ -293,17 +288,17 @@ class ModelBasedOption(object):
         assert goal is not None and isinstance(goal, np.ndarray), f"goal is {goal}"
 
         goal_position = self.extract_goal_dimensions(goal)
-        return np.concatenate((state.features(), goal_position))
+        return np.concatenate((state, goal_position))
 
     def experience_replay(self, trajectory, goal_state):
-        for state, action, reward, next_state in trajectory:
+        for state, action, reward, next_state, next_done in trajectory:
             augmented_state = self.get_augmented_state(state, goal=goal_state)
             augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
             done = self.is_at_local_goal(next_state, goal_state)
 
-            reward_func = self.overall_mdp.dense_gc_reward_function if self.dense_reward \
-                else self.overall_mdp.sparse_gc_reward_function
-            reward, global_done = reward_func(next_state, goal_state, info={})
+            reward_func = self.overall_mdp.dense_gc_reward_func if self.dense_reward \
+                else self.overall_mdp.sparse_gc_reward_func
+            reward, global_done = reward_func(next_state, goal_state)
 
             if not self.use_global_vf or self.global_init:
                 self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
@@ -425,7 +420,7 @@ class ModelBasedOption(object):
 
     def construct_feature_matrix(self, examples):
         states = list(itertools.chain.from_iterable(examples))
-        positions = [self.extract_features_for_initiation_classifier(state) for state in states]
+        positions = [self.mdp.extract_features_for_initiation_classifier(state) for state in states]
         return np.array(positions)
 
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm

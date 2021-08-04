@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class DynamicsModel(nn.Module):
     def __init__(self, state_size, action_size, device, mean_x=None, mean_y=None, mean_z=None, std_x=None, std_y=None, std_z=None):
         super(DynamicsModel, self).__init__()

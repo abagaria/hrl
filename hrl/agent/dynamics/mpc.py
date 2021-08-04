@@ -1,26 +1,24 @@
 import os
 import pickle
+from copy import deepcopy
 
 import torch
 import numpy as np
 import torch.nn as nn
-
-from copy import deepcopy
 from torch.optim import Adam
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from hrl.agent.dynamics.dynamics_model import DynamicsModel
 from hrl.agent.dynamics.dynamics_model import DynamicsModel
 from hrl.agent.dynamics.replay_buffer import ReplayBuffer
-from hrl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
+from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
-from tqdm import tqdm
-import ipdb
 
 class MPC:
     def __init__(self, mdp, state_size, action_size, dense_reward, device, multithread=False):
-        assert isinstance(mdp, GoalDirectedMDP)
+        assert isinstance(mdp, GoalConditionedMDPWrapper)
 
         self.mdp = mdp
         self.device = device
@@ -127,7 +125,7 @@ class MPC:
         values = vf(final_states, goals)
 
         # Enforce V(g, g) = 0 and clamp the value function at 0
-        _, dones = self.mdp.batched_sparse_gc_reward_function(final_states, goals)
+        _, dones = self.mdp.sparse_gc_reward_func(final_states, goals, batched=True)
         values[dones==1] = values.max()
 
         return (self.gamma ** horizon) * values
@@ -141,10 +139,10 @@ class MPC:
 
         assert goals.shape == states.shape, f"{goals.shape, states.shape}"
 
-        reward_function = self.mdp.batched_dense_gc_reward_function if self.dense_reward\
-                            else self.mdp.batched_sparse_gc_reward_function
+        reward_function = self.mdp.dense_gc_reward_func if self.dense_reward\
+                            else self.mdp.sparse_gc_reward_func
 
-        rewards, dones = reward_function(states, goals)
+        rewards, dones = reward_function(states, goals, batched=True)
         costs = -1. * rewards
         return costs
 
@@ -152,7 +150,7 @@ class MPC:
         """ Perform N simulations of length H. """
 
         torch_actions = 2 * torch.rand((num_rollouts, num_steps, self.action_size), device=self.device) - 1
-        torch_states = torch.tensor(s.features(), device=self.device).repeat(num_rollouts, 1)
+        torch_states = torch.tensor(s, device=self.device).repeat(num_rollouts, 1)
         pred = torch.zeros((num_rollouts, self.state_size, num_steps), device=self.device)
         
         goals = np.repeat([goal], num_rollouts, axis=0)
