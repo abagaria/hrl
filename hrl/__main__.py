@@ -2,6 +2,7 @@ import time
 import os
 import random
 import argparse
+import shutil
 
 import gym
 import d4rl
@@ -14,6 +15,7 @@ from hrl.wrappers import D4RLAntMazeWrapper, VectorEnvWrapper
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.envs import MultiprocessVectorEnv
+from hrl.plot import main as plot_learning_curve
 
 
 class Trial:
@@ -120,6 +122,9 @@ class Trial:
         start_time = time.time()
         durations = self.exp.run_loop(self.params['episodes'], self.params['steps'])
         end_time = time.time()
+
+        # plot the learning curve when experiemnt is done
+        plot_learning_curve(self.params['experiment_name'])
 
         print("Time taken: ", end_time - start_time)
 
