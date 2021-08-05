@@ -18,7 +18,7 @@ from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
 class MPC:
     def __init__(self, mdp, state_size, action_size, dense_reward, device, multithread=False):
-        assert isinstance(mdp, GoalConditionedMDPWrapper)
+        # assert isinstance(mdp, GoalConditionedMDPWrapper)
 
         self.mdp = mdp
         self.device = device

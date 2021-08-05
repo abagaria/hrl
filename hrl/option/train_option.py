@@ -4,14 +4,13 @@ import os
 import random
 import argparse
 
-import gym
 import pfrl
 import torch
 import seeding
 import numpy as np
 
 from hrl import utils
-from hrl.option import ModelBasedOption
+from hrl.option.option import Option
 
 
 class TrainOptionTrial:
@@ -92,64 +91,8 @@ class TrainOptionTrial:
         # set up env
         self.env = make_env(self.params['environment'], self.params['seed'])
 
-        # setup target salient event
-        self.target_salient_event = None
-
         # setup global option and the only option that needs to be learned
-        self.global_option = self.create_global_model_based_option()
-        self.option = self.create_model_based_option(name='skill', parent=None)
-
-    def create_model_based_option(self, name, parent=None):
-        """
-        create a model based option
-        """
-        option_idx = len(self.chain) + 1 if parent is not None else 1
-        option = ModelBasedOption(parent=parent, 
-                                mdp=self.env,
-                                buffer_length=self.params['buffer_length'],
-                                global_init=False,
-                                gestation_period=self.params['gestation_period'],
-                                timeout=200,
-                                max_steps=self.params['steps'],
-                                device=torch.device(self.params['device']),
-                                target_salient_event=self.target_salient_event,  # TODO: define this
-                                name=name,
-                                path_to_model="",
-                                global_solver=self.global_option.solver,
-                                use_vf=self.params['use_value_function'],
-                                use_global_vf=self.params['use_global_value_function'],
-                                use_model=self.params['use_model'],
-                                dense_reward=self.params['use_dense_rewards'],
-                                global_value_learner=self.global_option.value_learner,
-                                option_idx=option_idx,
-                                lr_c=self.params['lr_c'], 
-                                lr_a=self.params['lr_a'],
-                                multithread_mpc=self.params['multithread_mpc'])
-        return option
-
-    def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
-        option = ModelBasedOption(parent=None,
-                                  mdp=self.env,
-                                  buffer_length=self.params['buffer_length'],
-                                  global_init=True,
-                                  gestation_period=self.params['gestation_period'],
-                                  timeout=200, 
-                                  max_steps=self.params['steps'],
-                                  device=torch.device(self.params['device']),
-                                  target_salient_event=self.target_salient_event,  # TODO: define this
-                                  name="global-option",
-                                  path_to_model="",
-                                  global_solver=None,
-                                  use_vf=self.params['use_value_function'],
-                                  use_global_vf=self.params['use_global_value_function'],
-                                  use_model=self.params['use_model'],
-                                  dense_reward=self.params['use_dense_rewards'],
-                                  global_value_learner=None,
-                                  option_idx=0,
-                                  lr_c=self.params['lr_c'],
-                                  lr_a=self.params['lr_a'],
-                                  multithread_mpc=self.params['multithread_mpc'])
-        return option
+        self.option = Option(name='only-option', env=self.env, params=self.params)
 
     def train_option(self):
         """
@@ -159,7 +102,7 @@ class TrainOptionTrial:
         
         # create the option
         while self.option.get_training_phase() == "gestation":
-            option_transitions, total_reward = self.option.rollout(step_number=self.params['steps'], rollout_goal=self.params['goal_state'], eval_mode=False)
+            option_transitions, total_reward = self.option.rollout(step_number=self.params['max_steps'], eval_mode=False)
 
         end_time = time.time()
 

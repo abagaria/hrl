@@ -12,6 +12,10 @@ from hrl.agent.td3.TD3AgentClass import TD3
 
 
 class ModelBasedOption(object):
+    """
+    an option that is model-based and goal conditioned
+    this class also assumes that the option is always in a chain
+    """
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
                  option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model="", multithread_mpc=False):
@@ -54,8 +58,8 @@ class ModelBasedOption(object):
         use_output_norm = self.use_model
 
         if not self.use_global_vf or global_init:
-            self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                    action_dim=self.mdp.action_space_size(),
+            self.value_learner = TD3(state_dim=self.mdp.unwrapped.observation_space.shape[0]+2,
+                                    action_dim=self.mdp.unwrapped.action_space.n,
                                     max_action=1.,
                                     name=f"{name}-td3-agent",
                                     device=self.device,
@@ -91,8 +95,8 @@ class ModelBasedOption(object):
 
         if self.global_init:
             return MPC(mdp=self.mdp,
-                       state_size=self.mdp.state_space_size(),
-                       action_size=self.mdp.action_space_size(),
+                       state_size=self.mdp.unwrapped.observation_space.shape[0],
+                       action_size=self.mdp.unwrapped.action_space.n,
                        dense_reward=self.dense_reward,
                        device=self.device,
                        multithread=self.multithread_mpc)
@@ -206,7 +210,7 @@ class ModelBasedOption(object):
     def rollout(self, step_number, rollout_goal=None, eval_mode=False):
         """ Main option control loop. """
 
-        start_state = deepcopy(self.mdp.cur_state)
+        start_state = deepcopy(self.mdp.unwrapped._get_obs())
         assert self.is_init_true(start_state)
 
         num_steps = 0
@@ -214,7 +218,7 @@ class ModelBasedOption(object):
         visited_states = []
         option_transitions = []
 
-        state = deepcopy(self.mdp.cur_state)
+        state = deepcopy(self.mdp.unwrapped._get_obs())
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state[:2]} targeting {goal}")
@@ -236,7 +240,7 @@ class ModelBasedOption(object):
             total_reward += reward
             visited_states.append(state)
             option_transitions.append((state, action, reward, next_state, next_done))
-            state = deepcopy(self.mdp.cur_state)
+            state = deepcopy(self.mdp.unwrapped._get_obs())
 
         visited_states.append(state)
         self.success_curve.append(self.is_term_true(state))
