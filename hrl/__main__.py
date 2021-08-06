@@ -7,6 +7,7 @@ import shutil
 import gym
 import d4rl
 import pfrl
+from pfrl.agents import PPO
 import torch
 import seeding
 import numpy as np
@@ -16,6 +17,8 @@ from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.envs import MultiprocessVectorEnv
 from hrl.plot import main as plot_learning_curve
+from hrl.models.sequential import SequentialModel
+from hrl.models.utils import phi
 
 
 class Trial:
@@ -59,9 +62,11 @@ class Trial:
         parser.add_argument("--evaluation_frequency", type=int, default=10,
                             help='evaluation frequency')
         # environments
-        parser.add_argument("--environment", type=str, choices=["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"], 
+        parser.add_argument("--environment", type=str, required=True, 
                             help="name of the gym environment")
-        parser.add_argument("--seed", type=int, default=0,
+        parser.add_argument('--agent', type=str, default='dsc', choices=['dsc', 'ppo'],
+                            help='choose which agent to run')
+        parser.add_argument("--seed", type=int, default=1,
                             help="Random seed")
         parser.add_argument("--goal_state", nargs="+", type=float, default=[],
                             help="specify the goal state of the environment, (0, 8) for example")
@@ -107,20 +112,83 @@ class Trial:
         utils.create_log_dir(saving_dir)
         utils.create_log_dir(os.path.join(saving_dir, "initiation_set_plots/"))
         utils.create_log_dir(os.path.join(saving_dir, "value_function_plots/"))
+        self.saving_dir = saving_dir
 
         # save the hyperparams
         utils.save_hyperparams(os.path.join(saving_dir, "hyperparams.csv"), self.params)
 
         # set up env and experiment
         self.env = make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'], self.params['goal_state'], self.params['use_dense_rewards'])
-        self.exp = RobustDSC(mdp=self.env, params=self.params)
+        if self.params['agent'] == 'dsc':
+            self.exp = RobustDSC(mdp=self.env, params=self.params)
+        elif self.params['agent'] == 'ppo':
+            self.agent = self.make_agent()
+    
+    def make_agent(self):
+        """
+        create the agent
+        """
+        model = SequentialModel(obs_n_channels=self.env.observation_space.low.shape[0], n_actions=self.env.action_space.n).model
+        opt = torch.optim.Adam(model.parameters(), lr=self.params['lr'], eps=1e-5)
+        gpu = 0 if 'cuda' in self.params['device'] else -1
+        agent = PPO(
+            model,
+            opt,
+            gpu=gpu,
+            phi=phi,
+            update_interval=self.params['update_interval'],
+            minibatch_size=self.params['batch_size'],
+            epochs=self.params['epochs'],
+            clip_eps=0.1,
+            clip_eps_vf=None,
+            standardize_advantages=True,
+            entropy_coef=1e-2,
+            recurrent=False,
+            max_grad_norm=0.5,
+        )
+        return agent
+    
+    def train(self):
+        """
+        train an agent
+        """
+        step_hooks = []
+
+        # Linearly decay the learning rate to zero
+        def lr_setter(env, agent, value):
+            for param_group in agent.optimizer.param_groups:
+                param_group["lr"] = value
+
+        step_hooks.append(
+            pfrl.experiments.LinearInterpolationHook(self.params['steps'], self.params['lr'], 0, lr_setter)
+        )
+
+        pfrl.experiments.train_agent_batch_with_evaluation(
+            agent=self.agent,
+            env=self.env,
+            eval_env=make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'] + 1000, self.params['goal_state'], self.params['use_dense_rewards']),
+            outdir=self.saving_dir,
+            steps=self.params['steps'],
+            eval_n_steps=None,
+            eval_n_episodes=10,
+            checkpoint_freq=None,
+            eval_interval=self.params['evaluation_frequency'],
+            log_interval=self.params['logging_frequency'],
+            save_best_so_far_agent=False,
+            step_hooks=step_hooks,
+        )
 
     def run(self):
         """
         run the actual experiment
         """
         start_time = time.time()
-        durations = self.exp.run_loop(self.params['episodes'], self.params['steps'])
+        if self.params['agent'] == 'dsc':
+            durations = self.exp.run_loop(self.params['episodes'], self.params['steps'])
+        elif self.params['agent'] == 'ppo':
+            self.train()
+        else:
+            raise NotImplementedError('specified agent not implemented')
         end_time = time.time()
 
         # plot the learning curve when experiemnt is done
@@ -140,10 +208,17 @@ def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True):
             goal_state = np.array(env.target_goal)
         print(f'using goal state {goal_state} in env {env_name}')
         env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=use_dense_rewards)
-        # seed the environment
-        env.seed(env_seed)
     else:
-        raise NotImplementedError("Environment not supported!")
+        # can also make atari/gym environments
+        env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
+            pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60),  # 30 min with 60 fps
+            episode_life=True,
+            clip_rewards=True,
+            flicker=False,
+            frame_stack=True,
+        )
+     # seed the environment
+    env.seed(env_seed)
     return env
 
 
@@ -154,13 +229,13 @@ def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rew
     # make vector env
     vec_env = MultiprocessVectorEnv(
         [
-            (lambda: make_env(env_name, process_seeds[idx], goal_state, use_dense_rewards))
+            (lambda: make_env(env_name, int(process_seeds[idx]), goal_state, use_dense_rewards))
             for idx, env in enumerate(range(num_envs))
         ]
     )
     # default to Frame Stacking
-    vec_env = VectorEnvWrapper(vec_env)
-    # vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
+    # vec_env = VectorEnvWrapper(vec_env)
+    vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
     return vec_env
 
 
