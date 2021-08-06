@@ -129,15 +129,15 @@ class Option:
 		self.success_curve.append(self.is_term_true(state))
 		if self.is_term_true(state):
 			self.num_goal_hits += 1
-
+		
 		# training
 		if not eval_mode:
+			self.derive_positive_and_negative_examples(visited_states)
 			# this is updating the value function
 			self.experience_replay(option_transitions)
 			# refining your initiation/termination classifier
 			self.fit_classifier(self.initiation_classifier, self.initiation_positive_examples, self.initiation_negative_examples)
 			self.fit_classifier(self.termination_classifier, self.termination_positive_examples, self.termination_negative_examples)
-		self.derive_positive_and_negative_examples(visited_states)
 		
 		return option_transitions, total_reward
 
@@ -157,6 +157,7 @@ class Option:
 		final_state = visited_states[-1]
 
 		if self.is_term_true(final_state):
+			# positive
 			positive_states = [start_state] + visited_states[-self.params['buffer_length']:]
 			self.initiation_positive_examples.append(positive_states)
 			self.termination_positive_examples.append(final_state)
