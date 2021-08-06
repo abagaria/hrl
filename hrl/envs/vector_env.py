@@ -75,7 +75,7 @@ class MultiprocessVectorEnv(VectorEnv):
 		env_fns (list of callable): List of callables, each of which
 			returns gym.Env that is run in its own subprocess.
 	"""
-	def __init__(self, env_fns, base_env):
+	def __init__(self, env_fns):
 		if np.__version__ == "1.16.0":
 			warnings.warn("""
 NumPy 1.16.0 can cause severe memory leak in pfrl.envs.MultiprocessVectorEnv.
@@ -83,7 +83,7 @@ We recommend using other versions of NumPy.
 See https://github.com/numpy/numpy/issues/12793 for details.
 """)  # NOQA
 
-		self.base_env = base_env	
+		self.env = env_fns[0]()
 		nenvs = len(env_fns)
 		self.remotes, self.work_remotes = zip(*[Pipe() for _ in range(nenvs)])
 		self.ps = [

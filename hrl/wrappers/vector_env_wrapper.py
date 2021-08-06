@@ -3,7 +3,7 @@ class VectorEnvWrapper:
 	this wrapper is designed to expose the API of the base_env of the MultiprocessVectorEnv
 	"""
 	def __init__(self, env):
-		self.env = env.base_env
+		self.env = env.env
 
 	# implicitly forward all other methods and attributes to self.env
 	def __getattr__(self, name):

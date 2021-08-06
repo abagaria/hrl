@@ -156,8 +156,7 @@ def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rew
         [
             (lambda: make_env(env_name, process_seeds[idx], goal_state, use_dense_rewards))
             for idx, env in enumerate(range(num_envs))
-        ],
-        make_env(env_name, 0, goal_state, use_dense_rewards)
+        ]
     )
     # default to Frame Stacking
     vec_env = VectorEnvWrapper(vec_env)
