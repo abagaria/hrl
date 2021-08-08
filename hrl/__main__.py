@@ -3,6 +3,7 @@ import os
 import random
 import argparse
 import shutil
+import logging
 
 import gym
 import d4rl
@@ -19,6 +20,8 @@ from hrl.envs import MultiprocessVectorEnv
 from hrl.plot import main as plot_learning_curve
 from hrl.models.sequential import SequentialModel
 from hrl.models.utils import phi
+
+logging.basicConfig(level=20)
 
 
 class Trial:
@@ -55,11 +58,11 @@ class Trial:
                             help='the name of the directory used to store results')
         parser.add_argument("--device", type=str, default='cuda:1',
                             help="cpu/cuda:0/cuda:1")
-        parser.add_argument("--logging_frequency", type=int, default=50, 
+        parser.add_argument("--logging_frequency", type=int, default=10000, 
                             help="Draw init sets, etc after every _ episodes")
         parser.add_argument("--generate_init_gif", action="store_true", default=False,
                             help='whether to generate initiation area gifs')
-        parser.add_argument("--evaluation_frequency", type=int, default=10,
+        parser.add_argument("--evaluation_frequency", type=int, default=100000,
                             help='evaluation frequency')
         # environments
         parser.add_argument("--environment", type=str, required=True, 
@@ -70,7 +73,7 @@ class Trial:
                             help="Random seed")
         parser.add_argument("--goal_state", nargs="+", type=float, default=[],
                             help="specify the goal state of the environment, (0, 8) for example")
-        parser.add_argument('--num_envs', type=int, default=1,
+        parser.add_argument('--num_envs', type=int, default=8,
                             help='Number of env instances to run in parallel')
         # hyperparams
         parser.add_argument('--hyperparams', type=str, default='hyperparams/default.csv',
@@ -166,7 +169,7 @@ class Trial:
         pfrl.experiments.train_agent_batch_with_evaluation(
             agent=self.agent,
             env=self.env,
-            eval_env=make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'] + 1000, self.params['goal_state'], self.params['use_dense_rewards']),
+            eval_env=make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'], self.params['goal_state'], self.params['use_dense_rewards'], test=True),
             outdir=self.saving_dir,
             steps=self.params['steps'],
             eval_n_steps=None,
@@ -176,6 +179,7 @@ class Trial:
             log_interval=self.params['logging_frequency'],
             save_best_so_far_agent=False,
             step_hooks=step_hooks,
+            logger=logging.getLogger().setLevel(logging.INFO),
         )
 
     def run(self):
@@ -197,7 +201,7 @@ class Trial:
         print("Time taken: ", end_time - start_time)
 
 
-def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True):
+def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True, test=False):
     if env_name in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
         env = gym.make(env_name)
         # pick a goal state for the env
@@ -212,24 +216,25 @@ def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True):
         # can also make atari/gym environments
         env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
             pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60),  # 30 min with 60 fps
-            episode_life=True,
-            clip_rewards=True,
+            episode_life=not test,
+            clip_rewards=not test,
             flicker=False,
-            frame_stack=True,
+            frame_stack=False,
         )
      # seed the environment
+    env_seed = 2 ** 32 - 1 - env_seed if test else env_seed
     env.seed(env_seed)
     return env
 
 
-def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rewards=True):
+def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rewards=True, test=False):
     # get a batch of seeds
     process_seeds = np.arange(num_envs) + base_seed * num_envs
     assert process_seeds.max() < 2 ** 32
     # make vector env
     vec_env = MultiprocessVectorEnv(
         [
-            (lambda: make_env(env_name, int(process_seeds[idx]), goal_state, use_dense_rewards))
+            (lambda: make_env(env_name, int(process_seeds[idx]), goal_state, use_dense_rewards, test))
             for idx, env in enumerate(range(num_envs))
         ]
     )
