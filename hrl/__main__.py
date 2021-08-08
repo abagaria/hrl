@@ -105,7 +105,7 @@ class Trial:
         self.check_params_validity()
 
         # setting random seeds
-        seeding.seed(0, random, torch, np)
+        seeding.seed(0, random, np)
         pfrl.utils.set_random_seed(self.params['seed'])
 
         # create the saving directories
