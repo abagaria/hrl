@@ -59,3 +59,7 @@ def update_param(params, name, value):
         params[name] = bool(strtobool(value))
     else:
         params[name] = type(params[name])(value)
+
+
+def check_is_antmaze(env_name):
+    return env_name in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]

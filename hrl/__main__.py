@@ -19,6 +19,7 @@ from hrl.agent.dsc.dsc import RobustDSC
 from hrl.envs import MultiprocessVectorEnv
 from hrl.plot import main as plot_learning_curve
 from hrl.models.sequential import SequentialModel
+from hrl.models.actor_critic import ActorCritic
 from hrl.models.utils import phi
 
 logging.basicConfig(level=20)
@@ -127,24 +128,48 @@ class Trial:
         """
         create the agent
         """
-        model = SequentialModel(obs_n_channels=self.env.observation_space.low.shape[0], n_actions=self.env.action_space.n).model
-        opt = torch.optim.Adam(model.parameters(), lr=self.params['lr'], eps=1e-5)
         gpu = 0 if 'cuda' in self.params['device'] else -1
-        agent = PPO(
-            model,
-            opt,
-            gpu=gpu,
-            phi=phi,
-            update_interval=self.params['update_interval'],
-            minibatch_size=self.params['batch_size'],
-            epochs=self.params['epochs'],
-            clip_eps=0.1,
-            clip_eps_vf=None,
-            standardize_advantages=True,
-            entropy_coef=1e-2,
-            recurrent=False,
-            max_grad_norm=0.5,
-        )
+        # make different agents for different envs
+        if utils.check_is_antmaze(self.params['environment']):
+            model = ActorCritic(obs_size=self.env.observation_space.low.size, 
+                                action_size=self.env.action_space.low.size).model
+            opt = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)
+            obs_normalizer = pfrl.nn.EmpiricalNormalization(
+                self.env.observation_space.low.size, clip_threshold=5
+            )
+            agent = PPO(
+                model,
+                opt,
+                obs_normalizer=obs_normalizer,
+                gpu=gpu,
+                update_interval=self.params['update_interval'],
+                minibatch_size=self.params['batch_size'],
+                epochs=self.params['epochs'],
+                clip_eps_vf=None,
+                entropy_coef=0,
+                standardize_advantages=True,
+                gamma=0.995,
+                lambd=0.97,
+            )
+        else:
+            # for atari envs
+            model = SequentialModel(obs_n_channels=self.env.observation_space.low.shape[0], n_actions=self.env.action_space.n).model
+            opt = torch.optim.Adam(model.parameters(), lr=self.params['lr'], eps=1e-5)
+            agent = PPO(
+                model,
+                opt,
+                gpu=gpu,
+                phi=phi,
+                update_interval=self.params['update_interval'],
+                minibatch_size=self.params['batch_size'],
+                epochs=self.params['epochs'],
+                clip_eps=0.1,
+                clip_eps_vf=None,
+                standardize_advantages=True,
+                entropy_coef=1e-2,
+                recurrent=False,
+                max_grad_norm=0.5,
+            )
         return agent
     
     def train(self):
@@ -169,12 +194,13 @@ class Trial:
             outdir=self.saving_dir,
             steps=self.params['steps'],
             eval_n_steps=None,
-            eval_n_episodes=10,
+            eval_n_episodes=self.params['eval_n_runs'],
             checkpoint_freq=None,
             eval_interval=self.params['evaluation_frequency'],
             log_interval=self.params['logging_frequency'],
             save_best_so_far_agent=False,
-            step_hooks=step_hooks,
+            step_hooks=() if utils.check_is_antmaze(self.params['environment']) else step_hooks,
+            max_episode_len=self.env.spec.max_episode_steps if utils.check_is_antmaze(self.params['environment']) else None,
             logger=logging.getLogger().setLevel(logging.INFO),
         )
 
@@ -198,7 +224,7 @@ class Trial:
 
 
 def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True, test=False):
-    if env_name in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
+    if utils.check_is_antmaze(env_name):
         env = gym.make(env_name)
         # pick a goal state for the env
         if goal_state:
@@ -207,6 +233,7 @@ def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True, test=F
             # default to D4RL goal state
             goal_state = np.array(env.target_goal)
         print(f'using goal state {goal_state} in env {env_name}')
+        env = pfrl.wrappers.CastObservationToFloat32(env)
         env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=use_dense_rewards)
     else:
         # can also make atari/gym environments
@@ -236,7 +263,7 @@ def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rew
     )
     # default to Frame Stacking
     # vec_env = VectorEnvWrapper(vec_env)
-    vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
+    # vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
     return vec_env
 
 
