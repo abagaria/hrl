@@ -36,13 +36,20 @@ def plot_learning_curve(file_path):
 	plt.show()
 
 
-def main():
+def main(experiment_name=None, log_file_name='log_file_0.pkl'):
+	"""
+	the single argument is designed solely for the purpose of calling this function
+	is __main__.py
+	"""
 	args = parse_args()
 
-	experiment_dir = os.path.join(args.results_dir, args.experiment_name, "log_file_0.pkl")
+	if experiment_name is None:
+		experiment_name = args.experiment_name
+
+	experiment_dir = os.path.join(args.results_dir, experiment_name, log_file_name)
 	plot_learning_curve(experiment_dir)
 
-	img_save_path = os.path.join(args.results_dir, args.experiment_name, "learning_curve.png")
+	img_save_path = os.path.join(args.results_dir, experiment_name, "learning_curve.png")
 	plt.savefig(img_save_path)
 
 

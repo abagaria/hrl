@@ -26,6 +26,7 @@ class Option:
 		self.termination_negative_examples = []
 
 		self.success_curve = []
+		self.success_rates = {}
 
 		self.gestation_period = params['gestation_period']
 		self.num_goal_hits = 0
@@ -132,6 +133,7 @@ class Option:
 
 		# more logging
 		self.success_curve.append(self.is_term_true(state))
+		self.success_rates[step_number] = {'success': self.get_success_rate()}
 		if self.is_term_true(state):
 			self.num_goal_hits += 1
 		
@@ -206,3 +208,12 @@ class Option:
 
 		classifier = SVC(**kwargs)
 		classifier.fit(X, Y)
+	
+	# ------------------------------------------------------------
+	# testing
+	# ------------------------------------------------------------
+
+	def get_success_rate(self):
+		if len(self.success_curve) == 0:
+			return 0.
+		return np.mean(self.success_curve)

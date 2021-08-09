@@ -1,5 +1,6 @@
 import logging
 import time
+import pickle
 import os
 import random
 import argparse
@@ -11,6 +12,8 @@ import numpy as np
 
 from hrl import utils
 from hrl.option.option import Option
+from hrl.agent.dsc.utils import plot_two_class_classifier
+from hrl.plot import main as plot_learning_curve
 
 
 class TrainOptionTrial:
@@ -82,11 +85,11 @@ class TrainOptionTrial:
         pfrl.utils.set_random_seed(self.params['seed'])
 
         # create the saving directories
-        saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
-        utils.create_log_dir(saving_dir)
+        self.saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
+        utils.create_log_dir(self.saving_dir)
 
         # save the hyperparams
-        utils.save_hyperparams(os.path.join(saving_dir, "hyperparams.csv"), self.params)
+        utils.save_hyperparams(os.path.join(self.saving_dir, "hyperparams.csv"), self.params)
 
         # set up env
         self.env = make_env(self.params['environment'], self.params['seed'])
@@ -104,10 +107,24 @@ class TrainOptionTrial:
         # create the option
         while self.option.get_training_phase() == "gestation":
             option_transitions, total_reward = self.option.rollout(step_number=self.params['max_steps'], eval_mode=False)
+            # plot_two_class_classifier(self.option, self.option.num_executions, self.params['experiment_name'], plot_examples=True)
 
         end_time = time.time()
 
+        # save the results
+        success_curves_file_name = 'success_curves.pkl'
+        self.save_results(file_name=success_curves_file_name)
+        plot_learning_curve(self.params['experiment_name'], log_file_name=success_curves_file_name)
+
         print("Time taken: ", end_time - start_time)
+    
+    def save_results(self, file_name):
+        """
+        save the results into csv files
+        """
+        save_path = os.path.join(self.saving_dir, file_name)
+        with open(save_path, 'wb+') as f:
+            pickle.dump(self.option.success_rates, f)
 
 
 def make_env(env_name, env_seed):
