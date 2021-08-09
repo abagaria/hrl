@@ -39,13 +39,15 @@ class PlayGame:
 		# system 
 		parser.add_argument("--experiment_name", type=str, default='monte_info',
 							help="Experiment Name, also used as the directory name to save results")
-		parser.add_argument("--results_dir", type=str, default='results',
+		parser.add_argument("--results_dir", type=str, default='resources',
 							help='the name of the directory used to store results')
 		# environments
 		parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
 							help="name of the gym environment")
 		parser.add_argument("--seed", type=int, default=0,
 							help="Random seed")
+		parser.add_argument("--render", action='store_true', default=False,
+							help='render the environment as the game is played')
 		# hyperparams
 		parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
 							help='path to the hyperparams file to use')
@@ -62,14 +64,11 @@ class PlayGame:
 		pfrl.utils.set_random_seed(self.params['seed'])
 
 		# saving
-		saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
-		if os.path.exists(saving_dir):  # remove all existing contents
-			shutil.rmtree(saving_dir)
-		utils.create_log_dir(saving_dir)
-		self.saving_dir = saving_dir
+		self.saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
+		utils.create_log_dir(self.saving_dir)
 
 		# make env
-		self.env = make_env(self.params['environment'], self.params['seed'], render=True)
+		self.env = make_env(self.params['environment'], self.params['seed'], render=self.params['render'])
 
 	def play(self):
 		"""
@@ -84,11 +83,14 @@ class PlayGame:
 				action = 0  # NOOP
 				save_path = os.path.join(self.saving_dir, 'goal_state.npy')
 				np.save(file=save_path, arr=state)
+				print(f'saved numpy array {state} of shape {state.shape} to {save_path}')
+				break
 			else:
 				action = int(action_input)
 
 			# take the action
 			next_state, r, done, info = self.env.step(action)
+			print(f'taking action {action}')
 			state = next_state
 			if done:
 				break
