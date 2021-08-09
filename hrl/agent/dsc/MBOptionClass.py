@@ -9,13 +9,13 @@ from thundersvm import OneClassSVM, SVC
 
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
-from hrl.mdp.d4rl_ant_maze.D4RLAntMazeStateClass import D4RLAntMazeState
 
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
-                 option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model="", multithread_mpc=False):
+                 option_idx, lr_c, lr_a, max_num_children=1, init_salient_event=None, target_salient_event=None,
+                 path_to_model="", multithread_mpc=False):
         self.mdp = mdp
         self.name = name
         self.lr_c = lr_c
@@ -32,6 +32,7 @@ class ModelBasedOption(object):
         self.dense_reward = dense_reward
         self.buffer_length = buffer_length
         self.max_num_children = max_num_children
+        self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.multithread_mpc = multithread_mpc
 
@@ -240,18 +241,23 @@ class ModelBasedOption(object):
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
-        self.success_curve.append(self.is_term_true(state))
-        self.effect_set.append(state)
+        reached_term = self.is_term_true(state)
+        self.success_curve.append(reached_term)
 
-        if self.is_term_true(state):
+        if reached_term:
             self.num_goal_hits += 1
+            self.effect_set.append(state)
 
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
                                     pursued_goal=goal,
                                     reached_goal=self.extract_goal_dimensions(state))
 
-        self.derive_positive_and_negative_examples(visited_states)
+        is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(state_buffer=visited_states)
+        init_update_condition = (self.is_term_true(state) and is_valid_data) or not self.is_term_true(state)
+
+        if not self.global_init and init_update_condition:
+            self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
         if not self.global_init and not eval_mode:
@@ -283,8 +289,6 @@ class ModelBasedOption(object):
         raise NotImplementedError(f"{self.mdp.env_name}")
 
     def get_augmented_state(self, state, goal):
-        if isinstance(goal, D4RLAntMazeState):
-            goal = goal.features()
         assert goal is not None and isinstance(goal, np.ndarray), f"goal is {goal}"
 
         goal_position = self.extract_goal_dimensions(goal)
@@ -341,6 +345,14 @@ class ModelBasedOption(object):
             if classifier(state):
                 return state
         return None
+
+    def sample_from_termination_region(self):
+        pessimistic_samples = self.get_states_inside_pessimistic_classifier_region()
+
+        if len(pessimistic_samples) > 0:
+            return random.choice(pessimistic_samples)
+
+        return random.choice(self.effect_set)
 
     def sample_from_initiation_region_fast(self):
         """ Sample from the pessimistic initiation classifier. """
@@ -455,15 +467,46 @@ class ModelBasedOption(object):
             self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
             self.pessimistic_classifier.fit(positive_training_examples)
 
+    def is_valid_init_data(self, state_buffer):
+
+        # Use the data if it could complete the chain
+        if self.init_salient_event is not None:
+            if any([self.init_salient_event(s) for s in state_buffer]):
+                return True
+
+        length_condition = len(state_buffer) >= (self.buffer_length // 5)
+
+        if not length_condition:
+            return False
+
+        sibling_cond = lambda o: o.get_training_phase() != "gestation" and o.pessimistic_classifier is not None
+        siblings = [option for option in self.get_sibling_options() if sibling_cond(option)]
+
+        if len(siblings) > 0:
+            assert self.parent is not None, "Root option has no siblings"
+
+            sibling_count = 0.
+            for state in state_buffer:
+                for sibling in siblings:
+                    penalize = sibling.pessimistic_is_init_true(state) and not self.parent.pessimistic_is_init_true(
+                        state)
+                    sibling_count += penalize
+
+            return 0 < (sibling_count / len(state_buffer)) <= 0.35
+
+        return True
+
     # ------------------------------------------------------------
     # Distance functions
     # ------------------------------------------------------------
 
     def get_states_inside_pessimistic_classifier_region(self):
-        point_array = self.construct_feature_matrix(self.positive_examples)
-        point_array_predictions = self.pessimistic_classifier.predict(point_array)
-        positive_point_array = point_array[point_array_predictions == 1]
-        return positive_point_array
+        if self.pessimistic_classifier is not None:
+            point_array = self.construct_feature_matrix(self.positive_examples)
+            point_array_predictions = self.pessimistic_classifier.predict(point_array)
+            positive_point_array = point_array[point_array_predictions == 1]
+            return positive_point_array
+        return []
 
     def distance_to_state(self, state, metric="euclidean"):
         """ Compute the distance between the current option and the input `state`. """
@@ -495,6 +538,11 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
     # Convenience functions
     # ------------------------------------------------------------
+
+    def get_sibling_options(self):
+        if self.parent is not None:
+            return [option for option in self.parent.children if option != self]
+        return []
 
     def get_option_success_rate(self):
         if self.num_executions > 0:

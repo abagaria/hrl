@@ -12,6 +12,7 @@ import numpy as np
 from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
+from hrl.agent.dsc.dst import RobustDST
 
 
 if __name__ == "__main__":
@@ -39,14 +40,13 @@ if __name__ == "__main__":
     parser.add_argument("--generate_init_gif", action="store_true", default=False)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
 
-    parser.add_argument("--maze_type", type=str)
     parser.add_argument("--goal_state", nargs="+", type=float, default=[],
                         help="specify the goal state of the environment, (0, 8) for example")
     parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
-
-    parser.add_argument("--clear_option_buffers", action="store_true", default=False)
     parser.add_argument("--lr_c", type=float, help="critic learning rate")
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
+    parser.add_argument("--use_skill_trees", action="store_true", default=False)
+    parser.add_argument("--max_num_children", type=int, default=1, help="Max number of children per option in the tree")
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
@@ -54,8 +54,8 @@ if __name__ == "__main__":
     if not args.use_value_function:
         assert not args.use_global_value_function
 
-    if args.clear_option_buffers:
-        assert not args.use_global_value_function
+    if args.use_skill_trees:
+        assert args.max_num_children > 1, f"{args.use_skill_trees, args.max_num_children}"
 
     if args.environment in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
         env = gym.make(args.environment)
@@ -66,34 +66,39 @@ if __name__ == "__main__":
             # default to D4RL goal state
             goal_state = np.array(env.target_goal)
         print(f'using goal state {goal_state} in env {args.environment}')
-        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=args.use_dense_rewards)
-        seeding.seed(0, random, torch, np)
+        env = D4RLAntMazeWrapper(env, start_state=np.array((0, 0)), goal_state=goal_state, use_dense_reward=args.use_dense_rewards)
+
+        torch.manual_seed(0)
+        seeding.seed(0, random, np)
         seeding.seed(args.seed, gym, env)
+
     else:
         raise NotImplementedError("Environment not supported!")
 
-    exp = RobustDSC(mdp=env,
-                    gestation_period=args.gestation_period,
-                    experiment_name=args.experiment_name,
-                    device=torch.device(args.device),
-                    warmup_episodes=args.warmup_episodes,
-                    max_steps=args.steps,
-                    use_model=args.use_model,
-                    use_vf=args.use_value_function,
-                    use_global_vf=args.use_global_value_function,
-                    use_diverse_starts=args.use_diverse_starts,
-                    use_dense_rewards=args.use_dense_rewards,
-                    multithread_mpc=args.multithread_mpc,
-                    logging_freq=args.logging_frequency,
-                    evaluation_freq=args.evaluation_frequency,
-                    buffer_length=args.buffer_length,
-                    generate_init_gif=args.generate_init_gif,
-                    seed=args.seed,
-                    lr_c=args.lr_c,
-                    lr_a=args.lr_a,
-                    clear_option_buffers=args.clear_option_buffers,
-                    maze_type=args.maze_type,
-                    use_global_option_subgoals=args.use_global_option_subgoals)
+    kwargs = {
+            "mdp":env,
+            "gestation_period": args.gestation_period,
+            "experiment_name": args.experiment_name,
+            "device": torch.device(args.device),
+            "warmup_episodes": args.warmup_episodes,
+            "max_steps": args.steps,
+            "use_model": args.use_model,
+            "use_vf": args.use_value_function,
+            "use_global_vf": args.use_global_value_function,
+            "use_diverse_starts": args.use_diverse_starts,
+            "use_dense_rewards": args.use_dense_rewards,
+            "multithread_mpc": args.multithread_mpc,
+            "logging_freq": args.logging_frequency,
+            "evaluation_freq": args.evaluation_frequency,
+            "buffer_length": args.buffer_length,
+            "generate_init_gif": args.generate_init_gif,
+            "seed": args.seed,
+            "lr_c": args.lr_c,
+            "lr_a": args.lr_a,
+            "max_num_children": args.max_num_children
+    }
+
+    exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)
 
     # create the saving directories
     saving_dir = os.path.join(args.results_dir, args.experiment_name)

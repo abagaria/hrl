@@ -149,6 +149,8 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
 def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None, option_idx=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
 
+    goal = goal[:2]  # Extracting the position from the goal vector
+
     # Take out the original goal and append the new goal
     states = [exp[0] for exp in replay_buffer]
     states = [state[:-2] for state in states]
