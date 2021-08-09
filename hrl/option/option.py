@@ -6,6 +6,7 @@ import numpy as np
 from thundersvm import SVC, OneClassSVM
 
 from hrl.agent.td3.TD3AgentClass import TD3
+from hrl.option.utils import warp_frames
 
 
 class Option:
@@ -99,6 +100,7 @@ class Option:
 		main control loop for option execution
 		"""
 		state = deepcopy(self.env.unwrapped._get_obs())
+		state = warp_frames(state)
 		assert self.is_init_true(state)
 
 		num_steps = 0
