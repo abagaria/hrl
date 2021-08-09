@@ -74,7 +74,7 @@ class Option:
 		whether the termination condition is true
 		"""
 		# termination is always true if the state has reached the goal
-		if state == self.params['goal_state']:
+		if np.array_equal(state, self.params['goal_state']):
 			return True
 		# if termination classifier isn't initialized, and state is not goal state
 		if self.termination_classifier is None:
@@ -109,6 +109,8 @@ class Option:
 		option_transitions = []
 		goal = self.params['goal_state']
 
+		assert goal.shape == state.shape
+
 		print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
 
 		self.num_executions += 1
@@ -118,6 +120,7 @@ class Option:
 			# control
 			action = self.act(state)
 			next_state, reward, done, _ = self.env.step(action)
+			next_state = warp_frames(next_state)
 			# logging
 			num_steps += 1
 			step_number += 1
