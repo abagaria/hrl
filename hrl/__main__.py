@@ -22,7 +22,7 @@ from hrl.models.sequential import SequentialModel
 from hrl.models.actor_critic import ActorCritic
 from hrl.models.utils import phi
 
-logging.basicConfig(level=20)
+logging.basicConfig(level=logging.INFO)
 
 
 class Trial:
@@ -130,7 +130,26 @@ class Trial:
         """
         gpu = 0 if 'cuda' in self.params['device'] else -1
         # make different agents for different envs
-        if utils.check_is_antmaze(self.params['environment']):
+        if utils.check_is_atari(self.params['environment']):
+            # for atari envs
+            model = SequentialModel(obs_n_channels=self.env.observation_space.low.shape[0], n_actions=self.env.action_space.n).model
+            opt = torch.optim.Adam(model.parameters(), lr=self.params['lr'], eps=1e-5)
+            agent = PPO(
+                model,
+                opt,
+                gpu=gpu,
+                phi=phi,
+                update_interval=self.params['update_interval'],
+                minibatch_size=self.params['batch_size'],
+                epochs=self.params['epochs'],
+                clip_eps=0.1,
+                clip_eps_vf=None,
+                standardize_advantages=True,
+                entropy_coef=1e-2,
+                recurrent=False,
+                max_grad_norm=0.5,
+            )
+        else:
             model = ActorCritic(obs_size=self.env.observation_space.low.size, 
                                 action_size=self.env.action_space.low.size).model
             opt = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)
@@ -150,25 +169,6 @@ class Trial:
                 standardize_advantages=True,
                 gamma=0.995,
                 lambd=0.97,
-            )
-        else:
-            # for atari envs
-            model = SequentialModel(obs_n_channels=self.env.observation_space.low.shape[0], n_actions=self.env.action_space.n).model
-            opt = torch.optim.Adam(model.parameters(), lr=self.params['lr'], eps=1e-5)
-            agent = PPO(
-                model,
-                opt,
-                gpu=gpu,
-                phi=phi,
-                update_interval=self.params['update_interval'],
-                minibatch_size=self.params['batch_size'],
-                epochs=self.params['epochs'],
-                clip_eps=0.1,
-                clip_eps_vf=None,
-                standardize_advantages=True,
-                entropy_coef=1e-2,
-                recurrent=False,
-                max_grad_norm=0.5,
             )
         return agent
     
@@ -199,8 +199,8 @@ class Trial:
             eval_interval=self.params['evaluation_frequency'],
             log_interval=self.params['logging_frequency'],
             save_best_so_far_agent=False,
-            step_hooks=() if utils.check_is_antmaze(self.params['environment']) else step_hooks,
-            max_episode_len=self.env.spec.max_episode_steps if utils.check_is_antmaze(self.params['environment']) else None,
+            step_hooks=step_hooks if utils.check_is_atari(self.params['environment']) else (),
+            max_episode_len=None if utils.check_is_atari(self.params['environment']) else self.env.spec.max_episode_steps,
             logger=logging.getLogger().setLevel(logging.INFO),
         )
 
@@ -224,19 +224,9 @@ class Trial:
 
 
 def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True, test=False):
-    if utils.check_is_antmaze(env_name):
-        env = gym.make(env_name)
-        # pick a goal state for the env
-        if goal_state:
-            goal_state = np.array(goal_state)
-        else:
-            # default to D4RL goal state
-            goal_state = np.array(env.target_goal)
-        print(f'using goal state {goal_state} in env {env_name}')
-        env = pfrl.wrappers.CastObservationToFloat32(env)
-        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=use_dense_rewards)
-    else:
-        # can also make atari/gym environments
+    # make the env
+    if utils.check_is_atari(env_name):
+        # atari domains
         env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
             pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60),  # 30 min with 60 fps
             episode_life=not test,
@@ -244,6 +234,19 @@ def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True, test=F
             flicker=False,
             frame_stack=False,
         )
+    else:
+        # mujoco envs
+        env = gym.make(env_name)
+        env = pfrl.wrappers.CastObservationToFloat32(env)
+    # pick a goal state for the antmaze env
+    if utils.check_is_antmaze(env_name):
+        if goal_state:
+            goal_state = np.array(goal_state)
+        else:
+            # default to D4RL goal state
+            goal_state = np.array(env.target_goal)
+        print(f'using goal state {goal_state} in env {env_name}')
+        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=use_dense_rewards)
      # seed the environment
     env_seed = 2 ** 32 - 1 - env_seed if test else env_seed
     env.seed(env_seed)

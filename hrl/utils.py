@@ -63,3 +63,7 @@ def update_param(params, name, value):
 
 def check_is_antmaze(env_name):
     return env_name in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]
+
+
+def check_is_atari(env_name):
+    return 'NoFrameskip' in env_name
