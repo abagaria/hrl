@@ -258,7 +258,7 @@ def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rew
     process_seeds = np.arange(num_envs) + base_seed * num_envs
     assert process_seeds.max() < 2 ** 32
     # make vector env
-    vec_env = MultiprocessVectorEnv(
+    vec_env = pfrl.envs.MultiprocessVectorEnv(
         [
             (lambda: make_env(env_name, int(process_seeds[idx]), goal_state, use_dense_rewards, test))
             for idx, env in enumerate(range(num_envs))
