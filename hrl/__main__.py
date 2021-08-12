@@ -16,11 +16,12 @@ import numpy as np
 from hrl.wrappers import D4RLAntMazeWrapper, VectorEnvWrapper
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
+from hrl.agent.make_agent import make_ppo_agent, make_sac_agent
 from hrl.envs import MultiprocessVectorEnv
 from hrl.plot import main as plot_learning_curve
 from hrl.models.sequential import SequentialModel
 from hrl.models.actor_critic import ActorCritic
-from hrl.models.utils import phi
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -64,7 +65,7 @@ class Trial:
         # environments
         parser.add_argument("--environment", type=str, required=True, 
                             help="name of the gym environment")
-        parser.add_argument('--agent', type=str, default='dsc', choices=['dsc', 'ppo'],
+        parser.add_argument('--agent', type=str, default='dsc', choices=['dsc', 'ppo', 'sac'],
                             help='choose which agent to run')
         parser.add_argument("--seed", type=int, default=1,
                             help="Random seed")
@@ -118,59 +119,22 @@ class Trial:
         utils.save_hyperparams(os.path.join(saving_dir, "hyperparams.csv"), self.params)
 
         # set up env and experiment
-        self.env = make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'], self.params['goal_state'], self.params['use_dense_rewards'])
+        self.env = self.make_batch_env(test=False)
         if self.params['agent'] == 'dsc':
             self.exp = RobustDSC(mdp=self.env, params=self.params)
-        elif self.params['agent'] == 'ppo':
+        else:
             self.agent = self.make_agent()
     
     def make_agent(self):
         """
         create the agent
         """
-        gpu = 0 if 'cuda' in self.params['device'] else -1
-        # make different agents for different envs
-        if utils.check_is_atari(self.params['environment']):
-            # for atari envs
-            model = SequentialModel(obs_n_channels=self.env.observation_space.low.shape[0], n_actions=self.env.action_space.n).model
-            opt = torch.optim.Adam(model.parameters(), lr=self.params['lr'], eps=1e-5)
-            agent = PPO(
-                model,
-                opt,
-                gpu=gpu,
-                phi=phi,
-                update_interval=self.params['update_interval'],
-                minibatch_size=self.params['batch_size'],
-                epochs=self.params['epochs'],
-                clip_eps=0.1,
-                clip_eps_vf=None,
-                standardize_advantages=True,
-                entropy_coef=1e-2,
-                recurrent=False,
-                max_grad_norm=0.5,
-            )
+        if self.params['agent'] == 'ppo':
+            return make_ppo_agent(self.env.observation_space, self.env.action_space, self.params)
+        elif self.params['agent'] == 'sac':
+            return make_sac_agent(self.env.observation_space, self.env.action_space, self.params)
         else:
-            model = ActorCritic(obs_size=self.env.observation_space.low.size, 
-                                action_size=self.env.action_space.low.size).model
-            opt = torch.optim.Adam(model.parameters(), lr=3e-4, eps=1e-5)
-            obs_normalizer = pfrl.nn.EmpiricalNormalization(
-                self.env.observation_space.low.size, clip_threshold=5
-            )
-            agent = PPO(
-                model,
-                opt,
-                obs_normalizer=obs_normalizer,
-                gpu=gpu,
-                update_interval=self.params['update_interval'],
-                minibatch_size=self.params['batch_size'],
-                epochs=self.params['epochs'],
-                clip_eps_vf=None,
-                entropy_coef=0,
-                standardize_advantages=True,
-                gamma=0.995,
-                lambd=0.97,
-            )
-        return agent
+            raise NotImplementedError
     
     def train(self):
         """
@@ -190,7 +154,7 @@ class Trial:
         pfrl.experiments.train_agent_batch_with_evaluation(
             agent=self.agent,
             env=self.env,
-            eval_env=make_batch_env(self.params['environment'], self.params['num_envs'], self.params['seed'], self.params['goal_state'], self.params['use_dense_rewards'], test=True),
+            eval_env=self.make_batch_env(test=True),
             outdir=self.saving_dir,
             steps=self.params['steps'],
             eval_n_steps=None,
@@ -211,10 +175,8 @@ class Trial:
         start_time = time.time()
         if self.params['agent'] == 'dsc':
             durations = self.exp.run_loop(self.params['episodes'], self.params['steps'])
-        elif self.params['agent'] == 'ppo':
-            self.train()
         else:
-            raise NotImplementedError('specified agent not implemented')
+            self.train()
         end_time = time.time()
 
         # plot the learning curve when experiemnt is done
@@ -223,51 +185,53 @@ class Trial:
         print("Time taken: ", end_time - start_time)
 
 
-def make_env(env_name, env_seed, goal_state=None, use_dense_rewards=True, test=False):
-    # make the env
-    if utils.check_is_atari(env_name):
-        # atari domains
-        env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
-            pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60),  # 30 min with 60 fps
-            episode_life=not test,
-            clip_rewards=not test,
-            flicker=False,
-            frame_stack=False,
-        )
-    else:
-        # mujoco envs
-        env = gym.make(env_name)
-        env = pfrl.wrappers.CastObservationToFloat32(env)
-    # pick a goal state for the antmaze env
-    if utils.check_is_antmaze(env_name):
-        if goal_state:
-            goal_state = np.array(goal_state)
+    def make_env(self, env_seed, test=False):
+        # make the env
+        if utils.check_is_atari(self.params['environment']):
+            # atari domains
+            env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
+                pfrl.wrappers.atari_wrappers.make_atari(self.params['environment'], max_frames=30*60*60),  # 30 min with 60 fps
+                episode_life=not test,
+                clip_rewards=not test,
+                flicker=False,
+                frame_stack=False,
+            )
         else:
-            # default to D4RL goal state
-            goal_state = np.array(env.target_goal)
-        print(f'using goal state {goal_state} in env {env_name}')
-        env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=use_dense_rewards)
-     # seed the environment
-    env_seed = 2 ** 32 - 1 - env_seed if test else env_seed
-    env.seed(env_seed)
-    return env
+            # mujoco envs
+            env = gym.make(self.params['environment'])
+            env = pfrl.wrappers.CastObservationToFloat32(env)
+            if self.params['normalize_action_space']:
+                env = pfrl.wrappers.NormalizeActionSpace(env)
+        # pick a goal state for the antmaze env
+        if utils.check_is_antmaze(self.params['environment']):
+            if self.params['goal_state']:
+                goal_state = np.array(self.params['goal_state'])
+            else:
+                # default to D4RL goal state
+                goal_state = np.array(env.target_goal)
+            print(f"using goal state {goal_state} in env {self.params['environment']}")
+            env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=self.params['use_dense_rewards'])
+        # seed the environment
+        env_seed = 2 ** 32 - 1 - env_seed if test else env_seed
+        env.seed(env_seed)
+        return env
 
 
-def make_batch_env(env_name, num_envs, base_seed, goal_state=None, use_dense_rewards=True, test=False):
-    # get a batch of seeds
-    process_seeds = np.arange(num_envs) + base_seed * num_envs
-    assert process_seeds.max() < 2 ** 32
-    # make vector env
-    vec_env = pfrl.envs.MultiprocessVectorEnv(
-        [
-            (lambda: make_env(env_name, int(process_seeds[idx]), goal_state, use_dense_rewards, test))
-            for idx, env in enumerate(range(num_envs))
-        ]
-    )
-    # default to Frame Stacking
-    # vec_env = VectorEnvWrapper(vec_env)
-    # vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
-    return vec_env
+    def make_batch_env(self, test=False):
+        # get a batch of seeds
+        process_seeds = np.arange(self.params['num_envs']) + self.params['seed'] * self.params['num_envs']
+        assert process_seeds.max() < 2 ** 32
+        # make vector env
+        vec_env = pfrl.envs.MultiprocessVectorEnv(
+            [
+                (lambda: self.make_env(env_seed=int(process_seeds[idx]), test=test))
+                for idx, env in enumerate(range(self.params['num_envs']))
+            ]
+        )
+        # default to Frame Stacking
+        # vec_env = VectorEnvWrapper(vec_env)
+        # vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
+        return vec_env
 
 
 def main():
