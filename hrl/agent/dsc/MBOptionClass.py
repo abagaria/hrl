@@ -244,7 +244,7 @@ class ModelBasedOption(object):
         reached_term = self.is_term_true(state)
         self.success_curve.append(reached_term)
 
-        if reached_term:
+        if reached_term and not eval_mode:
             self.num_goal_hits += 1
             self.effect_set.append(state)
 
