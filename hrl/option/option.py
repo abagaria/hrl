@@ -70,12 +70,34 @@ class Option:
 
 		return self.initiation_classifier.predict([state])[0] == 1
 	
+	def get_player_position(self):
+		"""
+		method to get the position of the player
+		"""
+		def _getIndex(address):
+			assert type(address) == str and len(address) == 2
+			row, col = tuple(address)
+			row = int(row, 16) - 8
+			col = int(col, 16)
+			return row * 16 + col
+		def getByte(ram, address):
+			# Return the byte at the specified emulator RAM location
+			idx = _getIndex(address)
+			return ram[idx]
+		# return the player position at a particular state
+		ram = self.env.unwrapped.ale.getRAM()
+		x = int(getByte(ram, 'aa'))
+		y = int(getByte(ram, 'ab'))
+		return x, y
+
 	def is_term_true(self, state):
 		"""
 		whether the termination condition is true
 		"""
-		# termination is always true if the state has reached the goal
-		if np.array_equal(state, self.params['goal_state']):
+		# termination is always true if the state is near the goal
+		position = self.get_player_position()
+		distance_to_goal = np.linalg.norm(position - self.params['goal_state_position'])
+		if distance_to_goal < self.params['epsilon_within_goal']:
 			return True
 		# if termination classifier isn't initialized, and state is not goal state
 		if self.termination_classifier is None:
@@ -112,7 +134,7 @@ class Option:
 
 		assert goal.shape == state.shape
 
-		print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
+		# print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
 
 		self.num_executions += 1
 

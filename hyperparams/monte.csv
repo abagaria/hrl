@@ -8,3 +8,4 @@ multithread_mpc,False,bool
 use_dense_rewards,True,bool
 lr_a,1e-5,float
 lr_c,1e-5,float
+epsilon_within_goal,2.0,float

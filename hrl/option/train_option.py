@@ -106,6 +106,7 @@ class TrainOptionTrial:
         
         # create the option
         while self.option.get_training_phase() == "gestation":
+            print('one rollout')
             option_transitions, total_reward = self.option.rollout(step_number=self.params['max_steps'], eval_mode=False)
             # plot_two_class_classifier(self.option, self.option.num_executions, self.params['experiment_name'], plot_examples=True)
 
