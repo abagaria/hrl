@@ -14,6 +14,7 @@ import seeding
 import numpy as np
 
 from hrl.wrappers import D4RLAntMazeWrapper, VectorEnvWrapper
+from hrl.train_loop import train_agent_batch
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.make_agent import make_ppo_agent, make_sac_agent
@@ -88,13 +89,14 @@ class Trial:
         """
         check whether the params entered by the user is valid
         """
-        assert self.params['use_model'] or self.params['use_value_function']
+        if self.params['agent'] == 'dsc':
+            assert self.params['use_model'] or self.params['use_value_function']
 
-        if not self.params['use_value_function']:
-            assert not self.params['use_global_value_function']
+            if not self.params['use_value_function']:
+                assert not self.params['use_global_value_function']
 
-        if self.params['clear_option_buffers']:
-            assert not self.params['use_global_value_function']
+            if self.params['clear_option_buffers']:
+                assert not self.params['use_global_value_function']
     
     def setup(self):
         """
@@ -140,32 +142,15 @@ class Trial:
         """
         train an agent
         """
-        step_hooks = []
-
-        # Linearly decay the learning rate to zero
-        def lr_setter(env, agent, value):
-            for param_group in agent.optimizer.param_groups:
-                param_group["lr"] = value
-
-        step_hooks.append(
-            pfrl.experiments.LinearInterpolationHook(self.params['steps'], self.params['lr'], 0, lr_setter)
-        )
-
-        pfrl.experiments.train_agent_batch_with_evaluation(
+        train_agent_batch(
             agent=self.agent,
             env=self.env,
-            eval_env=self.make_batch_env(test=True),
-            outdir=self.saving_dir,
-            steps=self.params['steps'],
-            eval_n_steps=None,
-            eval_n_episodes=self.params['eval_n_runs'],
-            checkpoint_freq=None,
-            eval_interval=self.params['evaluation_frequency'],
-            log_interval=self.params['logging_frequency'],
-            save_best_so_far_agent=False,
-            step_hooks=step_hooks if utils.check_is_atari(self.params['environment']) else (),
-            max_episode_len=None if utils.check_is_atari(self.params['environment']) else self.env.spec.max_episode_steps,
-            logger=logging.getLogger().setLevel(logging.INFO),
+            num_episodes=self.params['episodes'],
+            experience_replay_freq=self.params['experience_replay_freq'],
+            goal_conditioned=False,
+            goal_state=None,
+            max_episode_len=self.params['max_episode_len'],
+            logging_freq=self.params['logging_frequency']
         )
 
     def run(self):
