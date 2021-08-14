@@ -6,7 +6,7 @@ import numpy as np
 from thundersvm import SVC, OneClassSVM
 
 from hrl.agent.td3.TD3AgentClass import TD3
-from hrl.option.utils import warp_frames
+from hrl.option.utils import warp_frames, get_player_position
 
 
 class Option:
@@ -69,33 +69,13 @@ class Option:
 			return True
 
 		return self.initiation_classifier.predict([state])[0] == 1
-	
-	def get_player_position(self):
-		"""
-		method to get the position of the player
-		"""
-		def _getIndex(address):
-			assert type(address) == str and len(address) == 2
-			row, col = tuple(address)
-			row = int(row, 16) - 8
-			col = int(col, 16)
-			return row * 16 + col
-		def getByte(ram, address):
-			# Return the byte at the specified emulator RAM location
-			idx = _getIndex(address)
-			return ram[idx]
-		# return the player position at a particular state
-		ram = self.env.unwrapped.ale.getRAM()
-		x = int(getByte(ram, 'aa'))
-		y = int(getByte(ram, 'ab'))
-		return x, y
 
 	def is_term_true(self, state):
 		"""
 		whether the termination condition is true
 		"""
 		# termination is always true if the state is near the goal
-		position = self.get_player_position()
+		position = get_player_position(self.env.unwrapped.ale.getRAM())
 		distance_to_goal = np.linalg.norm(position - self.params['goal_state_position'])
 		if distance_to_goal < self.params['epsilon_within_goal']:
 			return True

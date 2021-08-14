@@ -17,3 +17,22 @@ def warp_frames(state):
 		low=0, high=255, shape=size, dtype=np.uint8
 	)
 	return warped.reshape(observation_space.low.shape)
+
+def get_player_position(ram):
+	"""
+	given the ram state, get the position of the player
+	"""
+	def _getIndex(address):
+		assert type(address) == str and len(address) == 2
+		row, col = tuple(address)
+		row = int(row, 16) - 8
+		col = int(col, 16)
+		return row * 16 + col
+	def getByte(ram, address):
+		# Return the byte at the specified emulator RAM location
+		idx = _getIndex(address)
+		return ram[idx]
+	# return the player position at a particular state
+	x = int(getByte(ram, 'aa'))
+	y = int(getByte(ram, 'ab'))
+	return x, y

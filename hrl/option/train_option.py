@@ -55,7 +55,7 @@ class TrainOptionTrial:
                             help="name of the gym environment")
         parser.add_argument("--seed", type=int, default=0,
                             help="Random seed")
-        parser.add_argument("--goal_state_path", type=str, default="resources/monte_info/goal_state.npy",
+        parser.add_argument("--goal_state_dir", type=str, default="resources/monte_info",
                             help="specify the goal state of the environment, (0, 8) for example")
         # hyperparams
         parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
@@ -91,9 +91,13 @@ class TrainOptionTrial:
         # save the hyperparams
         utils.save_hyperparams(os.path.join(self.saving_dir, "hyperparams.csv"), self.params)
 
-        # set up env
+        # set up env and its goal
         self.env = make_env(self.params['environment'], self.params['seed'])
-        self.params['goal_state'] = np.load(self.params['goal_state_path'])
+        goal_state_path = os.path.join(self.params['goal_state_dir'], 'goal_state.npy')
+        goal_state_pos_path = os.path.join(self.params['goal_state_dir', 'goal_state_pos.txt'])
+        self.params['goal_state'] = np.load(goal_state_path)
+        self.params['goal_state_position'] = np.loadtxt(goal_state_pos_path)
+        print(f"aiming for goal location {self.params['goal_state_position']}")
 
         # setup global option and the only option that needs to be learned
         self.option = Option(name='only-option', env=self.env, params=self.params)

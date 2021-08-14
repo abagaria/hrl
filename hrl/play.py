@@ -7,6 +7,7 @@ import os
 import numpy as np
 
 from hrl import utils
+from hrl.option.utils import get_player_position
 
 
 class PlayGame:
@@ -48,6 +49,8 @@ class PlayGame:
 							help="Random seed")
 		parser.add_argument("--render", action='store_true', default=False,
 							help='render the environment as the game is played')
+		parser.add_argument("--get_player_position", action='store_true', default=False,
+							help="print out the agent's position at every state")
 		# hyperparams
 		parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
 							help='path to the hyperparams file to use')
@@ -76,14 +79,22 @@ class PlayGame:
 		"""
 		print(self.env.unwrapped.get_action_meanings())
 		state = self.env.reset()
+		if self.params['get_player_position']:  # get position
+			pos = get_player_position(self.env.unwrapped.ale.getRAM())
+			print(f"current position is {pos}")
 		while True:
 			# user input an action to take
 			action_input = input() 
 			if action_input == 'save':
-				action = 0  # NOOP
 				save_path = os.path.join(self.saving_dir, 'goal_state.npy')
 				np.save(file=save_path, arr=state)
 				print(f'saved numpy array {state} of shape {state.shape} to {save_path}')
+				break
+			elif action_input == 'save_position':
+				assert self.params['get_player_position']
+				save_path = os.path.join(self.saving_dir, "goal_state_pos.txt")
+				np.savetxt(fname=save_path, X=pos)
+				print(f"saved numpy array {pos} to {save_path}")
 				break
 			else:
 				action = int(action_input)
@@ -92,6 +103,9 @@ class PlayGame:
 			next_state, r, done, info = self.env.step(action)
 			print(f'taking action {action}')
 			state = next_state
+			if self.params['get_player_position']:  # get position
+				pos = get_player_position(self.env.unwrapped.ale.getRAM())
+				print(f"current position is {pos}")
 			if done:
 				break
 
