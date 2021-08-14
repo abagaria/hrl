@@ -8,7 +8,6 @@ def train_agent_batch(
     agent,
     env,
     num_episodes,
-    experience_replay_freq,
     goal_conditioned=False,
     goal_state = None,
     max_episode_len=None,
@@ -32,77 +31,65 @@ def train_agent_batch(
 
     assert isinstance(env, pfrl.envs.MultiprocessVectorEnv)
     num_envs = env.num_envs
-    episode_r = np.zeros(num_envs, dtype=np.float64)  # reward for the current episode
-    episode_idx = np.zeros(num_envs, dtype="i")  # the idx of episode each env is on
-    episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
 
     # main training loops
     try:
-        # o_0, r_0
-        obss = env.reset()
-        trajectory = []
-        t = 0  # number of steps executed in total, across episodes
+        # for each episode
+        for episode in range(num_episodes):
+            # o_0, r_0
+            obss = env.reset()
+            trajectory = []
+            episode_r = np.zeros(num_envs, dtype=np.float64)  # reward for the current episode
+            episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
 
-        # doesn't use range(num_envs) because each env runs at a different speed
-        while True:
-            # a_t
-            actions = agent.batch_act(obss)
-            # o_{t+1}, r_{t+1}
-            obss, rs, dones, infos = env.step(actions)
-            episode_r += rs
-            episode_len += 1
-            t += 1
+            # run until all parallel envs reach the max_episode
+            while np.any(episode_len < max_episode_len):
+                # a_t
+                actions = agent.batch_act(obss)
+                # o_{t+1}, r_{t+1}
+                obss, rs, dones, infos = env.step(actions)
+                episode_r += rs
+                episode_len += 1
 
-            if logging_freq and t % logging_freq == 0:
-                logger.info(
-                    "at episode {}, step {}, with reward {}".format(
-                        episode_idx,
-                        episode_len,
-                        episode_r,
+                # logging
+                if logging_freq and np.max(episode_len) % logging_freq == 0:
+                    logger.info(
+                        "at episode {}, step {}, with reward {}".format(
+                            episode,
+                            episode_len,
+                            episode_r,
+                        )
                     )
-                )
 
-            # Compute mask for done and reset
-            if max_episode_len is None:
-                resets = np.zeros(num_envs, dtype=bool)
-            else:
-                resets = episode_len == max_episode_len
-            resets = np.logical_or(
-                resets, [info.get("needs_reset", False) for info in infos]
-            )
-            # Make mask. 0 if done/reset, 1 if pass
-            end = np.logical_or(resets, dones)
-            not_end = np.logical_not(end)
-
-            # add to experience buffer
-            trajectory.append((obss, actions, rs, dones, resets))
-
-            # experience replay
-            if t % experience_replay_freq == 0:
-                logger.info('Doing experience replay')
-                if goal_conditioned:
-                    assert goal_state is not None
-                    highsight_experience_replay(trajectory, agent.batch_observe, goal_state)
+                # Compute mask for done and reset
+                if max_episode_len is None:
+                    resets = np.zeros(num_envs, dtype=bool)
                 else:
-                    experience_replay(trajectory, agent.batch_observe)
-                trajectory = []  # clear replay buffer
+                    resets = episode_len == max_episode_len
+                resets = np.logical_or(
+                    resets, [info.get("needs_reset", False) for info in infos]
+                )
+                # Make mask. 0 if done/reset, 1 if pass
+                end = np.logical_or(resets, dones)
+                not_end = np.logical_not(end)
 
-            # For episodes that ends, do the following:
-            #   1. increment the episode count
-            #   2. record the return  (not doing for now)
-            #   3. clear the record of rewards
-            #   4. clear the record of the number of steps
-            #   5. reset the env to start a new episode
-            # 3-5 are skipped when training is already finished.
-            episode_idx += end
-            if np.all(episode_idx >= num_episodes):  # whether reached end
-                break
-            episode_r[end] = 0
-            episode_len[end] = 0
-            obss = env.reset(not_end)
+                # add to experience buffer
+                trajectory.append((obss, actions, rs, dones, resets))
 
-            # TODO: 
-            # if episode_idx == num_episode, that particular env should stop executing
+                # reset the env to start a new episode
+                # mask the episode that didn't end, so they don't get reset
+                obss = env.reset(mask=not_end)
+
+                # TODO: 
+                # if episode_len== num_episode, that particular env should stop executing
+            
+            # experience replay
+            logger.info(f'Episode {episode} ended. Doing experience replay')
+            if goal_conditioned:
+                assert goal_state is not None
+                highsight_experience_replay(trajectory, agent.batch_observe, goal_state)
+            else:
+                experience_replay(trajectory, agent.batch_observe)
     
     except Exception:
         logger.info('ooops, sth went wrong :( ')

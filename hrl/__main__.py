@@ -146,7 +146,6 @@ class Trial:
             agent=self.agent,
             env=self.env,
             num_episodes=self.params['episodes'],
-            experience_replay_freq=self.params['experience_replay_freq'],
             goal_conditioned=False,
             goal_state=None,
             max_episode_len=self.params['max_episode_len'],

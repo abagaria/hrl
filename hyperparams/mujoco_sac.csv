@@ -10,8 +10,7 @@ update_interval,2048,int
 batch_size,256,int
 epochs,10,int
 eval_n_episodes,10,int
-logging_frequency,500,int
+logging_frequency,100,int
 policy_output_scale,1,int
 normalize_action_space,True,bool
-experience_replay_freq,1000,int
 max_episode_len,1000,int
