@@ -125,13 +125,17 @@ class TrainOptionTrial:
 
         print("Time taken: ", end_time - start_time)
     
-    def save_results(self, file_name):
+    def save_results(self, success_curves_file_name='success_curves.pkl', option_file_name='trained_option.pkl'):
         """
         save the results into csv files
         """
-        save_path = os.path.join(self.saving_dir, file_name)
-        with open(save_path, 'wb+') as f:
+        # save success curve
+        success_curve_save_path = os.path.join(self.saving_dir, success_curves_file_name)
+        with open(success_curve_save_path, 'wb+') as f:
             pickle.dump(self.option.success_rates, f)
+        option_save_path = os.path.join(self.saving_dir, option_file_name)
+        with open(option_save_path, 'wb') as f:
+            pickle.dump(self.option, f)
 
 
 def make_env(env_name, env_seed):
