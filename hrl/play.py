@@ -45,6 +45,8 @@ class PlayGame:
 		# environments
 		parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
 							help="name of the gym environment")
+		parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
+							help="use the deepmind wrappers")
 		parser.add_argument("--seed", type=int, default=0,
 							help="Random seed")
 		parser.add_argument("--render", action='store_true', default=False,
@@ -71,7 +73,7 @@ class PlayGame:
 		utils.create_log_dir(self.saving_dir)
 
 		# make env
-		self.env = make_env(self.params['environment'], self.params['seed'], render=self.params['render'])
+		self.env = self.make_env(self.params['environment'], self.params['seed'], render=self.params['render'])
 
 	def play(self):
 		"""
@@ -109,20 +111,21 @@ class PlayGame:
 			if done:
 				break
 
-
-def make_env(env_name, env_seed, render=True):
-	env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
-		pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60),  # 30 min with 60 fps
-		episode_life=True,
-		clip_rewards=True,
-		flicker=False,
-		frame_stack=False,
-	)
-	logging.info(f'making environment {env_name}')
-	env.seed(env_seed)
-	if render:
-		env = pfrl.wrappers.Render(env)
-	return env
+	def make_env(self, env_name, env_seed, render=True):
+		env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
+		if self.params['use_deepmind_wrappers']:
+			env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
+				env,
+				episode_life=True,
+				clip_rewards=True,
+				flicker=False,
+				frame_stack=False,
+			)
+		logging.info(f'making environment {env_name}')
+		env.seed(env_seed)
+		if render:
+			env = pfrl.wrappers.Render(env)
+		return env
 
 
 def main():
