@@ -53,6 +53,8 @@ class TrainOptionTrial:
         # environments
         parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
                             help="name of the gym environment")
+        parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
+                            help="use the deepmind wrappers")
         parser.add_argument("--seed", type=int, default=0,
                             help="Random seed")
         parser.add_argument("--goal_state_dir", type=str, default="resources/monte_info",
@@ -92,7 +94,7 @@ class TrainOptionTrial:
         utils.save_hyperparams(os.path.join(self.saving_dir, "hyperparams.csv"), self.params)
 
         # set up env and its goal
-        self.env = make_env(self.params['environment'], self.params['seed'])
+        self.env = self.make_env(self.params['environment'], self.params['seed'])
         goal_state_path = os.path.join(self.params['goal_state_dir'], 'goal_state.npy')
         goal_state_pos_path = os.path.join(self.params['goal_state_dir'], 'goal_state_pos.txt')
         self.params['goal_state'] = np.load(goal_state_path)
@@ -137,18 +139,19 @@ class TrainOptionTrial:
         with open(option_save_path, 'wb') as f:
             pickle.dump(self.option, f)
 
-
-def make_env(env_name, env_seed):
-	env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
-		pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60),  # 30 min with 60 fps
-		episode_life=True,
-		clip_rewards=True,
-		flicker=False,
-		frame_stack=False,
-	)
-	logging.info(f'making environment {env_name}')
-	env.seed(env_seed)
-	return env
+    def make_env(self, env_name, env_seed):
+        env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
+        if self.params['use_deepmind_wrappers']:
+            env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
+                env,
+                episode_life=True,
+                clip_rewards=True,
+                flicker=False,
+                frame_stack=False,
+            )
+        logging.info(f'making environment {env_name}')
+        env.seed(env_seed)
+        return env
 
 
 def main():
