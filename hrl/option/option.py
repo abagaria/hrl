@@ -1,6 +1,8 @@
+from os import stat
 import random
 import itertools
 from copy import deepcopy
+from functools import reduce
 
 import numpy as np
 from thundersvm import SVC, OneClassSVM
@@ -34,13 +36,14 @@ class Option:
 
 		# learner for the value function 
 		# don't use output normalization because this is the model free case
-		self.value_learner = TD3(state_dim=self.env.unwrapped.observation_space.shape[0]+2,
-								action_dim=self.env.unwrapped.action_space.n,
+		self.value_learner = TD3(state_dim=reduce(lambda x, y: x*y, self.env.observation_space.shape, 1),
+								action_dim=self.env.action_space.n,
 								max_action=1.,
 								name=f"{name}-td3-agent",
 								device=self.params['device'],
 								lr_c=self.params['lr_c'], 
 								lr_a=self.params['lr_a'],
+								buffer_length=self.params['buffer_length'],
 								use_output_normalization=False)
 
 	# ------------------------------------------------------------
@@ -96,12 +99,20 @@ class Option:
 			return self.env.action_space.sample()
 		else:
 			# the action selector is the same as the value learner
-			return self.value_learner.act(state, evaluation_mode=False)
+			tanh_output = self.value_learner.act(state, evaluation_mode=False)
+			action = np.argmax(tanh_output)
+			return action
 	
 	def rollout(self, step_number, eval_mode=False):
 		"""
 		main control loop for option execution
 		"""
+		# reset env
+		self.env.reset()
+		self.env.unwrapped.reset()
+		done = False
+
+		# get current state
 		state = deepcopy(self.env.unwrapped._get_obs())
 		state = warp_frames(state)
 		assert self.is_init_true(state)
@@ -119,25 +130,25 @@ class Option:
 		self.num_executions += 1
 
 		# main while loop
-		while not self.is_term_true(state) and step_number < self.params['max_steps'] and num_steps < self.params['timeout']:
+		while not self.is_term_true(state) and not done:
 			# control
-			action = self.act(state)
+			action = self.act(state.flatten())
 			next_state, reward, done, _ = self.env.step(action)
-			next_state = warp_frames(next_state)
 			# logging
 			num_steps += 1
 			step_number += 1
 			total_reward += reward
-			visited_states.append(state)
-			option_transitions.append((state, action, reward, next_state, done))
+			visited_states.append(state.flatten())
+			option_transitions.append((state.flatten(), action, reward, next_state.flatten(), done))
 			state = next_state
-		visited_states.append(state)
+		visited_states.append(state.flatten())
 
 		# more logging
 		self.success_curve.append(self.is_term_true(state))
 		self.success_rates[step_number] = {'success': self.get_success_rate()}
 		if self.is_term_true(state):
 			self.num_goal_hits += 1
+			print(f"num goal hits increased to {self.num_goal_hits}")
 		
 		# training
 		if not eval_mode:
@@ -177,6 +188,7 @@ class Option:
 
 	def construct_feature_matrix(self, examples):
 		states = list(itertools.chain.from_iterable(examples))
+		states = np.array(states).reshape(len(states), -1)  # reshape to (batch_size, state_size)
 		return np.array(states)
 	
 	def fit_classifier(self, classifier, positive_examples, negative_examples):

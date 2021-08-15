@@ -109,9 +109,11 @@ class TrainOptionTrial:
         start_time = time.time()
         
         # create the option
+        step_number = 0
         while self.option.get_training_phase() == "gestation":
-            print('one rollout')
-            option_transitions, total_reward = self.option.rollout(step_number=self.params['max_steps'], eval_mode=False)
+            print(f"step {step_number}")
+            option_transitions, total_reward = self.option.rollout(step_number=step_number, eval_mode=False)
+            step_number += len(option_transitions)
             # plot_two_class_classifier(self.option, self.option.num_executions, self.params['experiment_name'], plot_examples=True)
 
         end_time = time.time()
@@ -138,7 +140,7 @@ def make_env(env_name, env_seed):
 		episode_life=True,
 		clip_rewards=True,
 		flicker=False,
-		frame_stack=True,
+		frame_stack=False,
 	)
 	logging.info(f'making environment {env_name}')
 	env.seed(env_seed)

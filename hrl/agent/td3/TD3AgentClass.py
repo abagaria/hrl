@@ -17,6 +17,7 @@ class TD3(object):
             state_dim,
             action_dim,
             max_action,
+            buffer_length=1000000,
             use_output_normalization=True,
             discount=0.99,
             tau=0.005,
@@ -46,7 +47,7 @@ class TD3(object):
         self.target_critic = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
 
-        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device=device)
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, max_size=buffer_length, device=device)
 
         self.max_action = max_action
         self.action_dim = action_dim
