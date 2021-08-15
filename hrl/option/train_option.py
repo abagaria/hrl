@@ -120,7 +120,7 @@ class TrainOptionTrial:
 
         # save the results
         success_curves_file_name = 'success_curves.pkl'
-        self.save_results(file_name=success_curves_file_name)
+        self.save_results()
         plot_learning_curve(self.params['experiment_name'], log_file_name=success_curves_file_name)
 
         print("Time taken: ", end_time - start_time)
