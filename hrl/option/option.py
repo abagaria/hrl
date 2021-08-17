@@ -111,12 +111,10 @@ class Option:
 		main control loop for option execution
 		"""
 		# reset env
-		self.env.reset()
+		state = self.env.reset()
 		self.env.unwrapped.reset()
 		done = False
 
-		# get current state
-		state = deepcopy(self.env.unwrapped._get_obs())
 		if self.params['use_deepmind_wrappers']:
 			state = warp_frames(state)
 		assert self.is_init_true(state)

@@ -73,7 +73,14 @@ def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_bu
 
 	x_pos = np.array([pos[0] for pos in pos_replay_buffer])
 	y_pos = np.array([pos[1] for pos in pos_replay_buffer])
-	plt.scatter(x_pos, y_pos, c=qvalues)
+	try:
+		plt.scatter(x_pos, y_pos, c=qvalues)
+	except ValueError:
+		num_points = min(len(x_pos), len(qvalues))
+		x_pos = x_pos[:num_points]
+		y_pos = y_pos[:num_points]
+		qvalues = qvalues[:num_points]
+		plt.scatter(x_pos, y_pos, c=qvalues)
 	plt.xlim(0, 160)  # set the limits to the monte frame
 	plt.ylim(0, 210)
 	plt.colorbar()

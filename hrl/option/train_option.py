@@ -95,7 +95,6 @@ class TrainOptionTrial:
             shutil.rmtree(self.saving_dir)
         utils.create_log_dir(self.saving_dir)
         self.params['saving_dir'] = self.saving_dir
-        utils.create_log_dir(self.saving_dir)
 
         # save the hyperparams
         utils.save_hyperparams(os.path.join(self.saving_dir, "hyperparams.csv"), self.params)
@@ -159,6 +158,7 @@ class TrainOptionTrial:
             )
         if self.params['agent_space']:
             env = MonteAgentSpace(env)
+            print('using the agent space to train the option right now')
         logging.info(f'making environment {env_name}')
         env.seed(env_seed)
         return env
