@@ -90,7 +90,10 @@ class PlayGame:
 			# user input an action to take
 			action_input = input() 
 			if action_input == 'save':
-				save_path = os.path.join(self.saving_dir, 'goal_state.npy')
+				if self.params['agent_space']:
+					save_path = os.path.join(self.saving_dir, 'agent_space_goal_state.npy')
+				else:
+					save_path = os.path.join(self.saving_dir, 'goal_state.npy')
 				np.save(file=save_path, arr=state)
 				print(f'saved numpy array {state} of shape {state.shape} to {save_path}')
 				break

@@ -101,7 +101,10 @@ class TrainOptionTrial:
 
         # set up env and its goal
         self.env = self.make_env(self.params['environment'], self.params['seed'])
-        goal_state_path = os.path.join(self.params['goal_state_dir'], 'goal_state.npy')
+        if self.params['agent_space']:
+            goal_state_path = os.path.join(self.params['goal_state_dir'], 'agent_space_goal_state.npy')
+        else:
+            goal_state_path = os.path.join(self.params['goal_state_dir'], 'goal_state.npy')
         goal_state_pos_path = os.path.join(self.params['goal_state_dir'], 'goal_state_pos.txt')
         self.params['goal_state'] = np.load(goal_state_path)
         self.params['goal_state_position'] = np.loadtxt(goal_state_pos_path)
