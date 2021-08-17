@@ -1,14 +1,14 @@
-from os import stat
 import random
 import itertools
 from copy import deepcopy
 from functools import reduce
+from collections import deque
 
 import numpy as np
 from thundersvm import SVC, OneClassSVM
 
 from hrl.agent.td3.TD3AgentClass import TD3
-from hrl.option.utils import warp_frames, get_player_position
+from hrl.option.utils import warp_frames, get_player_position, make_chunked_value_function_plot
 
 
 class Option:
@@ -33,6 +33,9 @@ class Option:
 		self.gestation_period = params['gestation_period']
 		self.num_goal_hits = 0
 		self.num_executions = 0
+
+		# used to store trajectories of positions and finally used for plotting value function
+		self.position_buffer = deque([], maxlen=self.params['buffer_length'])
 
 		# learner for the value function 
 		# don't use output normalization because this is the model free case
@@ -141,7 +144,11 @@ class Option:
 			total_reward += reward
 			visited_states.append(state.flatten())
 			option_transitions.append((state.flatten(), action, reward, next_state.flatten(), done))
+			state_pos = get_player_position(self.env.unwrapped.ale.getRAM())
+			self.position_buffer.append(state_pos)
 			state = next_state
+			if step_number % self.params['logging_frequency'] == 0:
+				make_chunked_value_function_plot(self.value_learner, step_number, self.params['seed'], self.params['saving_dir'], pos_replay_buffer=self.position_buffer)
 		visited_states.append(state.flatten())
 
 		# more logging

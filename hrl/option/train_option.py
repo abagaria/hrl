@@ -4,6 +4,7 @@ import pickle
 import os
 import random
 import argparse
+import shutil
 
 import pfrl
 import torch
@@ -12,7 +13,6 @@ import numpy as np
 
 from hrl import utils
 from hrl.option.option import Option
-from hrl.agent.dsc.utils import plot_two_class_classifier
 from hrl.plot import main as plot_learning_curve
 
 
@@ -88,6 +88,10 @@ class TrainOptionTrial:
 
         # create the saving directories
         self.saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
+        if os.path.exists(self.saving_dir):  # remove all existing contents
+            shutil.rmtree(self.saving_dir)
+        utils.create_log_dir(self.saving_dir)
+        self.params['saving_dir'] = self.saving_dir
         utils.create_log_dir(self.saving_dir)
 
         # save the hyperparams
@@ -135,6 +139,7 @@ class TrainOptionTrial:
         success_curve_save_path = os.path.join(self.saving_dir, success_curves_file_name)
         with open(success_curve_save_path, 'wb+') as f:
             pickle.dump(self.option.success_rates, f)
+        # save trained option
         option_save_path = os.path.join(self.saving_dir, option_file_name)
         with open(option_save_path, 'wb') as f:
             pickle.dump(self.option, f)

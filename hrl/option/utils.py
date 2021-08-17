@@ -1,6 +1,12 @@
+import os
+
 import gym
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
+import torch
+from tqdm import tqdm
+
 cv2.ocl.setUseOpenCL(False)
 
 
@@ -36,3 +42,44 @@ def get_player_position(ram):
 	x = int(getByte(ram, 'aa'))
 	y = int(getByte(ram, 'ab'))
 	return x, y
+
+
+def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_buffer, chunk_size=1000):
+	"""
+	helper function to visualize the value function
+	"""
+	replay_buffer = solver.replay_buffer
+	states = np.array([exp[0] for exp in replay_buffer])
+	actions = np.array([exp[1] for exp in replay_buffer])
+
+	# Chunk up the inputs so as to conserve GPU memory
+	num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+
+	if num_chunks == 0:
+		return 0.
+
+	state_chunks = np.array_split(states, num_chunks, axis=0)
+	action_chunks = np.array_split(actions, num_chunks, axis=0)
+	qvalues = np.zeros((states.shape[0],))
+	current_idx = 0
+
+	for state_chunk, action_chunk in tqdm(zip(state_chunks, action_chunks), desc="Making VF plot"):
+		state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+		action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+		chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+		current_chunk_size = len(state_chunk)
+		qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+		current_idx += current_chunk_size
+
+	x_pos = np.array([pos[0] for pos in pos_replay_buffer])
+	y_pos = np.array([pos[1] for pos in pos_replay_buffer])
+	plt.scatter(x_pos, y_pos, c=qvalues)
+	plt.xlim(0, 160)  # set the limits to the monte frame
+	plt.ylim(0, 210)
+	plt.colorbar()
+	file_name = f"{solver.name}_value_function_seed_{seed}_step_{step}.png"
+	save_path = os.path.join(save_dir, file_name)
+	plt.savefig(save_path)
+	plt.close()
+
+	return qvalues.max()
