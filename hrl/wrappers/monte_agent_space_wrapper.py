@@ -26,3 +26,26 @@ class MonteAgentSpace(Wrapper):
 		end_y += 8
 		image_window = image[start_y:end_y, start_x:end_x, :]
 		return image_window
+	
+	def reset(self):
+		state = self.env.reset()
+		cropped_state = self.get_pixels_around_player(state)
+		return cropped_state
+	
+	def step(self, action):
+		next_state, reward, done, info = self.env.step(action)
+		cropped_next_state = self.get_pixels_around_player(next_state)
+		return cropped_next_state, reward, done, info
+	
+	def render(self, mode="human"):
+		img = self.env.unwrapped._get_image()
+		img = self.get_pixels_around_player(img)
+		if mode == "rgb_array":
+			return img
+		elif mode == "human":
+			from gym.envs.classic_control import rendering
+
+			if self.env.viewer is None:
+				self.env.viewer = rendering.SimpleImageViewer()
+			self.env.viewer.imshow(img)
+			return self.env.viewer.isopen

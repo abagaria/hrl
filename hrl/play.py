@@ -125,10 +125,10 @@ class PlayGame:
 			)
 		if self.params['agent_space']:
 			env = MonteAgentSpace(env)
-		logging.info(f'making environment {env_name}')
-		env.seed(env_seed)
 		if render:
 			env = pfrl.wrappers.Render(env)
+		logging.info(f'making environment {env_name}')
+		env.seed(env_seed)
 		return env
 
 
