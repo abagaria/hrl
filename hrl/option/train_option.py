@@ -14,6 +14,7 @@ import numpy as np
 from hrl import utils
 from hrl.option.option import Option
 from hrl.plot import main as plot_learning_curve
+from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
 
 
 class TrainOptionTrial:
@@ -53,6 +54,8 @@ class TrainOptionTrial:
         # environments
         parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
                             help="name of the gym environment")
+        parser.add_argument("--agent_space", action='store_true', default=False,
+                            help="train with the agent space")
         parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
                             help="use the deepmind wrappers")
         parser.add_argument("--seed", type=int, default=0,
@@ -154,6 +157,8 @@ class TrainOptionTrial:
                 flicker=False,
                 frame_stack=False,
             )
+        if self.params['agent_space']:
+            env = MonteAgentSpace(env)
         logging.info(f'making environment {env_name}')
         env.seed(env_seed)
         return env
