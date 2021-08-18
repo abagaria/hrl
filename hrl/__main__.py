@@ -18,7 +18,7 @@ from hrl.train_loop import train_agent_batch
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.make_agent import make_ppo_agent, make_sac_agent
-from hrl.envs import MultiprocessVectorEnv
+from hrl.envs.vector_env import SyncVectorEnv
 from hrl.plot import main as plot_learning_curve
 from hrl.models.sequential import SequentialModel
 from hrl.models.actor_critic import ActorCritic
@@ -206,15 +206,12 @@ class Trial:
         process_seeds = np.arange(self.params['num_envs']) + self.params['seed'] * self.params['num_envs']
         assert process_seeds.max() < 2 ** 32
         # make vector env
-        vec_env = pfrl.envs.MultiprocessVectorEnv(
+        vec_env = SyncVectorEnv(
             [
                 (lambda: self.make_env(env_seed=int(process_seeds[idx]), test=test))
                 for idx, env in enumerate(range(self.params['num_envs']))
             ]
         )
-        # default to Frame Stacking
-        # vec_env = VectorEnvWrapper(vec_env)
-        # vec_env = pfrl.wrappers.VectorFrameStack(vec_env, 4)
         return vec_env
 
 

@@ -3,6 +3,8 @@ import logging
 import numpy as np
 import pfrl
 
+from hrl.envs.vector_env import SyncVectorEnv
+
 
 def train_agent_batch(
     agent,
@@ -29,7 +31,7 @@ def train_agent_batch(
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    assert isinstance(env, pfrl.envs.MultiprocessVectorEnv)
+    assert isinstance(env, SyncVectorEnv)
     num_envs = env.num_envs
 
     # main training loops
@@ -38,18 +40,27 @@ def train_agent_batch(
         for episode in range(num_episodes):
             # o_0, r_0
             obss = env.reset()
+
             trajectory = []
             episode_r = np.zeros(num_envs, dtype=np.float64)  # reward for the current episode
             episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
+            episode_done = np.zeros(num_envs, dtype="i")  # whether the corresponding env is done with the cur episode
 
-            # run until all parallel envs reach the max_episode
-            while np.any(episode_len < max_episode_len):
+            # run until all parallel envs finish the current episode
+            while not np.all(episode_done):
                 # a_t
                 actions = agent.batch_act(obss)
+
+                # mask actions for each env, done_envs has action None
+                episode_not_done = np.logical_not(episode_done)
+                for i, a in enumerate(actions):
+                    if episode_done[i]:
+                        actions[i] = None
+
                 # o_{t+1}, r_{t+1}
                 obss, rs, dones, infos = env.step(actions)
-                episode_r += rs
-                episode_len += 1
+                episode_r += rs * episode_not_done
+                episode_len += 1 * episode_not_done
 
                 # logging
                 if logging_freq and np.max(episode_len) % logging_freq == 0:
@@ -71,17 +82,10 @@ def train_agent_batch(
                 )
                 # Make mask. 0 if done/reset, 1 if pass
                 end = np.logical_or(resets, dones)
-                not_end = np.logical_not(end)
+                episode_done = np.logical_or(episode_done, end)
 
                 # add to experience buffer
                 trajectory.append((obss, actions, rs, dones, resets))
-
-                # reset the env to start a new episode
-                # mask the episode that didn't end, so they don't get reset
-                obss = env.reset(mask=not_end)
-
-                # TODO: 
-                # if episode_len== num_episode, that particular env should stop executing
             
             # experience replay
             logger.info(f'Episode {episode} ended. Doing experience replay')
@@ -91,9 +95,10 @@ def train_agent_batch(
             else:
                 experience_replay(trajectory, agent.batch_observe)
     
-    except Exception:
+    except Exception as e:
         logger.info('ooops, sth went wrong :( ')
         env.close()
+        raise e
 
 
 def experience_replay(trajectories, agent_observe_fn):
