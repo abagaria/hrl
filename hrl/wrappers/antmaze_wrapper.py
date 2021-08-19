@@ -73,6 +73,17 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		self.cur_state = next_state
 		self.cur_done = done
 		return next_state, reward, done, info
+	
+	def reset(self):
+		"""
+		always use diverse starts
+		"""
+		self.cur_state = self.env.reset()
+		random_start_state = self.sample_random_state()
+		if random_start_state is not None:
+			random_start_state_pos = self.get_position(random_start_state)
+			self.set_xy(random_start_state_pos)
+		return self.cur_state
 
 	def get_current_goal(self):
 		return self.get_position(self.goal_state)
@@ -99,10 +110,9 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		""" Used at test-time only. """
 		position = tuple(position)  # `maze_model.py` expects a tuple
 		self.env.env.set_xy(position)
-		obs = np.concatenate((np.array(position), self.init_state[2:]), axis=0)
+		obs = np.concatenate((np.array(position), self.cur_state[2:]), axis=0)
 		self.cur_state = obs
 		self.cur_done = False
-		self.init_state = deepcopy(self.cur_state)
 
     # --------------------------------
     # Used for visualizations only
@@ -134,7 +144,7 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 			low = np.array((self.xlims[0], self.ylims[0]))
 			high = np.array((self.xlims[1], self.ylims[1]))
 			sampled_point = np.random.uniform(low=low, high=high)
-			rejected = self.env.env.wrapped_env._is_in_collision(sampled_point) or not cond(sampled_point)
+			rejected = self.env.wrapped_env._is_in_collision(sampled_point) or not cond(sampled_point)
 			num_tries += 1
 
 			if not rejected:

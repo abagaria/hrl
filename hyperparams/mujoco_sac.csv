@@ -3,7 +3,6 @@ replay_start_size,10000,int
 episodes,1000,int
 steps,1000000,int
 warmup_episodes,50,int
-use_diverse_starts,True,bool
 use_dense_rewards,True,bool
 lr,3e-4,float
 update_interval,2048,int

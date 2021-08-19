@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 import numpy as np
 
@@ -39,9 +40,11 @@ def train_agent_batch(
         for episode in range(num_episodes):
             # o_0, r_0
             obss = env.reset()
+            obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
+            print(f"start position is {[obs[:2] for obs in obss]}")
 
             trajectory = []
-            episode_r = np.zeros(num_envs, dtype=np.float64)  # reward for the current episode
+            episode_r = np.zeros(num_envs, dtype=np.float32)  # reward for the current episode
             episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
             episode_done = np.zeros(num_envs, dtype="i")  # whether the corresponding env is done with the cur episode
 
@@ -58,18 +61,11 @@ def train_agent_batch(
 
                 # o_{t+1}, r_{t+1}
                 obss, rs, dones, infos = env.step(actions)
-                episode_r += rs * episode_not_done
-                episode_len += 1 * episode_not_done
-
-                # logging
-                if logging_freq and np.max(episode_len) % logging_freq == 0:
-                    logger.info(
-                        "at episode {}, step {}, with reward {}".format(
-                            episode,
-                            episode_len,
-                            episode_r,
-                        )
-                    )
+                obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
+                obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
+                rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
+                dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
+                infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
 
                 # Compute mask for done and reset
                 if max_episode_len is None:
@@ -82,6 +78,19 @@ def train_agent_batch(
                 # Make mask. 0 if done/reset, 1 if pass
                 end = np.logical_or(resets, dones)
                 episode_done = np.logical_or(episode_done, end)
+
+                # record stats and log
+                episode_r += rs * episode_not_done
+                episode_len += 1 * episode_not_done
+
+                if logging_freq and np.max(episode_len) % logging_freq == 0:
+                    logger.info(
+                        "at episode {}, step {}, with reward {}".format(
+                            episode,
+                            episode_len,
+                            episode_r,
+                        )
+                    )
 
                 # add to experience buffer
                 trajectory.append((obss, actions, rs, dones, resets))
@@ -97,6 +106,7 @@ def train_agent_batch(
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')
         env.close()
+        traceback.print_exception(type(e), e, e.__traceback__)
         raise e
 
 
