@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-import pfrl
 
 from hrl.envs.vector_env import SyncVectorEnv
 

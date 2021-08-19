@@ -8,20 +8,16 @@ import logging
 import gym
 import d4rl
 import pfrl
-from pfrl.agents import PPO
-import torch
 import seeding
 import numpy as np
 
-from hrl.wrappers import D4RLAntMazeWrapper, VectorEnvWrapper
+from hrl.wrappers import D4RLAntMazeWrapper
 from hrl.train_loop import train_agent_batch
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.make_agent import make_ppo_agent, make_sac_agent
 from hrl.envs.vector_env import SyncVectorEnv
 from hrl.plot import main as plot_learning_curve
-from hrl.models.sequential import SequentialModel
-from hrl.models.actor_critic import ActorCritic
 
 
 logging.basicConfig(level=logging.INFO)
