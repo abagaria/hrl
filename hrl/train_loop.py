@@ -4,6 +4,7 @@ import traceback
 import numpy as np
 
 from hrl.envs.vector_env import SyncVectorEnv
+from hrl import utils
 
 
 def train_agent_batch_with_eval(
@@ -61,13 +62,10 @@ def train_agent_batch_with_eval(
                 experience_replay(trajectory, agent.batch_observe)
             
             # testing the agent
-            if testing_freq is not None and episode % testing_freq == 0:
+            if testing_freq is not None:
                 assert num_test_episodes is not None
-                # test env
-                if test_env is None:
-                    test_env = env
-                # test loop
-                test_agent_batch(agent, test_env, num_test_episodes, max_episode_len)
+                test_env = env if test_env is None else test_env
+                utils.every_n_times(testing_freq, episode, test_agent_batch, agent, test_env, num_test_episodes, max_episode_len)
     
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')

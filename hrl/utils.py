@@ -74,6 +74,11 @@ def check_is_atari(env_name):
     return 'NoFrameskip' in env_name
 
 
+def every_n_times(n, count, callback, *args, final_count=None):
+    if (count % n == 0) or (final_count is not None and (count == final_count)):
+        callback(*args)
+
+
 def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
     states = np.array([exp[0] for exp in replay_buffer])
