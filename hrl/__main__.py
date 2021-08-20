@@ -1,5 +1,6 @@
 import time
 import os
+import math
 import random
 import argparse
 import shutil
@@ -12,7 +13,7 @@ import seeding
 import numpy as np
 
 from hrl.wrappers import D4RLAntMazeWrapper
-from hrl.train_loop import train_agent_batch
+from hrl.train_loop import train_agent_batch_with_eval
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.make_agent import make_ppo_agent, make_sac_agent
@@ -118,6 +119,7 @@ class Trial:
 
         # set up env and experiment
         self.env = self.make_batch_env(test=False)
+        self.test_env = self.make_batch_env(test=True)
         if self.params['agent'] == 'dsc':
             self.exp = RobustDSC(mdp=self.env, params=self.params)
         else:
@@ -138,14 +140,17 @@ class Trial:
         """
         train an agent
         """
-        train_agent_batch(
+        train_agent_batch_with_eval(
             agent=self.agent,
             env=self.env,
             num_episodes=self.params['episodes'],
+            test_env=self.test_env,
+            num_test_episodes=math.ceil(self.params['eval_n_episodes'] / self.params['num_envs']),
             goal_conditioned=False,
             goal_state=None,
             max_episode_len=self.params['max_episode_len'],
-            logging_freq=self.params['logging_frequency']
+            logging_freq=self.params['logging_frequency'],
+            testing_freq=self.params['testing_frequency']
         )
 
     def run(self):

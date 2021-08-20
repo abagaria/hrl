@@ -6,14 +6,17 @@ import numpy as np
 from hrl.envs.vector_env import SyncVectorEnv
 
 
-def train_agent_batch(
+def train_agent_batch_with_eval(
     agent,
     env,
     num_episodes,
+    test_env=None,
+    num_test_episodes=None,
     goal_conditioned=False,
-    goal_state = None,
+    goal_state=None,
     max_episode_len=None,
     logging_freq=None,
+    testing_freq=None,
 ):
     """Train an agent in a batch environment.
 
@@ -21,6 +24,7 @@ def train_agent_batch(
         agent: Agent to train.
         env: Environment to train the agent against.
         num_episodes (int): number of episodes to train the agent
+        test_env: envrionment to test the agent against, this should have a different random seed than env
         params (dict): training parameters
         max_episode_len (int): max steps in one episode 
         the average returns of the current agent.
@@ -28,7 +32,7 @@ def train_agent_batch(
         List of evaluation episode stats dict.
     """
 
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("training")
     logger.setLevel(logging.INFO)
 
     assert isinstance(env, SyncVectorEnv)
@@ -54,7 +58,6 @@ def train_agent_batch(
                 actions = agent.batch_act(obss)
 
                 # mask actions for each env, done_envs has action None
-                episode_not_done = np.logical_not(episode_done)
                 for i, a in enumerate(actions):
                     if episode_done[i]:
                         actions[i] = None
@@ -66,6 +69,11 @@ def train_agent_batch(
                 rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
                 dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
                 infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
+
+                # record stats
+                episode_not_done = np.logical_not(episode_done)
+                episode_r += rs * episode_not_done
+                episode_len += 1 * episode_not_done
 
                 # Compute mask for done and reset
                 if max_episode_len is None:
@@ -79,10 +87,7 @@ def train_agent_batch(
                 end = np.logical_or(resets, dones)
                 episode_done = np.logical_or(episode_done, end)
 
-                # record stats and log
-                episode_r += rs * episode_not_done
-                episode_len += 1 * episode_not_done
-
+                # logging
                 if logging_freq and np.max(episode_len) % logging_freq == 0:
                     logger.info(
                         "at episode {}, step {}, with reward {}".format(
@@ -102,6 +107,15 @@ def train_agent_batch(
                 highsight_experience_replay(trajectory, agent.batch_observe, goal_state)
             else:
                 experience_replay(trajectory, agent.batch_observe)
+            
+            # testing the agent
+            if testing_freq is not None and episode % testing_freq == 0:
+                assert num_test_episodes is not None
+                # test env
+                if test_env is None:
+                    test_env = env
+                # test loop
+                test_agent_batch(agent, test_env, num_test_episodes, max_episode_len)
     
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')
@@ -139,3 +153,84 @@ def highsight_experience_replay(trajectories, agent_observe_fn, goal_state):
         reached_goal_augmented_obss = augment_state(obss, reached_goal)
         agent_observe_fn(goal_augmented_obss, rs, dones, resets)
         agent_observe_fn(reached_goal_augmented_obss, rs, dones, resets)
+
+
+def test_agent_batch(
+    agent,
+    test_env,
+    num_episodes,
+    max_episode_len=None,
+):
+    """
+    test the agent for num_episodes episodes
+    """
+
+    logger = logging.getLogger("testing")
+    logger.setLevel(logging.INFO)
+
+    assert isinstance(test_env, SyncVectorEnv)
+    num_envs = test_env.num_envs
+
+    # main training loops
+    try:
+        # for each episode
+        for episode in range(num_episodes):
+            # o_0, r_0
+            obss = test_env.reset()  # TODO: do the correct reset here!!!!!!
+            obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
+
+            episode_r = np.zeros(num_envs, dtype=np.float32)  # reward for the current episode
+            episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
+            episode_done = np.zeros(num_envs, dtype="i")  # whether the corresponding env is done with the cur episode
+            episode_success = np.zeros(num_envs, dtype="i")  # whether each corresponding succeeded
+
+            # run until all parallel envs finish the current episode
+            while not np.all(episode_done):
+                # a_t
+                actions = agent.batch_act(obss)
+
+                # mask actions for each env, done_envs has action None
+                for i, a in enumerate(actions):
+                    if episode_done[i]:
+                        actions[i] = None
+
+                # o_{t+1}, r_{t+1}
+                obss, rs, dones, infos = test_env.step(actions)
+                obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
+                obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
+                rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
+                dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
+                infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
+
+                # record stats
+                episode_success = np.logical_or(episode_success, dones)
+                episode_not_done = np.logical_not(episode_done)
+                episode_r += rs * episode_not_done
+                episode_len += 1 * episode_not_done
+
+                # Compute mask for done and reset
+                if max_episode_len is None:
+                    resets = np.zeros(num_envs, dtype=bool)
+                else:
+                    resets = episode_len == max_episode_len
+                resets = np.logical_or(
+                    resets, [info.get("needs_reset", False) for info in infos]
+                )
+                # Make mask. 0 if done/reset, 1 if pass
+                end = np.logical_or(resets, dones)
+                episode_done = np.logical_or(episode_done, end)
+            
+            # logging the success rate
+            logger.info(
+                "testing episode {} with success rate: {} and reward {}".format(
+                    episode,
+                    np.mean(episode_success),
+                    np.mean(episode_r),
+                )
+            )
+    
+    except Exception as e:
+        logger.info('ooops, sth went wrong during testing :( ')
+        test_env.close()
+        traceback.print_exception(type(e), e, e.__traceback__)
+        raise e
