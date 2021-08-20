@@ -36,71 +36,23 @@ def train_agent_batch_with_eval(
     logger.setLevel(logging.INFO)
 
     assert isinstance(env, SyncVectorEnv)
-    num_envs = env.num_envs
 
     # main training loops
     try:
         # for each episode
         for episode in range(num_episodes):
-            # o_0, r_0
-            obss = env.reset()
-            obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
-            print(f"start position is {[obs[:2] for obs in obss]}")
-
-            trajectory = []
-            episode_r = np.zeros(num_envs, dtype=np.float32)  # reward for the current episode
-            episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
-            episode_done = np.zeros(num_envs, dtype="i")  # whether the corresponding env is done with the cur episode
-
-            # run until all parallel envs finish the current episode
-            while not np.all(episode_done):
-                # a_t
-                actions = agent.batch_act(obss)
-
-                # mask actions for each env, done_envs has action None
-                for i, a in enumerate(actions):
-                    if episode_done[i]:
-                        actions[i] = None
-
-                # o_{t+1}, r_{t+1}
-                obss, rs, dones, infos = env.step(actions)
-                obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
-                obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
-                rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
-                dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
-                infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
-
-                # record stats
-                episode_not_done = np.logical_not(episode_done)
-                episode_r += rs * episode_not_done
-                episode_len += 1 * episode_not_done
-
-                # Compute mask for done and reset
-                if max_episode_len is None:
-                    resets = np.zeros(num_envs, dtype=bool)
-                else:
-                    resets = episode_len == max_episode_len
-                resets = np.logical_or(
-                    resets, [info.get("needs_reset", False) for info in infos]
-                )
-                # Make mask. 0 if done/reset, 1 if pass
-                end = np.logical_or(resets, dones)
-                episode_done = np.logical_or(episode_done, end)
-
-                # logging
-                if logging_freq and np.max(episode_len) % logging_freq == 0:
-                    logger.info(
-                        "at episode {}, step {}, with reward {}".format(
-                            episode,
-                            episode_len,
-                            episode_r,
-                        )
-                    )
-
-                # add to experience buffer
-                trajectory.append((obss, actions, rs, dones, resets))
+            # episode rollout
+            trajectory = episode_rollout(
+                testing=False,
+                episode_idx=episode,
+                env=env,
+                agent=agent,
+                max_episode_len=max_episode_len,
+                logger=logger,
+                logging_freq=logging_freq,
+            )
             
-            # experience replay
+            # experience replay for each episode
             logger.info(f'Episode {episode} ended. Doing experience replay')
             if goal_conditioned:
                 assert goal_state is not None
@@ -122,6 +74,94 @@ def train_agent_batch_with_eval(
         env.close()
         traceback.print_exception(type(e), e, e.__traceback__)
         raise e
+
+
+def episode_rollout(
+    testing,
+    episode_idx,
+    env,
+    agent,
+    max_episode_len,
+    logger,
+    logging_freq,
+):
+    """
+    rollout one episode
+    Args:
+        testing: whether rolling out for training or testing
+    """
+    num_envs = env.num_envs
+
+    # o_0, r_0
+    obss = env.reset()
+    obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
+    if not testing:
+        print(f"start position is {[obs[:2] for obs in obss]}")
+
+    if not testing:
+        trajectory = []
+    episode_r = np.zeros(num_envs, dtype=np.float32)  # reward for the current episode
+    episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
+    episode_done = np.zeros(num_envs, dtype="i")  # whether the corresponding env is done with the cur episode
+    if testing:
+        episode_success = np.zeros(num_envs, dtype="i")  # whether each corresponding succeeded
+
+    # run until all parallel envs finish the current episode
+    while not np.all(episode_done):
+        # a_t
+        actions = agent.batch_act(obss)
+
+        # mask actions for each env, done_envs has action None
+        for i, a in enumerate(actions):
+            if episode_done[i]:
+                actions[i] = None
+
+        # o_{t+1}, r_{t+1}
+        obss, rs, dones, infos = env.step(actions)
+        obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
+        obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
+        rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
+        dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
+        infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
+
+        # record stats
+        if testing:
+            episode_success = np.logical_or(episode_success, dones)
+        episode_not_done = np.logical_not(episode_done)
+        episode_r += rs * episode_not_done
+        episode_len += 1 * episode_not_done
+
+        # Compute mask for done and reset
+        if max_episode_len is None:
+            resets = np.zeros(num_envs, dtype=bool)
+        else:
+            resets = episode_len == max_episode_len
+        resets = np.logical_or(
+            resets, [info.get("needs_reset", False) for info in infos]
+        )
+        # Make mask. 0 if done/reset, 1 if pass
+        end = np.logical_or(resets, dones)
+        episode_done = np.logical_or(episode_done, end)
+
+        # logging
+        if logging_freq and np.max(episode_len) % logging_freq == 0:
+            assert logger is not None
+            logger.info(
+                "at episode {}, step {}, with reward {}".format(
+                    episode_idx,
+                    episode_len,
+                    episode_r,
+                )
+            )
+
+        # add to experience buffer
+        if not testing:
+            trajectory.append((obss, actions, rs, dones, resets))
+    
+    if testing:
+        return episode_r, episode_success
+    else:
+        return trajectory
 
 
 def experience_replay(trajectories, agent_observe_fn):
@@ -169,58 +209,23 @@ def test_agent_batch(
     logger.setLevel(logging.INFO)
 
     assert isinstance(test_env, SyncVectorEnv)
-    num_envs = test_env.num_envs
 
     # main training loops
     try:
         # for each episode
         for episode in range(num_episodes):
-            # o_0, r_0
-            obss = test_env.reset()  # TODO: do the correct reset here!!!!!!
-            obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
-
-            episode_r = np.zeros(num_envs, dtype=np.float32)  # reward for the current episode
-            episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
-            episode_done = np.zeros(num_envs, dtype="i")  # whether the corresponding env is done with the cur episode
-            episode_success = np.zeros(num_envs, dtype="i")  # whether each corresponding succeeded
-
-            # run until all parallel envs finish the current episode
-            while not np.all(episode_done):
-                # a_t
-                actions = agent.batch_act(obss)
-
-                # mask actions for each env, done_envs has action None
-                for i, a in enumerate(actions):
-                    if episode_done[i]:
-                        actions[i] = None
-
-                # o_{t+1}, r_{t+1}
-                obss, rs, dones, infos = test_env.step(actions)
-                obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
-                obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
-                rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
-                dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
-                infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
-
-                # record stats
-                episode_success = np.logical_or(episode_success, dones)
-                episode_not_done = np.logical_not(episode_done)
-                episode_r += rs * episode_not_done
-                episode_len += 1 * episode_not_done
-
-                # Compute mask for done and reset
-                if max_episode_len is None:
-                    resets = np.zeros(num_envs, dtype=bool)
-                else:
-                    resets = episode_len == max_episode_len
-                resets = np.logical_or(
-                    resets, [info.get("needs_reset", False) for info in infos]
-                )
-                # Make mask. 0 if done/reset, 1 if pass
-                end = np.logical_or(resets, dones)
-                episode_done = np.logical_or(episode_done, end)
+            # episode rollout
+            episode_r, episode_success = episode_rollout(
+                testing=True,
+                episode_idx=episode,
+                env=test_env,
+                agent=agent,
+                max_episode_len=max_episode_len,
+                logger=None,
+                logging_freq=None
+            )
             
-            # logging the success rate
+            # logging the success rate per episode
             logger.info(
                 "testing episode {} with success rate: {} and reward {}".format(
                     episode,
