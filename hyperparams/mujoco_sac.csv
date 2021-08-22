@@ -11,6 +11,7 @@ epochs,10,int
 eval_n_episodes,10,int
 logging_frequency,200,int
 testing_frequency,10,int
+plotting_frequency,10,int
 policy_output_scale,1,int
 normalize_action_space,True,bool
 max_episode_len,1000,int

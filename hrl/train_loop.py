@@ -1,3 +1,4 @@
+from distutils.util import strtobool
 import logging
 import traceback
 
@@ -18,6 +19,8 @@ def train_agent_batch_with_eval(
     max_episode_len=None,
     logging_freq=None,
     testing_freq=None,
+    plotting_freq=None,
+    saving_dir=None,
     state_to_goal_fn=None,
 ):
     """Train an agent in a batch environment.
@@ -77,6 +80,11 @@ def train_agent_batch_with_eval(
                     goal_conditioned=goal_conditioned,
                     goal_state=goal_state,
                 )
+            
+            # plotting the value function
+            if plotting_freq is not None and episode % plotting_freq == 0:
+                utils.make_chunked_value_function_plot(solver=agent, episode=episode, saving_dir=saving_dir)
+                logger.info('making value function plot')
     
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')

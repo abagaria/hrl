@@ -154,6 +154,8 @@ class Trial:
             max_episode_len=self.params['max_episode_len'],
             logging_freq=self.params['logging_frequency'],
             testing_freq=self.params['testing_frequency'],
+            plotting_freq=self.params['plotting_frequency'],
+            saving_dir=self.saving_dir,
             state_to_goal_fn=dummy_env.get_position,
         )
 
