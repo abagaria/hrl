@@ -87,6 +87,12 @@ def augment_state(obs, goal):
     assert len(goal.shape) == 1
     aug = np.concatenate([obs, goal], axis=-1)
     assert aug.shape[0] == obs.shape[0] + goal.shape[0]
+    try:  # make sure dtype if float for forward pass in nnet
+        assert aug.dtype == np.float32
+    except AssertionError:
+        aug = aug.astype(np.float32)
+    finally:
+        assert aug.dtype == np.float32
     return aug
 
 

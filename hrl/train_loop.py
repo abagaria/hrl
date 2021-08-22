@@ -133,7 +133,7 @@ def episode_rollout(
         obss, rs, dones, infos = env.step(actions)
         obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
         obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
-        rs = list(map(lambda r: 0 if r is None else r.astype(np.float32), rs))  # change None to 0
+        rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
         dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
         infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
 
@@ -192,10 +192,10 @@ def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, stat
     last_obss = trajectories[-1][0]  # the last observation
     reached_goals = list(map(state_to_goal_fn, last_obss))
     for obss, actions, rs, dones, resets, in trajectories:
-        goal_augmented_obss = list(map(lambda obs: utils.augment_state(obs.astype(np.float32), goal_state.astype(np.float32)), obss))
+        goal_augmented_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), obss))
         reached_goal_augmented_obss = []
         for obs, reached_goal in zip(obss, reached_goals):
-            reached_goal_augmented_obss.append(utils.augment_state(obs.astype(np.float32), reached_goal.astype(np.float32)))
+            reached_goal_augmented_obss.append(utils.augment_state(obs, reached_goal))
         agent_observe_fn(goal_augmented_obss, rs, dones, resets)
         agent_observe_fn(reached_goal_augmented_obss, rs, dones, resets)
 
