@@ -1,4 +1,5 @@
-from distutils.util import strtobool
+import os
+import csv
 import logging
 import traceback
 
@@ -76,15 +77,17 @@ def train_agent_batch_with_eval(
                     agent=agent,
                     test_env=test_env,
                     num_episodes=num_test_episodes,
+                    cur_episode_idx=episode,
                     max_episode_len=max_episode_len,
                     goal_conditioned=goal_conditioned,
                     goal_state=goal_state,
+                    saving_dir=saving_dir,
                 )
             
             # plotting the value function
-            if plotting_freq is not None and episode % plotting_freq == 0:
-                utils.make_chunked_value_function_plot(solver=agent, episode=episode, saving_dir=saving_dir)
-                logger.info('making value function plot')
+            # if plotting_freq is not None and episode % plotting_freq == 0:
+            #     utils.make_chunked_value_function_plot(solver=agent, episode=episode, saving_dir=saving_dir)
+            #     logger.info('making value function plot')
     
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')
@@ -212,9 +215,11 @@ def test_agent_batch(
     agent,
     test_env,
     num_episodes,
+    cur_episode_idx,
     max_episode_len,
     goal_conditioned,
     goal_state,
+    saving_dir,
 ):
     """
     test the agent for num_episodes episodes
@@ -227,6 +232,8 @@ def test_agent_batch(
 
     # main training loops
     try:
+        success_rates = []
+        rewards = []
         # for each episode
         for episode in range(num_episodes):
             # episode rollout
@@ -243,6 +250,8 @@ def test_agent_batch(
             )
             
             # logging the success rate per episode
+            success_rates.append(episode_success)
+            rewards.append(episode_r)
             logger.info(
                 "testing episode {} with success rate: {} and reward {}".format(
                     episode,
@@ -250,6 +259,18 @@ def test_agent_batch(
                     np.mean(episode_r),
                 )
             )
+
+        # save the success metrics per testing run
+        average_success_rates = np.mean(success_rates)
+        average_rewards = np.mean(rewards)
+        results_file = os.path.join(saving_dir, 'metrics.csv')
+        mode = 'w' if cur_episode_idx == 0 else 'a'
+        with open(results_file, mode) as f:
+            csv_writer = csv.writer(f)
+            if mode == 'w':  # write header
+                csv_writer.writerow(['episode_idx', 'success_rate', 'reward'])
+            csv_writer.writerow([cur_episode_idx, average_success_rates, average_rewards])
+        logger.info(f"saved metrics to file {results_file}")
     
     except Exception as e:
         logger.info('ooops, sth went wrong during testing :( ')
