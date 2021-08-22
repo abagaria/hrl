@@ -14,3 +14,5 @@ testing_frequency,10,int
 policy_output_scale,1,int
 normalize_action_space,True,bool
 max_episode_len,1000,int
+goal_conditioned,True,bool
+goal_state_size,2,int

@@ -21,6 +21,9 @@ def make_sac_agent(observation_space, action_space, params):
 		raise Exception("This script requires a PyTorch version >= 1.5.0")
 	
 	obs_size = observation_space.low.size
+	if params['goal_conditioned']:
+		assert 'goal_state_size' in params
+		obs_size += params['goal_state_size']
 	action_size = action_space.low.size
 
 	def squashed_diagonal_gaussian_head(x):

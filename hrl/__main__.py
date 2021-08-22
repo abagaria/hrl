@@ -140,8 +140,7 @@ class Trial:
         """
         train an agent
         """
-        goal_conditioned = True if utils.check_is_antmaze(self.params['environment']) else False
-        if goal_conditioned:
+        if self.params['goal_conditioned']:
             dummy_env = self.make_env(env_seed=0)
             goal_state = dummy_env.goal_state
         train_agent_batch_with_eval(
@@ -150,8 +149,8 @@ class Trial:
             num_episodes=self.params['episodes'],
             test_env=self.test_env,
             num_test_episodes=math.ceil(self.params['eval_n_episodes'] / self.params['num_envs']),
-            goal_conditioned=goal_conditioned,
-            goal_state=goal_state if goal_conditioned else None,
+            goal_conditioned=self.params['goal_conditioned'],
+            goal_state=goal_state if self.params['goal_conditioned'] else None,
             max_episode_len=self.params['max_episode_len'],
             logging_freq=self.params['logging_frequency'],
             testing_freq=self.params['testing_frequency'],
