@@ -18,6 +18,7 @@ def train_agent_batch_with_eval(
     max_episode_len=None,
     logging_freq=None,
     testing_freq=None,
+    state_to_goal_fn=None,
 ):
     """Train an agent in a batch environment.
 
@@ -28,7 +29,7 @@ def train_agent_batch_with_eval(
         test_env: envrionment to test the agent against, this should have a different random seed than env
         params (dict): training parameters
         max_episode_len (int): max steps in one episode 
-        the average returns of the current agent.
+        state_to_goal_fn: a function to extract the goal from an observation state
     Returns:
         List of evaluation episode stats dict.
     """
@@ -49,6 +50,8 @@ def train_agent_batch_with_eval(
                 env=env,
                 agent=agent,
                 max_episode_len=max_episode_len,
+                goal_conditoned=goal_conditioned,
+                goal_state=goal_state,
                 logger=logger,
                 logging_freq=logging_freq,
             )
@@ -57,15 +60,23 @@ def train_agent_batch_with_eval(
             logger.info(f'Episode {episode} ended. Doing experience replay')
             if goal_conditioned:
                 assert goal_state is not None
-                highsight_experience_replay(trajectory, agent.batch_observe, goal_state)
+                assert state_to_goal_fn is not None
+                highsight_experience_replay(trajectory, agent.batch_observe, goal_state, state_to_goal_fn=state_to_goal_fn)
             else:
                 experience_replay(trajectory, agent.batch_observe)
             
             # testing the agent
-            if testing_freq is not None:
+            if testing_freq is not None and episode % testing_freq == 0:
                 assert num_test_episodes is not None
                 test_env = env if test_env is None else test_env
-                utils.every_n_times(testing_freq, episode, test_agent_batch, agent, test_env, num_test_episodes, max_episode_len)
+                test_agent_batch(
+                    agent=agent,
+                    test_env=test_env,
+                    num_episodes=num_test_episodes,
+                    max_episode_len=max_episode_len,
+                    goal_conditioned=goal_conditioned,
+                    goal_state=goal_state,
+                )
     
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')
@@ -79,6 +90,8 @@ def episode_rollout(
     episode_idx,
     env,
     agent,
+    goal_conditoned,
+    goal_state,
     max_episode_len,
     logger,
     logging_freq,
@@ -107,6 +120,8 @@ def episode_rollout(
     # run until all parallel envs finish the current episode
     while not np.all(episode_done):
         # a_t
+        if goal_conditoned:
+            obss = list(map(lambda obs: utils.augment_state(obs, goal_state), obss))
         actions = agent.batch_act(obss)
 
         # mask actions for each env, done_envs has action None
@@ -118,7 +133,7 @@ def episode_rollout(
         obss, rs, dones, infos = env.step(actions)
         obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
         obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
-        rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
+        rs = list(map(lambda r: 0 if r is None else r.astype(np.float32), rs))  # change None to 0
         dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
         infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
 
@@ -170,25 +185,17 @@ def experience_replay(trajectories, agent_observe_fn):
         agent_observe_fn(obss, rs, dones, resets)
 
 
-def highsight_experience_replay(trajectories, agent_observe_fn, goal_state):
+def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, state_to_goal_fn=lambda x: x):
     """
     highsight experience replay
     """
-    def augment_state(obss, goal):
-        """
-        make the state goal-conditioned by concating state with goal
-        NOTE: obss is a batch of obs, while goal is a single goal
-        """
-        assert len(obss.shape) == 2
-        assert len(goal.shape) == 1
-        batched_goal = np.repeat(goal.reshape(1, -1), repeats=obss.shape[0], axis=0)
-        aug = np.concatenate([obss, batched_goal], axis=-1)
-        return aug
-
-    reached_goal = trajectories[-1][0]  # the last observation
+    last_obss = trajectories[-1][0]  # the last observation
+    reached_goals = list(map(state_to_goal_fn, last_obss))
     for obss, actions, rs, dones, resets, in trajectories:
-        goal_augmented_obss = augment_state(obss, goal_state)
-        reached_goal_augmented_obss = augment_state(obss, reached_goal)
+        goal_augmented_obss = list(map(lambda obs: utils.augment_state(obs.astype(np.float32), goal_state.astype(np.float32)), obss))
+        reached_goal_augmented_obss = []
+        for obs, reached_goal in zip(obss, reached_goals):
+            reached_goal_augmented_obss.append(utils.augment_state(obs.astype(np.float32), reached_goal.astype(np.float32)))
         agent_observe_fn(goal_augmented_obss, rs, dones, resets)
         agent_observe_fn(reached_goal_augmented_obss, rs, dones, resets)
 
@@ -197,7 +204,9 @@ def test_agent_batch(
     agent,
     test_env,
     num_episodes,
-    max_episode_len=None,
+    max_episode_len,
+    goal_conditioned,
+    goal_state,
 ):
     """
     test the agent for num_episodes episodes
@@ -219,6 +228,8 @@ def test_agent_batch(
                 env=test_env,
                 agent=agent,
                 max_episode_len=max_episode_len,
+                goal_conditoned=goal_conditioned,
+                goal_state=goal_state,
                 logger=None,
                 logging_freq=None
             )

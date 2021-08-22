@@ -79,6 +79,17 @@ def every_n_times(n, count, callback, *args, final_count=None):
         callback(*args)
 
 
+def augment_state(obs, goal):
+    """
+    make the state goal-conditioned by concating state with goal
+    """
+    assert len(obs.shape) == 1
+    assert len(goal.shape) == 1
+    aug = np.concatenate([obs, goal], axis=-1)
+    assert aug.shape[0] == obs.shape[0] + goal.shape[0]
+    return aug
+
+
 def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
     states = np.array([exp[0] for exp in replay_buffer])
