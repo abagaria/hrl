@@ -74,11 +74,14 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		self.cur_done = done
 		return next_state, reward, done, info
 	
-	def reset(self):
+	def reset(self, testing):
 		"""
-		always use diverse starts
+		always use diverse starts when training
+		don't do diverse start when testing
 		"""
 		self.cur_state = self.env.reset()
+		if testing:
+			return self.cur_state
 		random_start_state = self.sample_random_state()
 		if random_start_state is not None:
 			random_start_state_pos = self.get_position(random_start_state)

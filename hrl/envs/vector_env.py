@@ -17,7 +17,7 @@ def worker(remote, env_fn):
 				ob, reward, done, info = env.step(data)
 				remote.send((ob, reward, done, info))
 			elif cmd == "reset":
-				ob = env.reset()
+				ob = env.reset(**data)
 				remote.send(ob)
 			elif cmd == "close":
 				remote.close()
@@ -39,7 +39,7 @@ def worker(remote, env_fn):
 class SyncVectorEnv(pfrl.envs.MultiprocessVectorEnv):
 	"""
 	This VectorEnv supports the different parallel envs sync at the end of an episode run
-	only function different from pfrl.envs.MultiprocessVectorEnv is self.step()
+	only function different from pfrl.envs.MultiprocessVectorEnv is self.step(), reset()
 	"""
 	def __init__(self, env_fns):
 		"""
@@ -78,3 +78,18 @@ class SyncVectorEnv(pfrl.envs.MultiprocessVectorEnv):
 		results = [remote.recv() for remote in self.remotes]
 		self.last_obs, rews, dones, infos = zip(*results)
 		return self.last_obs, rews, dones, infos
+
+	def reset(self, mask=None, **kwargs):
+		self._assert_not_closed()
+		if mask is None:
+			mask = np.zeros(self.num_envs)
+		for m, remote in zip(mask, self.remotes):
+			if not m:
+				remote.send(("reset", kwargs))
+
+		obs = [
+			remote.recv() if not m else o
+			for m, remote, o in zip(mask, self.remotes, self.last_obs)
+		]
+		self.last_obs = obs
+		return obs

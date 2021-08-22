@@ -104,7 +104,7 @@ def episode_rollout(
     num_envs = env.num_envs
 
     # o_0, r_0
-    obss = env.reset()
+    obss = env.reset(mask=None, testing=testing)
     obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
     if not testing:
         print(f"start position is {[obs[:2] for obs in obss]}")
