@@ -44,6 +44,23 @@ def get_player_position(ram):
 	return x, y
 
 
+def set_player_position(env, x, y):
+	"""
+	set the player position, specifically made for monte envs
+	"""
+	state_ref = env.unwrapped.ale.cloneState()
+	state = env.unwrapped.ale.encodeState(state_ref)
+	env.unwrapped.ale.deleteState(state_ref)
+
+	state[331] = x
+	state[335] = y
+
+	new_state_ref = env.unwrapped.ale.decodeState(state)
+	env.unwrapped.ale.restoreState(new_state_ref)
+	env.unwrapped.ale.deleteState(new_state_ref)
+	env.step(0)  # NO-OP action to update the RAM state
+
+
 def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_buffer, chunk_size=1000):
 	"""
 	helper function to visualize the value function

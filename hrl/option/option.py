@@ -71,7 +71,7 @@ class Option:
 		
 		# initiation is true if we are at the start state
 		copied_env = deepcopy(self.env)
-		if state == copied_env.reset():
+		if np.array_equal(state, copied_env.reset()):
 			return True
 
 		return self.initiation_classifier.predict([state])[0] == 1
@@ -145,7 +145,7 @@ class Option:
 			state_pos = get_player_position(self.env.unwrapped.ale.getRAM())
 			self.position_buffer.append(state_pos)
 			state = next_state
-			if step_number % self.params['logging_frequency'] == 0:
+			if step_number % self.params['logging_frequency'] == 0 and not eval_mode:
 				make_chunked_value_function_plot(self.value_learner, step_number, self.params['seed'], self.params['saving_dir'], pos_replay_buffer=self.position_buffer)
 		visited_states.append(state.flatten())
 
