@@ -1,13 +1,11 @@
 buffer_length,1000000,int
 replay_start_size,10000,int
 episodes,1000,int
-steps,1000000,int
 warmup_episodes,50,int
 use_dense_rewards,True,bool
 lr,3e-4,float
 update_interval,2048,int
 batch_size,256,int
-epochs,10,int
 eval_n_episodes,10,int
 logging_frequency,200,int
 testing_frequency,10,int
