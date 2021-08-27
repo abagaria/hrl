@@ -85,9 +85,13 @@ def train_agent_batch_with_eval(
                 )
             
             # plotting the value function
-            # if plotting_freq is not None and episode % plotting_freq == 0:
-            #     utils.make_chunked_value_function_plot(solver=agent, episode=episode, saving_dir=saving_dir)
-            #     logger.info('making value function plot')
+            if plotting_freq is not None and episode % plotting_freq == 0:
+                utils.make_chunked_value_function_plot(solver=agent, 
+                                                        episode=episode, 
+                                                        goal=np.repeat(goal_state, env.num_envs, 0).reshape((env.num_envs, -1)), 
+                                                        saving_dir=saving_dir, 
+                                                        replay_buffer=trajectory)
+                logger.info('making value function plot')
     
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')

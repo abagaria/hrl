@@ -7,7 +7,7 @@ from distutils.util import strtobool
 
 import numpy as np
 import torch
-import tqdm
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 
@@ -96,10 +96,14 @@ def augment_state(obs, goal):
     return aug
 
 
-def make_chunked_value_function_plot(solver, episode, saving_dir, chunk_size=1000, replay_buffer=None):
+def make_chunked_value_function_plot(solver, episode, saving_dir, goal, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([exp[0] for exp in replay_buffer])
+    states = np.array([np.concatenate([exp[0], goal], axis=-1) for exp in replay_buffer])  # goal conditioned
     actions = np.array([exp[1] for exp in replay_buffer])
+
+    # squeeze into 2-dim arrays
+    states = states.reshape((-1, states.shape[-1]))
+    actions = actions.reshape((-1, actions.shape[-1]))
 
     # Chunk up the inputs so as to conserve GPU memory
     num_chunks = int(np.ceil(states.shape[0] / chunk_size))
@@ -115,14 +119,15 @@ def make_chunked_value_function_plot(solver, episode, saving_dir, chunk_size=100
     for state_chunk, action_chunk in tqdm(zip(state_chunks, action_chunks), desc="Making VF plot"):
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        with torch.no_grad():
+            chunk_qvalues = solver.q_func1((state_chunk, action_chunk)).cpu().numpy().squeeze(-1)
         current_chunk_size = len(state_chunk)
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
 
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
-    file_name = f"{solver.name}_value_function_episode_{episode}.png"
+    file_name = f"value_function_episode_{episode}.png"
     plt.savefig(os.path.join(saving_dir, file_name))
     plt.close()
 
