@@ -77,6 +77,16 @@ class TD3(object):
         if not evaluation_mode:
             selected_action += noise
         return selected_action.clip(-self.max_action, self.max_action)
+    
+    def batch_act(self, states, evaluation_mode=False):
+        """
+        act function, used for vectorized environments
+        """
+        actions = []
+        for state in states:
+            a = self.act(state, evaluation_mode)
+            actions.append(a)
+        return actions
 
     def normalize_actions(self, actions):
 
@@ -99,6 +109,13 @@ class TD3(object):
 
         if len(self.replay_buffer) > self.batch_size:
             self.train(self.replay_buffer, self.batch_size)
+    
+    def batch_observe(self, states, actions, rewards, next_states, is_terminals):
+        """
+        step function, used for vectorized envs
+        """
+        for state, action, next_state, reward, is_terminal in zip(states, actions, next_states, rewards, is_terminals):
+            self.step(state, action, next_state, reward, is_terminal)
 
     def train(self, replay_buffer, batch_size=100):
         self.total_it += 1

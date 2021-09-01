@@ -88,9 +88,9 @@ def train_agent_batch_with_eval(
             if plotting_freq is not None and episode % plotting_freq == 0:
                 utils.make_chunked_value_function_plot(solver=agent, 
                                                         episode=episode, 
-                                                        goal=np.repeat(goal_state, env.num_envs, 0).reshape((env.num_envs, -1)), 
+                                                        goal=goal_state, 
                                                         saving_dir=saving_dir, 
-                                                        replay_buffer=trajectory)
+                                                        replay_buffer=None)
                 logger.info('making value function plot')
     
     except Exception as e:
@@ -136,8 +136,10 @@ def episode_rollout(
     while not np.all(episode_done):
         # a_t
         if goal_conditoned:
-            obss = list(map(lambda obs: utils.augment_state(obs, goal_state), obss))
-        actions = agent.batch_act(obss)
+            enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), obss))
+        else:
+            enhanced_obss = obss
+        actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
 
         # mask actions for each env, done_envs has action None
         for i, a in enumerate(actions):
@@ -145,9 +147,9 @@ def episode_rollout(
                 actions[i] = None
 
         # o_{t+1}, r_{t+1}
-        obss, rs, dones, infos = env.step(actions)
-        obss = list(filter(lambda obs: obs is not None, obss))  # remove the None
-        obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
+        next_obss, rs, dones, infos = env.step(actions)
+        next_obss = list(filter(lambda obs: obs is not None, next_obss))  # remove the None
+        next_obss = list(map(lambda obs: obs.astype(np.float32), next_obss))  # convert np.float64 to np.float32, for torch forward pass
         rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
         dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
         infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
@@ -184,7 +186,10 @@ def episode_rollout(
 
         # add to experience buffer
         if not testing:
-            trajectory.append((obss, actions, rs, dones, resets))
+            trajectory.append((obss, actions, rs, next_obss, dones, resets))
+        
+        # update obss
+        obss = next_obss
     
     if testing:
         return episode_r, episode_success
@@ -196,7 +201,7 @@ def experience_replay(trajectories, agent_observe_fn):
     """
     normal experience replay
     """
-    for obss, actions, rs, dones, resets in trajectories:
+    for obss, actions, rs, next_obss, dones, resets in trajectories:
         agent_observe_fn(obss, rs, dones, resets)
 
 
@@ -206,13 +211,17 @@ def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, stat
     """
     last_obss = trajectories[-1][0]  # the last observation
     reached_goals = list(map(state_to_goal_fn, last_obss))
-    for obss, actions, rs, dones, resets, in trajectories:
+    for obss, actions, rs, next_obss, dones, resets, in trajectories:
         goal_augmented_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), obss))
+        goal_augmented_next_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), next_obss))
         reached_goal_augmented_obss = []
         for obs, reached_goal in zip(obss, reached_goals):
             reached_goal_augmented_obss.append(utils.augment_state(obs, reached_goal))
-        agent_observe_fn(goal_augmented_obss, rs, dones, resets)
-        agent_observe_fn(reached_goal_augmented_obss, rs, dones, resets)
+        reached_goal_augmented_next_obss = []
+        for obs, reached_goal in zip(next_obss, reached_goals):
+            reached_goal_augmented_next_obss.append(utils.augment_state(obs, reached_goal))
+        agent_observe_fn(goal_augmented_obss, actions, goal_augmented_next_obss, rs, dones)
+        agent_observe_fn(reached_goal_augmented_obss, actions, reached_goal_augmented_next_obss, rs, dones)
 
 
 def test_agent_batch(

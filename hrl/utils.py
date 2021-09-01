@@ -8,6 +8,8 @@ from distutils.util import strtobool
 import numpy as np
 import torch
 from tqdm import tqdm
+import matplotlib
+matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
@@ -120,7 +122,7 @@ def make_chunked_value_function_plot(solver, episode, saving_dir, goal, chunk_si
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
         with torch.no_grad():
-            chunk_qvalues = solver.q_func1((state_chunk, action_chunk)).cpu().numpy().squeeze(-1)
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(-1)
         current_chunk_size = len(state_chunk)
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
