@@ -151,7 +151,7 @@ def episode_rollout(
         next_obss = list(filter(lambda obs: obs is not None, next_obss))  # remove the None
         next_obss = list(map(lambda obs: obs.astype(np.float32), next_obss))  # convert np.float64 to np.float32, for torch forward pass
         rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
-        dones = list(map(lambda done: 1 if done is None else 0, dones))  # change None to 1
+        dones = list(map(lambda done: 1 if done is None else done, dones))  # change None to 1
         infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
 
         # record stats
