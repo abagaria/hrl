@@ -48,7 +48,7 @@ def train_agent_batch_with_eval(
         # for each episode
         for episode in range(num_episodes):
             # episode rollout
-            trajectory = episode_rollout(
+            trajectory, episode_r, episode_len, episode_done = episode_rollout(
                 testing=False,
                 episode_idx=episode,
                 env=env,
@@ -59,6 +59,29 @@ def train_agent_batch_with_eval(
                 logger=logger,
                 logging_freq=logging_freq,
             )
+
+            # logging the testing stats
+            mode = 'w' if episode == 0 else 'a'
+            training_rewards_file = os.path.join(saving_dir, 'training_rewards.csv')
+            with open(training_rewards_file, mode) as f:
+                csv_writer = csv.writer(f)
+                if mode == 'w':  # write header
+                    csv_writer.writerow(['episode_idx'] + [f'rewards_{i}' for i in range(len(episode_r))])
+                csv_writer.writerow(np.append([episode], episode_r))
+            
+            training_lens_file = os.path.join(saving_dir, 'training_lens.csv')
+            with open(training_lens_file, mode) as f:
+                csv_writer = csv.writer(f)
+                if mode == 'w':  # write header
+                    csv_writer.writerow(['episode_idx'] + [f'episode_len_{i}' for i in range(len(episode_len))])
+                csv_writer.writerow(np.append([episode], episode_len))
+            
+            training_dones_file = os.path.join(saving_dir, 'training_dones.csv')
+            with open(training_dones_file, mode) as f:
+                csv_writer = csv.writer(f)
+                if mode == 'w':  # write header
+                    csv_writer.writerow(['episode_idx'] + [f'episode_done_{i}' for i in range(len(episode_done))])
+                csv_writer.writerow(np.append([episode], episode_done))
             
             # experience replay for each episode
             logger.info(f'Episode {episode} ended. Doing experience replay')
@@ -194,7 +217,7 @@ def episode_rollout(
     if testing:
         return episode_r, episode_success
     else:
-        return trajectory
+        return trajectory, episode_r, episode_len, episode_done
 
 
 def experience_replay(trajectories, agent_observe_fn):
