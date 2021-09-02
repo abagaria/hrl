@@ -112,7 +112,7 @@ def train_agent_batch_with_eval(
                 utils.make_chunked_value_function_plot(solver=agent, 
                                                         episode=episode, 
                                                         goal=goal_state, 
-                                                        saving_dir=saving_dir, 
+                                                        saving_dir=os.path.join(saving_dir, 'value_function_plots'), 
                                                         replay_buffer=None)
                 logger.info('making value function plot')
     
