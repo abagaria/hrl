@@ -2,6 +2,8 @@ import logging
 import pickle
 import random
 import argparse
+import os
+import shutil
 
 import pfrl
 import torch
@@ -45,9 +47,8 @@ class ExecuteOptionTrial:
         parser.add_argument(
             "--experiment_name",
             type=str,
-            default='monte',
-            help=
-            "Experiment Name, also used as the directory name to save results")
+            default='monte_execute_option',
+            help="Experiment Name, also used as the directory name to save results")
         parser.add_argument(
             "--results_dir",
             type=str,
@@ -113,9 +114,17 @@ class ExecuteOptionTrial:
         self.env = self.make_env(self.params['environment'],
                                  self.params['seed'])
 
+        # create the saving directories
+        self.saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
+        if os.path.exists(self.saving_dir):  # remove all existing contents
+            shutil.rmtree(self.saving_dir)
+        utils.create_log_dir(self.saving_dir)
+        self.params['saving_dir'] = self.saving_dir
+
         # setup global option and the only option that needs to be learned
         with open(self.params['saved_option'], 'rb') as f:
             self.option = pickle.load(f)
+            self.option.params = self.params
 
     def exec_option(self):
         """

@@ -3,9 +3,11 @@ import itertools
 from copy import deepcopy
 from functools import reduce
 from collections import deque
+from pathlib import Path
 
 import numpy as np
 from thundersvm import SVC, OneClassSVM
+import matplotlib.pyplot as plt
 
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.option.utils import warp_frames, get_player_position, make_chunked_value_function_plot
@@ -76,15 +78,16 @@ class Option:
 
 		return self.initiation_classifier.predict([state])[0] == 1
 
-	def is_term_true(self, state):
+	def is_term_true(self, state, eval_mode=False):
 		"""
 		whether the termination condition is true
 		"""
-		# termination is always true if the state is near the goal
-		position = get_player_position(self.env.unwrapped.ale.getRAM())
-		distance_to_goal = np.linalg.norm(position - self.params['goal_state_position'])
-		if distance_to_goal < self.params['epsilon_within_goal']:
-			return True
+		if not eval_mode:
+			# termination is always true if the state is near the goal
+			position = get_player_position(self.env.unwrapped.ale.getRAM())
+			distance_to_goal = np.linalg.norm(position - self.params['goal_state_position'])
+			if distance_to_goal < self.params['epsilon_within_goal']:
+				return True
 		# if termination classifier isn't initialized, and state is not goal state
 		if self.termination_classifier is None:
 			return False
@@ -123,19 +126,25 @@ class Option:
 		total_reward = 0
 		visited_states = []
 		option_transitions = []
-		goal = self.params['goal_state']
-
-		assert goal.shape == state.shape
+		if not eval_mode:
+			goal = self.params['goal_state']
+			assert goal.shape == state.shape
 
 		# print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
 
 		self.num_executions += 1
 
 		# main while loop
-		while not self.is_term_true(state) and not done:
+		while not self.is_term_true(state, eval_mode) and not done:
 			# control
 			action = self.act(state.flatten())
 			next_state, reward, done, _ = self.env.step(action)
+
+			# rendering
+			if eval_mode:
+				save_path = Path(self.params['saving_dir']).joinpath(f"state_at_step_{step_number}.jpeg")
+				plt.imsave(save_path, next_state)
+
 			# logging
 			num_steps += 1
 			step_number += 1
@@ -150,9 +159,9 @@ class Option:
 		visited_states.append(state.flatten())
 
 		# more logging
-		self.success_curve.append(self.is_term_true(state))
+		self.success_curve.append(self.is_term_true(state, eval_mode))
 		self.success_rates[step_number] = {'success': self.get_success_rate()}
-		if self.is_term_true(state):
+		if self.is_term_true(state, eval_mode):
 			self.num_goal_hits += 1
 			print(f"num goal hits increased to {self.num_goal_hits}")
 		
