@@ -71,7 +71,7 @@ class ExecuteOptionTrial:
                             action='store_true',
                             default=False,
                             help="use the deepmind wrappers")
-        parser.add_argument("--render", action='store_true', default=True, 
+        parser.add_argument("--render", action='store_true', default=False, 
                             help="render the environment as it goes")
         parser.add_argument("--seed", type=int, default=0, help="Random seed")
         parser.add_argument(
