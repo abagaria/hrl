@@ -6,6 +6,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
+from numpy.lib.utils import info
 from thundersvm import SVC, OneClassSVM
 import matplotlib.pyplot as plt
 
@@ -137,7 +138,9 @@ class Option:
 		while not self.is_term_true(state, eval_mode) and not done:
 			# control
 			action = self.act(state.flatten())
-			next_state, reward, done, _ = self.env.step(action)
+			next_state, reward, done, info = self.env.step(action)
+			if num_steps >= self.params['max_episode_len']:
+				done = True
 
 			# rendering
 			if eval_mode:
