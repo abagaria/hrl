@@ -125,6 +125,7 @@ class ExecuteOptionTrial:
         with open(self.params['saved_option'], 'rb') as f:
             self.option = pickle.load(f)
             self.option.params = self.params
+            self.option.env = self.env
 
     def exec_option(self):
         """

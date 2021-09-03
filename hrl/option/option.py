@@ -115,7 +115,6 @@ class Option:
 		"""
 		# reset env
 		state = self.env.reset()
-		self.env.unwrapped.reset()
 		done = False
 
 		if self.params['use_deepmind_wrappers']:
