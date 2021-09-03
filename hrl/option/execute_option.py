@@ -82,13 +82,13 @@ class ExecuteOptionTrial:
         parser.add_argument(
             "--start_state",
             type=str,
-            default="resources/monte_info/agent_space_target_goal_state.npy",
+            default="resources/monte_info/right_ladder_agent_space.npy",
             help='a path to the file that saved the starting state obs'
         )
         parser.add_argument(
             "--start_state_pos",
             type=str,
-            default="resources/monte_info/target_goal_state_pos.txt",
+            default="resources/monte_info/right_ladder_pos.txt",
             help='a path to the file that saved the starting state position'
         )
         # hyperparams
