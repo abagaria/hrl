@@ -139,6 +139,7 @@ class Option:
 			# control
 			action = self.act(state.flatten())
 			next_state, reward, done, info = self.env.step(action)
+			done = done or int(info['ale.lives']) < 6  # epsidoe is done if agent dies
 			if num_steps >= self.params['max_episode_len']:
 				done = True
 
