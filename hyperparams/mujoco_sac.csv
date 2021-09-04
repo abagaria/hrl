@@ -1,6 +1,6 @@
 buffer_length,1000000,int
 replay_start_size,10000,int
-episodes,100,int
+episodes,125,int
 warmup_episodes,50,int
 use_dense_rewards,True,bool
 lr,3e-4,float

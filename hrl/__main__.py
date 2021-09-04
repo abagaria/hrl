@@ -69,7 +69,7 @@ class Trial:
                             help="Random seed")
         parser.add_argument("--goal_state", nargs="+", type=float, default=[0, 8],
                             help="specify the goal state of the environment, (0, 8) for example")
-        parser.add_argument('--num_envs', type=int, default=10,
+        parser.add_argument('--num_envs', type=int, default=8,
                             help='Number of env instances to run in parallel')
         # hyperparams
         parser.add_argument('--hyperparams', type=str, default='hyperparams/default.csv',
