@@ -8,7 +8,7 @@ import numpy as np
 
 def worker(remote, env):
 	# Ignore CTRL+C in the worker process
-	signal.signal(signal.SIGINT, signal.SIG_IGN)
+	# signal.signal(signal.SIGINT, signal.SIG_IGN)
 	try:
 		while True:
 			cmd, data = remote.recv()
