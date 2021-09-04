@@ -6,10 +6,9 @@ import pfrl
 import numpy as np
 
 
-def worker(remote, env_fn):
+def worker(remote, env):
 	# Ignore CTRL+C in the worker process
 	signal.signal(signal.SIGINT, signal.SIG_IGN)
-	env = env_fn()
 	try:
 		while True:
 			cmd, data = remote.recv()
@@ -41,7 +40,7 @@ class SyncVectorEnv(pfrl.envs.MultiprocessVectorEnv):
 	This VectorEnv supports the different parallel envs sync at the end of an episode run
 	only function different from pfrl.envs.MultiprocessVectorEnv is self.step(), reset()
 	"""
-	def __init__(self, env_fns):
+	def __init__(self, envs):
 		"""
 		the __init__ method is the same as the one if pfrl.envs.MultiprocessVectorEnv
 		this is re-implemented because the worker() method is redefined above
@@ -55,11 +54,11 @@ class SyncVectorEnv(pfrl.envs.MultiprocessVectorEnv):
 				"""
 			)  # NOQA
 
-		nenvs = len(env_fns)
+		nenvs = len(envs)
 		self.remotes, self.work_remotes = zip(*[Pipe() for _ in range(nenvs)])
 		self.ps = [
-			Process(target=worker, args=(work_remote, env_fn))
-			for (work_remote, env_fn) in zip(self.work_remotes, env_fns)
+			Process(target=worker, args=(work_remote, env))
+			for (work_remote, env) in zip(self.work_remotes, envs)
 		]
 		for p in self.ps:
 			p.start()

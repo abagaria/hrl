@@ -67,7 +67,7 @@ class Trial:
                             help='choose which agent to run')
         parser.add_argument("--seed", type=int, default=1,
                             help="Random seed")
-        parser.add_argument("--goal_state", nargs="+", type=float, default=[],
+        parser.add_argument("--goal_state", nargs="+", type=float, default=[0, 8],
                             help="specify the goal state of the environment, (0, 8) for example")
         parser.add_argument('--num_envs', type=int, default=10,
                             help='Number of env instances to run in parallel')
@@ -102,7 +102,6 @@ class Trial:
         self.check_params_validity()
 
         # setting random seeds
-        seeding.seed(0, random, np)
         pfrl.utils.set_random_seed(self.params['seed'])
 
         # create the saving directories
@@ -203,6 +202,7 @@ class Trial:
                 # default to D4RL goal state
                 goal_state = np.array(env.target_goal)
             print(f"using goal state {goal_state} in env {self.params['environment']}")
+            env.env_seed = env_seed
             env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=self.params['use_dense_rewards'])
         # seed the environment
         env_seed = 2 ** 32 - 1 - env_seed if test else env_seed
@@ -217,7 +217,7 @@ class Trial:
         # make vector env
         vec_env = SyncVectorEnv(
             [
-                (lambda: self.make_env(env_seed=int(process_seeds[idx]), test=test))
+                self.make_env(env_seed=int(process_seeds[idx]), test=test)
                 for idx, env in enumerate(range(self.params['num_envs']))
             ]
         )
