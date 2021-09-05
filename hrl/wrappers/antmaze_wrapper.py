@@ -9,6 +9,7 @@ from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 	def __init__(self, env, start_state, goal_state, use_dense_reward=False):
 		self.env = env
+		np.random.seed(self.env_seed)
 		self.norm_func = lambda x: np.linalg.norm(x, axis=-1) if isinstance(x, np.ndarray) else torch.norm(x, dim=-1)
 		self.reward_func = self.dense_gc_reward_func if use_dense_reward else self.sparse_gc_reward_func
 		self._determine_x_y_lims()
@@ -150,7 +151,6 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		while rejected and num_tries < 200:
 			low = np.array((self.xlims[0], self.ylims[0]))
 			high = np.array((self.xlims[1], self.ylims[1]))
-			np.random.seed(self.env_seed)
 			sampled_point = np.random.uniform(low=low, high=high)
 			rejected = self.env.wrapped_env._is_in_collision(sampled_point) or not cond(sampled_point)
 			num_tries += 1
