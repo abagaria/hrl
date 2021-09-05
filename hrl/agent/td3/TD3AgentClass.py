@@ -66,13 +66,13 @@ class TD3(object):
         self.total_it = 0
 
     def act(self, state, evaluation_mode=False):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+        state = torch.FloatTensor(state).to(self.device)
         selected_action = self.actor(state)
 
         if self.use_output_normalization:
             selected_action = self.normalize_actions(selected_action)
 
-        selected_action = selected_action.cpu().data.numpy().flatten()
+        selected_action = selected_action.cpu().data.numpy()
         noise = np.random.normal(0, self.max_action * self.epsilon, size=self.action_dim)
         if not evaluation_mode:
             selected_action += noise
@@ -82,10 +82,9 @@ class TD3(object):
         """
         act function, used for vectorized environments
         """
-        actions = []
-        for state in states:
-            a = self.act(state, evaluation_mode)
-            actions.append(a)
+        num_envs = len(states)
+        actions = self.act(np.array(states), evaluation_mode)
+        actions = list(actions.reshape(num_envs, -1))  # make actions into a list of len num_envs
         return actions
 
     def normalize_actions(self, actions):
