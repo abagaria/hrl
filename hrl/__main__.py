@@ -198,6 +198,7 @@ class Trial:
         if utils.check_is_antmaze(self.params['environment']):
             if self.params['goal_state']:
                 goal_state = np.array(self.params['goal_state'])
+                env.target_goal = goal_state
             else:
                 # default to D4RL goal state
                 goal_state = np.array(env.target_goal)
