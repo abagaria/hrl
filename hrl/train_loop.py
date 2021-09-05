@@ -48,7 +48,7 @@ def train_agent_batch_with_eval(
         # for each episode
         for episode in range(num_episodes):
             # episode rollout
-            trajectory, episode_r, episode_len, episode_done = episode_rollout(
+            trajectory, episode_r, episode_len = episode_rollout(
                 testing=False,
                 episode_idx=episode,
                 env=env,
@@ -75,13 +75,6 @@ def train_agent_batch_with_eval(
                 if mode == 'w':  # write header
                     csv_writer.writerow(['episode_idx'] + [f'episode_len_{i}' for i in range(len(episode_len))])
                 csv_writer.writerow(np.append([episode], episode_len))
-            
-            training_dones_file = os.path.join(saving_dir, 'training_dones.csv')
-            with open(training_dones_file, mode) as f:
-                csv_writer = csv.writer(f)
-                if mode == 'w':  # write header
-                    csv_writer.writerow(['episode_idx'] + [f'episode_done_{i}' for i in range(len(episode_done))])
-                csv_writer.writerow(np.append([episode], episode_done))
             
             # experience replay for each episode
             logger.info(f'Episode {episode} ended. Doing experience replay')
@@ -217,7 +210,7 @@ def episode_rollout(
     if testing:
         return episode_r, episode_success
     else:
-        return trajectory, episode_r, episode_len, episode_done
+        return trajectory, episode_r, episode_len
 
 
 def experience_replay(trajectories, agent_observe_fn):
