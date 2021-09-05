@@ -173,17 +173,15 @@ def episode_rollout(
 
         # o_{t+1}, r_{t+1}
         next_obss, rs, dones, infos = env.step(actions)
-        next_obss = list(filter(lambda obs: obs is not None, next_obss))  # remove the None
-        next_obss = list(map(lambda obs: obs.astype(np.float32), next_obss))  # convert np.float64 to np.float32, for torch forward pass
-        rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
-        dones = list(map(lambda done: 1 if done is None else done, dones))  # change None to 1
+        zeroed_rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
+        terminal = list(map(lambda done: 1 if done is None else done, dones))  # change None to 1
         infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
 
         # record stats
         if testing:
-            episode_success = np.logical_or(episode_success, dones)
+            episode_success = np.logical_or(episode_success, terminal)
         episode_not_done = np.logical_not(episode_done)
-        episode_r += rs * episode_not_done
+        episode_r += zeroed_rs * episode_not_done
         episode_len += 1 * episode_not_done
 
         # Compute mask for done and reset
@@ -195,7 +193,7 @@ def episode_rollout(
             resets, [info.get("needs_reset", False) for info in infos]
         )
         # Make mask. 0 if done/reset, 1 if pass
-        end = np.logical_or(resets, dones)
+        end = np.logical_or(resets, terminal)
         episode_done = np.logical_or(episode_done, end)
 
         # logging
@@ -211,6 +209,22 @@ def episode_rollout(
 
         # add to experience buffer
         if not testing:
+            # make sure everything is the same size
+            try:
+                next_obss = list(filter(lambda obs: obs is not None, next_obss))  # remove the None
+                assert len(obss) == len(next_obss)
+            except AssertionError:  # some envs hit Nones
+                # obss should only take into account the indices on which next_obss is not None
+                not_none_index = [i for i, obs in enumerate(next_obss) if next_obss[i] is not None]
+                obss = [obss[idx] for idx in not_none_index]
+                next_obss = [next_obss[idx] for idx in not_none_index]
+                assert len(obss) == len(next_obss)
+            finally:
+                next_obss = list(map(lambda obs: obs.astype(np.float32), next_obss))  # convert np.float64 to np.float32, for torch forward pass
+                actions = list(filter(lambda a: a is not None, actions))  # remove the None
+                rs = list(filter(lambda r: r is not None, rs))  # remove the None
+                dones = list(filter(lambda done: done is not None, dones))  # remove the None
+                assert len(obss) == len(actions) == len(rs) == len(next_obss) == len(dones)
             trajectory.append((obss, actions, rs, next_obss, dones, resets))
         
         # update obss
