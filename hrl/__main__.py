@@ -218,7 +218,7 @@ class Trial:
         # make vector env
         vec_env = SyncVectorEnv(
             [
-                self.make_env(env_seed=int(process_seeds[idx]), test=test)
+                (lambda i: lambda: self.make_env(env_seed=int(process_seeds[i]), test=test))(idx)
                 for idx, env in enumerate(range(self.params['num_envs']))
             ]
         )
