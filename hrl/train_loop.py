@@ -236,31 +236,46 @@ def episode_rollout(
         return trajectory, episode_r, episode_len, starting_poss
 
 
+def experience_replay_for_goal(t, observe_fn, target_goals=None):
+    """
+    experience replay targeting a specific goal
+    the `target_goal` here should be a list of lenght num_envs, and each element of length goal_size
+    """
+    if target_goals is None:
+        # for normal ER
+        for obss, actions, rs, next_obss, dones, resets in t:
+            observe_fn(obss, actions, next_obss, rs, dones)
+    else:
+        # for HER
+        for obss, actions, rs, next_obss, dones, resets in t:
+            # augment the obss with target_goal
+            goal_augmented_obss = [utils.augment_state(obs, g) for obs, g in zip(obss, target_goals)]
+            # augment the next_obss with target goal
+            goal_augmented_next_obss = [utils.augment_state(obs, g) for obs, g in zip(next_obss, target_goals)]
+            observe_fn(goal_augmented_obss, actions, goal_augmented_next_obss, rs, dones)
+
+
 def experience_replay(trajectories, agent_observe_fn):
     """
     normal experience replay
     """
-    for obss, actions, rs, next_obss, dones, resets in trajectories:
-        agent_observe_fn(obss, rs, dones, resets)
+    experience_replay_for_goal(t=trajectories, observe_fn=agent_observe_fn, target_goals=None)
 
 
 def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, state_to_goal_fn=lambda x: x):
     """
     highsight experience replay
     """
-    last_obss = trajectories[-1][0]  # the last observation
+    # recover the reached goals 
+    last_obss = trajectories[-1][0]  # the last observation, -1 index last, 0 index obss in a transition
     reached_goals = list(map(state_to_goal_fn, last_obss))
-    for obss, actions, rs, next_obss, dones, resets, in trajectories:
-        goal_augmented_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), obss))
-        goal_augmented_next_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), next_obss))
-        reached_goal_augmented_obss = []
-        for obs, reached_goal in zip(obss, reached_goals):
-            reached_goal_augmented_obss.append(utils.augment_state(obs, reached_goal))
-        reached_goal_augmented_next_obss = []
-        for obs, reached_goal in zip(next_obss, reached_goals):
-            reached_goal_augmented_next_obss.append(utils.augment_state(obs, reached_goal))
-        agent_observe_fn(goal_augmented_obss, actions, goal_augmented_next_obss, rs, dones)
-        agent_observe_fn(reached_goal_augmented_obss, actions, reached_goal_augmented_next_obss, rs, dones)
+
+    # make goal_state into a list
+    goal_state = [goal_state] * len(reached_goals)
+
+    # hindsight
+    experience_replay_for_goal(t=trajectories, observe_fn=agent_observe_fn, target_goals=goal_state)
+    experience_replay_for_goal(t=trajectories, observe_fn=agent_observe_fn, target_goals=reached_goals)
 
 
 def test_agent_batch(
