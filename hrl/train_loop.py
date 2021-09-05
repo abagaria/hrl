@@ -48,7 +48,7 @@ def train_agent_batch_with_eval(
         # for each episode
         for episode in range(num_episodes):
             # episode rollout
-            trajectory, episode_r, episode_len = episode_rollout(
+            trajectory, episode_r, episode_len, episode_start_poss = episode_rollout(
                 testing=False,
                 episode_idx=episode,
                 env=env,
@@ -59,6 +59,7 @@ def train_agent_batch_with_eval(
                 logger=logger,
                 logging_freq=logging_freq,
             )
+            assert len(episode_r) == len(episode_len) == len(episode_start_poss)
 
             # logging the testing stats
             mode = 'w' if episode == 0 else 'a'
@@ -75,6 +76,13 @@ def train_agent_batch_with_eval(
                 if mode == 'w':  # write header
                     csv_writer.writerow(['episode_idx'] + [f'episode_len_{i}' for i in range(len(episode_len))])
                 csv_writer.writerow(np.append([episode], episode_len))
+            
+            training_start_pos_file = os.path.join(saving_dir, 'training_start_pos.csv')
+            with open(training_start_pos_file, mode) as f:
+                csv_writer = csv.writer(f)
+                if mode == 'w':  # write header
+                    csv_writer.writerow(['episode_idx'] + [f'episode_start_pos_{i}' for i in range(len(episode_start_poss))])
+                csv_writer.writerow([episode] + episode_start_poss)
             
             # experience replay for each episode
             logger.info(f'Episode {episode} ended. Doing experience replay')
@@ -138,7 +146,8 @@ def episode_rollout(
     obss = env.reset(mask=None, testing=testing)
     obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
     if not testing:
-        print(f"start position is {[obs[:2] for obs in obss]}")
+        starting_poss = [obs[:2] for obs in obss]
+        print(f"start position is {starting_poss}")
 
     if not testing:
         trajectory = []
@@ -210,7 +219,7 @@ def episode_rollout(
     if testing:
         return episode_r, episode_success
     else:
-        return trajectory, episode_r, episode_len
+        return trajectory, episode_r, episode_len, starting_poss
 
 
 def experience_replay(trajectories, agent_observe_fn):
