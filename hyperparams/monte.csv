@@ -7,7 +7,7 @@ multithread_mpc,False,bool
 use_dense_rewards,True,bool
 lr_a,1e-5,float
 lr_c,1e-5,float
-epsilon_within_goal,10.0,float
+epsilon_within_goal,3.0,float
 epsilon,0.2,float
 logging_frequency,100,int
 max_episode_len,300,int
