@@ -2,13 +2,10 @@ import logging
 import time
 import pickle
 import os
-import random
 import argparse
 import shutil
 
 import pfrl
-import torch
-import seeding
 import numpy as np
 
 from hrl import utils
@@ -88,7 +85,6 @@ class TrainOptionTrial:
         self.check_params_validity()
 
         # setting random seeds
-        seeding.seed(0, random, torch, np)
         pfrl.utils.set_random_seed(self.params['seed'])
 
         # create the saving directories
