@@ -119,10 +119,12 @@ class TrainOptionTrial:
         
         # create the option
         step_number = 0
+        episode_idx = 0
         while self.option.get_training_phase() == "gestation":
-            print(f"step {step_number}")
+            print(f"starting episode {episode_idx} at step {step_number}")
             option_transitions, total_reward = self.option.rollout(step_number=step_number, eval_mode=False, rendering=self.params['render'])
             step_number += len(option_transitions)
+            episode_idx += 1
             # plot_two_class_classifier(self.option, self.option.num_executions, self.params['experiment_name'], plot_examples=True)
 
         end_time = time.time()
