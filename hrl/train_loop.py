@@ -168,9 +168,13 @@ def episode_rollout(
         actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
 
         # mask actions for each env, done_envs has action None
-        for i, a in enumerate(actions):
-            if episode_done[i]:
-                actions[i] = StopExecution
+        # but first need to ensure that actions have the correct length
+        try:
+            assert len(actions) == num_envs
+        except AssertionError:
+            action_iter = iter(actions)
+            actions = [StopExecution if episode_done[idx_env] else next(action_iter) for idx_env in range(num_envs)]
+            assert len(actions) == num_envs
 
         # o_{t+1}, r_{t+1}
         next_obss, rs, dones, infos = env.step(actions)
