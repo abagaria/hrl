@@ -7,6 +7,7 @@ import numpy as np
 
 from hrl.envs.vector_env import SyncVectorEnv
 from hrl import utils
+from hrl.utils import StopExecution
 
 
 def train_agent_batch_with_eval(
@@ -169,13 +170,13 @@ def episode_rollout(
         # mask actions for each env, done_envs has action None
         for i, a in enumerate(actions):
             if episode_done[i]:
-                actions[i] = None
+                actions[i] = StopExecution
 
         # o_{t+1}, r_{t+1}
         next_obss, rs, dones, infos = env.step(actions)
-        zeroed_rs = list(map(lambda r: 0 if r is None else r, rs))  # change None to 0
-        terminal = list(map(lambda done: 1 if done is None else done, dones))  # change None to 1
-        infos = list(map(lambda info: {} if info is None else info, infos))  # change None to {}
+        zeroed_rs = list(map(lambda r: 0 if r is StopExecution else r, rs))  # change None to 0
+        terminal = list(map(lambda done: 1 if done is StopExecution else done, dones))  # change None to 1
+        infos = list(map(lambda info: {} if info is StopExecution else info, infos))  # change None to {}
 
         # record stats
         if testing:
@@ -211,19 +212,19 @@ def episode_rollout(
         if not testing:
             # make sure everything is the same size
             try:
-                next_obss = list(filter(lambda obs: obs is not None, next_obss))  # remove the None
+                next_obss = list(filter(lambda obs: obs is not StopExecution, next_obss))  # remove the None
                 assert len(obss) == len(next_obss)
             except AssertionError:  # some envs hit Nones
                 # obss should only take into account the indices on which next_obss is not None
-                not_none_index = [i for i, obs in enumerate(next_obss) if next_obss[i] is not None]
+                not_none_index = [i for i, obs in enumerate(next_obss) if next_obss[i] is not StopExecution]
                 obss = [obss[idx] for idx in not_none_index]
                 next_obss = [next_obss[idx] for idx in not_none_index]
                 assert len(obss) == len(next_obss)
             finally:
                 next_obss = list(map(lambda obs: obs.astype(np.float32), next_obss))  # convert np.float64 to np.float32, for torch forward pass
-                actions = list(filter(lambda a: a is not None, actions))  # remove the None
-                rs = list(filter(lambda r: r is not None, rs))  # remove the None
-                dones = list(filter(lambda done: done is not None, dones))  # remove the None
+                actions = list(filter(lambda a: a is not StopExecution, actions))  # remove the None
+                rs = list(filter(lambda r: r is not StopExecution, rs))  # remove the None
+                dones = list(filter(lambda done: done is not StopExecution, dones))  # remove the None
                 assert len(obss) == len(actions) == len(rs) == len(next_obss) == len(dones)
             trajectory.append((obss, actions, rs, next_obss, dones, resets))
         

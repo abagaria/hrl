@@ -5,6 +5,8 @@ from multiprocessing import Pipe, Process
 import pfrl
 import numpy as np
 
+from hrl.utils import StopExecution
+
 
 def worker(remote, env_fn):
 	# Ignore CTRL+C in the worker process
@@ -29,7 +31,7 @@ def worker(remote, env_fn):
 			elif cmd == "seed":
 				remote.send(env.seed(data))
 			elif cmd == "done":  # the environment should be closed
-				remote.send((None, None, None, None))
+				remote.send((StopExecution, StopExecution, StopExecution, StopExecution))
 			else:
 				raise NotImplementedError
 	finally:
@@ -71,7 +73,7 @@ class SyncVectorEnv(pfrl.envs.MultiprocessVectorEnv):
 	def step(self, actions):
 		self._assert_not_closed()
 		for remote, action in zip(self.remotes, actions):
-			if action is not None:  # action is not None
+			if action is not StopExecution:  # action is not None
 				remote.send(("step", action))
 			else:
 				remote.send(("done", None))

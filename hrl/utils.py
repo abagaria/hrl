@@ -13,6 +13,14 @@ matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 
 
+class StopExecution:
+    """
+    the class is used as a token to signify that execution of some env in the VectorEnv should be stopped
+    using this class instead of `None` becaus None blocks multiprocessing.Connection.recv()
+    """
+    pass
+
+
 def create_log_dir(experiment_name):
     path = os.path.join(os.getcwd(), experiment_name)
     try:
