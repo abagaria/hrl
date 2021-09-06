@@ -110,7 +110,7 @@ class Option:
 			action = np.argmax(tanh_output)
 			return action
 	
-	def rollout(self, step_number, eval_mode=False):
+	def rollout(self, step_number, eval_mode=False, rendering=False):
 		"""
 		main control loop for option execution
 		"""
@@ -144,7 +144,7 @@ class Option:
 				done = True
 
 			# rendering
-			if eval_mode:
+			if rendering or eval_mode:
 				save_path = Path(self.params['saving_dir']).joinpath(f"state_at_step_{step_number}.jpeg")
 				plt.imsave(save_path, next_state)
 

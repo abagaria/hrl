@@ -54,6 +54,8 @@ class TrainOptionTrial:
         # environments
         parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
                             help="name of the gym environment")
+        parser.add_argument("--render", action='store_true', default=False, 
+                            help="save the images of states while training")
         parser.add_argument("--agent_space", action='store_true', default=False,
                             help="train with the agent space")
         parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
@@ -123,7 +125,7 @@ class TrainOptionTrial:
         step_number = 0
         while self.option.get_training_phase() == "gestation":
             print(f"step {step_number}")
-            option_transitions, total_reward = self.option.rollout(step_number=step_number, eval_mode=False)
+            option_transitions, total_reward = self.option.rollout(step_number=step_number, eval_mode=False, rendering=self.params['render'])
             step_number += len(option_transitions)
             # plot_two_class_classifier(self.option, self.option.num_executions, self.params['experiment_name'], plot_examples=True)
 
