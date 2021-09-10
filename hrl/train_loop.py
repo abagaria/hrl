@@ -249,7 +249,7 @@ def experience_replay_for_goal(t, observe_fn, target_goals=None):
     if target_goals is None:
         # for normal ER
         for obss, actions, rs, next_obss, dones, resets in t:
-            observe_fn(obss, actions, next_obss, rs, dones)
+            observe_fn(obss, actions, rs, next_obss, dones)
     else:
         # for HER
         for obss, actions, rs, next_obss, dones, resets in t:
@@ -257,7 +257,7 @@ def experience_replay_for_goal(t, observe_fn, target_goals=None):
             goal_augmented_obss = [utils.augment_state(obs, g) for obs, g in zip(obss, target_goals)]
             # augment the next_obss with target goal
             goal_augmented_next_obss = [utils.augment_state(obs, g) for obs, g in zip(next_obss, target_goals)]
-            observe_fn(goal_augmented_obss, actions, goal_augmented_next_obss, rs, dones)
+            observe_fn(goal_augmented_obss, actions, rs, goal_augmented_next_obss, dones)
 
 
 def experience_replay(trajectories, agent_observe_fn):

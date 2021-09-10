@@ -113,14 +113,14 @@ class TD3(object):
         """
         step function, used for vectorized envs
         """
-        for state, action, next_state, reward, is_terminal in zip(states, actions, next_states, rewards, is_terminals):
-            self.step(state, action, next_state, reward, is_terminal)
+        for state, action, reward, next_state, is_terminal in zip(states, actions, rewards, next_states, is_terminals):
+            self.step(state, action, reward, next_state, is_terminal)
 
     def train(self, replay_buffer, batch_size=100):
         self.total_it += 1
 
         # Sample replay buffer - result is tensors
-        state, action, next_state, reward, done = replay_buffer.sample(batch_size)
+        state, action, reward, next_state, done = replay_buffer.sample(batch_size)
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise
