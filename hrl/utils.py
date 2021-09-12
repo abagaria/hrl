@@ -119,6 +119,22 @@ def augment_state(obs, goal):
     return aug
 
 
+def make_chunked_reward_plot(solver, episode, saving_dir, chunk_size=1000, replay_buffer=None):
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    states = np.array([exp[0] for exp in replay_buffer])
+    rewards = np.array([exp[2] for exp in replay_buffer])
+
+    # squeeze into 2-dim arrays
+    states = states.reshape((-1, states.shape[-1]))
+    rewards = rewards.reshape((-1, rewards.shape[-1]))
+
+    plt.scatter(states[:, 0], states[:, 1], c=rewards)
+    plt.colorbar()
+    file_name = f"reward_episode_{episode}.png"
+    plt.savefig(os.path.join(saving_dir, file_name))
+    plt.close()
+
+
 def make_chunked_value_function_plot(solver, episode, saving_dir, goal, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
     states = np.array([np.concatenate([exp[0], goal], axis=-1) for exp in replay_buffer])  # goal conditioned

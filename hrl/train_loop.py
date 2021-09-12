@@ -2,6 +2,7 @@ import os
 import csv
 import logging
 import traceback
+from pathlib import Path
 
 import numpy as np
 
@@ -109,14 +110,24 @@ def train_agent_batch_with_eval(
                     saving_dir=saving_dir,
                 )
             
-            # plotting the value function
+            # plotting the value function and reward func
             if plotting_freq is not None and episode % plotting_freq == 0:
+                # value function
+                value_func_dir = Path(saving_dir).joinpath('value_function_plots')
+                value_func_dir.mkdir(exist_ok=True)
                 utils.make_chunked_value_function_plot(solver=agent, 
                                                         episode=episode, 
                                                         goal=goal_state, 
-                                                        saving_dir=os.path.join(saving_dir, 'value_function_plots'), 
+                                                        saving_dir=value_func_dir, 
                                                         replay_buffer=None)
-                logger.info('making value function plot')
+                # reward
+                reward_dir = Path(saving_dir).joinpath('reward_plots')
+                reward_dir.mkdir(exist_ok=True)
+                utils.make_chunked_reward_plot(solver=agent,
+                                                episode=episode,
+                                                saving_dir=reward_dir,
+                                                replay_buffer=None)
+                logger.info('made value function plot and reward plot')
     
     except Exception as e:
         logger.info('ooops, sth went wrong :( ')
