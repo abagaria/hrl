@@ -98,7 +98,7 @@ def make_sac_agent(observation_space, action_space, params):
 		return np.random.uniform(action_space.low, action_space.high).astype(np.float32)
 
 	# Hyperparameters in http://arxiv.org/abs/1802.09477
-	gpu = 0 if 'cuda' in params['device'] else -1
+	gpu = 0 if params['device'] == torch.device('cuda') else -1
 	agent = pfrl.agents.SoftActorCritic(
 		policy,
 		q_func1,
@@ -122,7 +122,7 @@ def make_ppo_agent(observation_space, action_space, params):
 	"""
 	return a PPO agent, according to params specified
 	"""
-	gpu = 0 if 'cuda' in params['device'] else -1
+	gpu = 0 if params['device'] == torch.device('cuda') else -1
 	# make different agents for different envs
 	if utils.check_is_atari(params['environment']):
 		# for atari envs

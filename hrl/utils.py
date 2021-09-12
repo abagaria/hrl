@@ -21,6 +21,19 @@ class StopExecution:
     pass
 
 
+def determine_device(disable_gpu=False):
+    """
+    determine whether execute on CPU or GPU
+    """
+    if disable_gpu or not torch.cuda.is_available():
+        device = torch.device('cpu')
+    else:
+        torch.backends.cudnn.benchmark = True
+        device = torch.device('cuda')
+    logging.info(f'training on device {device}')
+    return device
+
+
 def create_log_dir(experiment_name):
     path = os.path.join(os.getcwd(), experiment_name)
     try:

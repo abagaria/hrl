@@ -56,8 +56,8 @@ class Trial:
                             help="Experiment Name, also used as the directory name to save results")
         parser.add_argument("--results_dir", type=str, default='results',
                             help='the name of the directory used to store results')
-        parser.add_argument("--device", type=str, default='cuda:1',
-                            help="cpu/cuda:0/cuda:1")
+        parser.add_argument('--disable_gpu', default=False, action='store_true',
+                            help='enforce training on CPU')
         parser.add_argument("--generate_init_gif", action="store_true", default=False,
                             help='whether to generate initiation area gifs')
         # environments
@@ -100,6 +100,7 @@ class Trial:
         do set up for the experiment
         """
         self.check_params_validity()
+        self.params['device'] = utils.determine_device(self.params['disable_gpu'])
 
         # setting random seeds
         pfrl.utils.set_random_seed(self.params['seed'])
