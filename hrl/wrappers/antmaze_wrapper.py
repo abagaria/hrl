@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 import numpy as np
+from numpy.random.mtrand import sample
 import torch
 
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
@@ -83,10 +84,10 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		self.cur_state = self.env.reset()
 		if testing:
 			return self.cur_state
-		random_start_state = self.sample_random_state()
-		if random_start_state is not None:
-			random_start_state_pos = self.get_position(random_start_state)
-			self.set_xy(random_start_state_pos)
+		random_start_pos = self.sample_random_state()
+		assert len(random_start_pos) == 2
+		if random_start_pos is not None:
+			self.set_xy(random_start_pos)
 		return self.cur_state
 
 	def get_current_goal(self):
@@ -96,8 +97,11 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		dist_to_start = self.norm_func(states - self.start_state)
 		return dist_to_start <= self.goal_tolerance
 	
-	def is_goal_region(self, states):
-		dist_to_goal = self.norm_func(states - self.goal_state)
+	def is_goal_region(self, pos):
+		"""
+		determine if pos (a tuple of len 2) is within the goal region
+		"""
+		dist_to_goal = self.norm_func(pos - self.goal_state)
 		return dist_to_goal <= self.goal_tolerance
 	
 	def extract_features_for_initiation_classifier(self, states):
@@ -146,13 +150,18 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		return self.env.env_seed
 
 	def sample_random_state(self, cond=lambda x: True):
+		"""
+		return a random position: a tuple of shape (2,)
+		"""
 		num_tries = 0
 		rejected = True
 		while rejected and num_tries < 200:
-			low = np.array((self.xlims[0], self.ylims[0]))
-			high = np.array((self.xlims[1], self.ylims[1]))
+			low = np.array(self.get_x_y_low_lims())
+			high = np.array(self.get_x_y_high_lims())
 			sampled_point = np.random.uniform(low=low, high=high)
-			rejected = self.env.wrapped_env._is_in_collision(sampled_point) or not cond(sampled_point)
+			rejected = (self.env.wrapped_env._is_in_collision(sampled_point) 
+							or self.is_goal_region(sampled_point) 
+							or not cond(sampled_point))
 			num_tries += 1
 
 			if not rejected:
