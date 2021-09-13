@@ -124,6 +124,10 @@ def make_done_position_plot(solver, episode, saving_dir, replay_buffer=None):
     states = np.array([exp[0] for exp in replay_buffer])
     dones = np.array([exp[4] for exp in replay_buffer])
 
+    # squeeze into 2-dim arrays, so it's compatible with vector-env states, dones
+    states = states.reshape((-1, states.shape[-1]))
+    dones = dones.reshape((-1,))
+
     done_states = states[dones == True]
     plt.scatter(done_states[:, 0], done_states[:, 1])
     file_name = f"done_position_episode_{episode}.png"
