@@ -1,0 +1,12 @@
+buffer_length,1000000,int
+episodes,1500,int
+use_dense_rewards,True,bool
+lr,3e-4,float
+eval_n_episodes,10,int
+logging_frequency,200,int
+testing_frequency,10,int
+plotting_frequency,10,int
+normalize_action_space,True,bool
+max_episode_len,1000,int
+goal_conditioned,True,bool
+goal_state_size,2,int
