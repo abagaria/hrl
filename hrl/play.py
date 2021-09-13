@@ -36,7 +36,7 @@ class PlayGame:
 		"""
 		parse the inputted argument
 		"""
-		parser = argparse.ArgumentParser()
+		parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 		# system 
 		parser.add_argument("--experiment_name", type=str, default='monte_info',
 							help="Experiment Name, also used as the directory name to save results")
