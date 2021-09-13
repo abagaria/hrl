@@ -119,7 +119,19 @@ def augment_state(obs, goal):
     return aug
 
 
-def make_chunked_reward_plot(solver, episode, saving_dir, chunk_size=1000, replay_buffer=None):
+def make_done_position_plot(solver, episode, saving_dir, replay_buffer=None):
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    states = np.array([exp[0] for exp in replay_buffer])
+    dones = np.array([exp[4] for exp in replay_buffer])
+
+    done_states = states[dones == True]
+    plt.scatter(done_states[:, 0], done_states[:, 1])
+    file_name = f"done_position_episode_{episode}.png"
+    plt.savefig(os.path.join(saving_dir, file_name))
+    plt.close()
+
+
+def make_reward_plot(solver, episode, saving_dir, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
     states = np.array([exp[0] for exp in replay_buffer])
     rewards = np.array([exp[2] for exp in replay_buffer])

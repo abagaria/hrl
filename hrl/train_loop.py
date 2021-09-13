@@ -110,6 +110,14 @@ def train_agent_batch_with_eval(
                     saving_dir=saving_dir,
                 )
             
+            # for debugging purposes, always plot the positions where done = True
+            done_pos_dir = Path(saving_dir).joinpath('done_position_plots')
+            done_pos_dir.mkdir(exist_ok=True)
+            utils.make_done_position_plot(solver=agent,
+                                            episode=episode,
+                                            saving_dir=done_pos_dir,
+                                            replay_buffer=None)
+            
             # plotting the value function and reward func
             if plotting_freq is not None and episode % plotting_freq == 0:
                 # value function
@@ -123,7 +131,7 @@ def train_agent_batch_with_eval(
                 # reward
                 reward_dir = Path(saving_dir).joinpath('reward_plots')
                 reward_dir.mkdir(exist_ok=True)
-                utils.make_chunked_reward_plot(solver=agent,
+                utils.make_reward_plot(solver=agent,
                                                 episode=episode,
                                                 saving_dir=reward_dir,
                                                 replay_buffer=None)
