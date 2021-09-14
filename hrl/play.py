@@ -81,7 +81,7 @@ class PlayGame:
 		"""
 		play through the environment, with user-input actions
 		"""
-		print(self.env.unwrapped.get_action_meanings())
+		print([(i, meaning) for i, meaning in enumerate(self.env.unwrapped.get_action_meanings())])
 		state = self.env.reset()
 		if self.params['get_player_position']:  # get position
 			pos = get_player_position(self.env.unwrapped.ale.getRAM())
