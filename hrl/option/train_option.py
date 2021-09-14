@@ -67,7 +67,7 @@ class TrainOptionTrial:
                             help="a file in goal_state_dir that stores the image of the agent in goal state")
         parser.add_argument("--goal_state_agent_space", type=str, default="middle_ladder_bottom_agent_space.npy",
                             help="a file in goal_state_dir that store the agent space image of agent in goal state")
-        parser.add_argument("--goal_state_pos", type=str, default="middle_ladder_pos.txt",
+        parser.add_argument("--goal_state_pos", type=str, default="middle_ladder_bottom_pos.txt",
                             help="a file in goal_state_dir that store the x, y coordinates of goal state")
         # hyperparams
         parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
