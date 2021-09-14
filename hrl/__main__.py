@@ -203,7 +203,11 @@ class Trial:
                 goal_state = np.array(env.target_goal)
             print(f"using goal state {goal_state} in env {self.params['environment']}")
             env.env_seed = env_seed
-            env = D4RLAntMazeWrapper(env, start_state=((0, 0)), goal_state=goal_state, use_dense_reward=self.params['use_dense_rewards'])
+            env = D4RLAntMazeWrapper(env, 
+                                    start_state=((0, 0)), 
+                                    goal_state=goal_state, 
+                                    use_dense_reward=self.params['use_dense_rewards'],
+                                    use_diverse_starts=self.params['use_diverse_starts'])
         # seed the environment
         env_seed = 2 ** 32 - 1 - env_seed if test else env_seed
         env.seed(env_seed)

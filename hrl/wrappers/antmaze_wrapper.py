@@ -1,18 +1,16 @@
-from copy import deepcopy
-
 import numpy as np
-from numpy.random.mtrand import sample
 import torch
 
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
 
 class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
-	def __init__(self, env, start_state, goal_state, use_dense_reward=False):
+	def __init__(self, env, start_state, goal_state, use_dense_reward=False, use_diverse_starts=True):
 		self.env = env
 		np.random.seed(self.env_seed)
 		self.norm_func = lambda x: np.linalg.norm(x, axis=-1) if isinstance(x, np.ndarray) else torch.norm(x, dim=-1)
 		self.reward_func = self.dense_gc_reward_func if use_dense_reward else self.sparse_gc_reward_func
+		self.use_diverse_starts=use_diverse_starts
 		self._determine_x_y_lims()
 		super().__init__(env, start_state, goal_state)
 
@@ -82,7 +80,7 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		don't do diverse start when testing
 		"""
 		self.cur_state = self.env.reset()
-		if testing:
+		if testing or not self.use_diverse_starts:
 			return self.cur_state
 		random_start_pos = self.sample_random_state()
 		assert len(random_start_pos) == 2
