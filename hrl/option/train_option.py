@@ -4,6 +4,7 @@ import pickle
 import os
 import argparse
 import shutil
+from pathlib import Path
 
 import pfrl
 import numpy as np
@@ -59,8 +60,15 @@ class TrainOptionTrial:
                             help="use the deepmind wrappers")
         parser.add_argument("--seed", type=int, default=0,
                             help="Random seed")
+        # goal state
         parser.add_argument("--goal_state_dir", type=str, default="resources/monte_info",
-                            help="specify the goal state of the environment, (0, 8) for example")
+                            help="where the goal state files are stored")
+        parser.add_argument("--goal_state", type=str, default="middle_ladder_bottom.npy",
+                            help="a file in goal_state_dir that stores the image of the agent in goal state")
+        parser.add_argument("--goal_state_agent_space", type=str, default="middle_ladder_bottom_agent_space.npy",
+                            help="a file in goal_state_dir that store the agent space image of agent in goal state")
+        parser.add_argument("--goal_state_pos", type=str, default="middel_ladder_pos.txt",
+                            help="a file in goal_state_dir that store the x, y coordinates of goal state")
         # hyperparams
         parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
                             help='path to the hyperparams file to use')
@@ -100,10 +108,10 @@ class TrainOptionTrial:
         # set up env and its goal
         self.env = self.make_env(self.params['environment'], self.params['seed'])
         if self.params['agent_space']:
-            goal_state_path = os.path.join(self.params['goal_state_dir'], 'middle_ladder_bottom_agent_space.npy')
+            goal_state_path = Path(self.params['goal_state_dir']).joinpath(self.params['goal_state_agent_space'])
         else:
-            goal_state_path = os.path.join(self.params['goal_state_dir'], 'middle_ladder_bottom.npy')
-        goal_state_pos_path = os.path.join(self.params['goal_state_dir'], 'middle_ladder_bottom_pos.txt')
+            goal_state_path = Path(self.params['goal_state_dir']).joinpath(self.params['goal_state'])
+        goal_state_pos_path = Path(self.params['goal_state_dir']).joinpath(self.params['goal_state_pos'])
         self.params['goal_state'] = np.load(goal_state_path)
         self.params['goal_state_position'] = np.loadtxt(goal_state_pos_path)
         print(f"aiming for goal location {self.params['goal_state_position']}")
