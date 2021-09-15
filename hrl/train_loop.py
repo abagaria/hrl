@@ -190,6 +190,9 @@ def episode_rollout(
         # but first need to ensure that actions have the correct length
         try:
             assert len(actions) == num_envs
+            for i, d in enumerate(episode_done):
+                if d:
+                    actions[i] = StopExecution
         except AssertionError:
             action_iter = iter(actions)
             actions = [StopExecution if episode_done[idx_env] else next(action_iter) for idx_env in range(num_envs)]
