@@ -238,8 +238,9 @@ def episode_rollout(
         if not testing:
             # make sure everything is the same size
             try:
-                next_obss = list(filter(lambda obs: obs is not StopExecution, next_obss))  # remove the None
-                assert len(obss) == len(next_obss)
+                filtered_next_obss = list(filter(lambda obs: obs is not StopExecution, next_obss))  # remove the None
+                assert len(obss) == len(filtered_next_obss)
+                next_obss = filtered_next_obss
             except AssertionError:  # some envs hit Nones
                 # obss should only take into account the indices on which next_obss is not None
                 not_none_index = [i for i, obs in enumerate(next_obss) if next_obss[i] is not StopExecution]
