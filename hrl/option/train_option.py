@@ -13,6 +13,7 @@ from hrl import utils
 from hrl.option.option import Option
 from hrl.plot import main as plot_learning_curve
 from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
+from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
 
 
 class TrainOptionTrial:
@@ -60,8 +61,13 @@ class TrainOptionTrial:
                             help="use the deepmind wrappers")
         parser.add_argument("--seed", type=int, default=0,
                             help="Random seed")
+        # start state
+        parser.add_argument("--start_state", type=str, default=None,
+                            help='a path to the file that saved the starting state obs. e.g: right_ladder_top_agent_space.npy')
+        parser.add_argument("--start_state_pos", type=str, default=None,
+                            help='a path to the file that saved the starting state position. e.g: right_ladder_top_pos.txt')
         # goal state
-        parser.add_argument("--goal_state_dir", type=str, default="resources/monte_info",
+        parser.add_argument("--goal_state_dir", type=Path, default="resources/monte_info",
                             help="where the goal state files are stored")
         parser.add_argument("--goal_state", type=str, default="middle_ladder_bottom.npy",
                             help="a file in goal_state_dir that stores the image of the agent in goal state")
@@ -108,10 +114,10 @@ class TrainOptionTrial:
         # set up env and its goal
         self.env = self.make_env(self.params['environment'], self.params['seed'])
         if self.params['agent_space']:
-            goal_state_path = Path(self.params['goal_state_dir']).joinpath(self.params['goal_state_agent_space'])
+            goal_state_path = self.params['goal_state_dir'].joinpath(self.params['goal_state_agent_space'])
         else:
-            goal_state_path = Path(self.params['goal_state_dir']).joinpath(self.params['goal_state'])
-        goal_state_pos_path = Path(self.params['goal_state_dir']).joinpath(self.params['goal_state_pos'])
+            goal_state_path = self.params['goal_state_dir'].joinpath(self.params['goal_state'])
+        goal_state_pos_path = self.params['goal_state_dir'].joinpath(self.params['goal_state_pos'])
         self.params['goal_state'] = np.load(goal_state_path)
         self.params['goal_state_position'] = np.loadtxt(goal_state_pos_path)
         print(f"aiming for goal location {self.params['goal_state_position']}")
@@ -167,9 +173,15 @@ class TrainOptionTrial:
                 flicker=False,
                 frame_stack=False,
             )
+        # make agent space
         if self.params['agent_space']:
             env = MonteAgentSpace(env)
             print('using the agent space to train the option right now')
+        # make the agent start in another place if needed
+        if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
+            start_state_path = self.params['goal_state_dir'].joinpath(self.params['start_state'])
+            start_state_pos_path = self.params['goal_state_dir'].joinpath(self.params['start_state_pos'])
+            env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
         logging.info(f'making environment {env_name}')
         env.seed(env_seed)
         return env
