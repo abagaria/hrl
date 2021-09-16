@@ -1,3 +1,4 @@
+import numpy as np
 from gym import Wrapper
 from gym.spaces.box import Box
 
@@ -15,7 +16,8 @@ class MonteAgentSpace(Wrapper):
 		self.height = height
 		self.y_offset = 8
 		# by default, the observation shape is (56, 40, 3)
-		self.observation_space = Box(0, 255, (2 * height + self.y_offset, 2 * width, 3))
+		self.img_shape = (2 * height + self.y_offset, 2 * width, 3)
+		self.observation_space = Box(0, 255, self.img_shape)
 	
 	def get_pixels_around_player(self, image):
 		"""
@@ -30,7 +32,18 @@ class MonteAgentSpace(Wrapper):
 		start_y += 0
 		end_y += self.y_offset
 		image_window = image[start_y:end_y, start_x:end_x, :]
-		return image_window
+		try:
+			assert image_window.shape == self.img_shape
+			return image_window
+		except AssertionError:
+			# the agent is going near the edges of the game
+			# so start_x = max(0, player_p0s[0]) = 0
+			# and the x_len is shorter than normal
+			# we pad the image with black space to ensure the same shape
+			patch_x = int(self.img_shape[1] - image_window.shape[1])
+			padded_image_window = np.pad(image_window, pad_width=[(0, 0),(patch_x, 0),(0, 0)], mode='constant')
+			assert padded_image_window.shape == self.img_shape, padded_image_window.shape
+			return padded_image_window
 	
 	def reset(self):
 		state = self.env.reset()

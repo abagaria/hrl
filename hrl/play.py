@@ -2,12 +2,14 @@ import argparse
 import logging
 import pfrl
 import os
+from pathlib import Path
 
 import numpy as np
 
 from hrl import utils
 from hrl.option.utils import get_player_position
 from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
+from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
 
 
 class PlayGame:
@@ -55,6 +57,13 @@ class PlayGame:
 							help='render the environment as the game is played')
 		parser.add_argument("--get_player_position", action='store_true', default=False,
 							help="print out the agent's position at every state")
+        # start state
+		parser.add_argument("--goal_state_dir", type=Path, default="resources/monte_info",
+							help="where the goal state files are stored")
+		parser.add_argument("--start_state", type=str, default=None,
+                            help='a path to the file that saved the starting state obs. e.g: right_ladder_top_agent_space.npy')
+		parser.add_argument("--start_state_pos", type=str, default=None,
+                            help='a path to the file that saved the starting state position. e.g: right_ladder_top_pos.txt')
 		# hyperparams
 		parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
 							help='path to the hyperparams file to use')
@@ -108,6 +117,10 @@ class PlayGame:
 
 			# take the action
 			next_state, r, done, info = self.env.step(action)
+			try:
+				assert next_state.shape == (56, 40, 3)
+			except AssertionError:
+				print(next_state.shape)
 			print(f'taking action {action}')
 			state = next_state
 			if self.params['get_player_position']:  # get position
@@ -128,6 +141,11 @@ class PlayGame:
 			)
 		if self.params['agent_space']:
 			env = MonteAgentSpace(env)
+        # make the agent start in another place if needed
+		if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
+			start_state_path = self.params['goal_state_dir'].joinpath(self.params['start_state'])
+			start_state_pos_path = self.params['goal_state_dir'].joinpath(self.params['start_state_pos'])
+			env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
 		if render:
 			env = pfrl.wrappers.Render(env)
 		logging.info(f'making environment {env_name}')
