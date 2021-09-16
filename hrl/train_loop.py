@@ -180,10 +180,12 @@ def episode_rollout(
     # run until all parallel envs finish the current episode
     while not np.all(episode_done):
         # a_t
+        assert len(obss) == num_envs
+        filtered_obss = list(filter(lambda obs: obs is not StopExecution, obss))  # remove the None
         if goal_conditoned:
-            enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), obss))
+            enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), filtered_obss))
         else:
-            enhanced_obss = obss
+            enhanced_obss = filtered_obss
         actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
 
         # mask actions for each env, done_envs has action None
@@ -241,20 +243,19 @@ def episode_rollout(
             # make sure everything is the same size
             try:
                 filtered_next_obss = list(filter(lambda obs: obs is not StopExecution, next_obss))  # remove the None
-                assert len(obss) == len(filtered_next_obss)
-                next_obss = filtered_next_obss
+                assert len(filtered_obss) == len(filtered_next_obss)
             except AssertionError:  # some envs hit Nones, but current `obss` is one step from being done
                 # obss should only take into account the indices on which next_obss is not None
                 not_none_index = [i for i, obs in enumerate(next_obss) if obs is not StopExecution]
-                obss = [obss[idx] for idx in not_none_index]
-                next_obss = [next_obss[idx] for idx in not_none_index]
-                assert len(obss) == len(next_obss)
+                filtered_obss = [obss[idx] for idx in not_none_index]
+                filtered_next_obss = [next_obss[idx] for idx in not_none_index]
+                assert len(filtered_obss) == len(filtered_next_obss)
             finally:
-                actions = list(filter(lambda a: a is not StopExecution, actions))  # remove the None
-                rs = list(filter(lambda r: r is not StopExecution, rs))  # remove the None
-                dones = list(filter(lambda done: done is not StopExecution, dones))  # remove the None
-                assert len(obss) == len(actions) == len(rs) == len(next_obss) == len(dones)
-            trajectory.append((obss, actions, rs, next_obss, dones, resets))
+                filtered_actions = list(filter(lambda a: a is not StopExecution, actions))  # remove the None
+                filtered_rs = list(filter(lambda r: r is not StopExecution, rs))  # remove the None
+                filtered_dones = list(filter(lambda done: done is not StopExecution, dones))  # remove the None
+                assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
+            trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, resets))
         
         # update obss
         obss = next_obss
