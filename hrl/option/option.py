@@ -25,10 +25,10 @@ class Option:
 
 		self.initiation_classifier = None
 		self.termination_classifier = None
-		self.initiation_positive_examples = []
-		self.initiation_negative_examples = []
-		self.termination_positive_examples = []
-		self.termination_negative_examples = []
+		self.initiation_positive_examples = deque([], maxlen=self.params['buffer_length'])
+		self.initiation_negative_examples = deque([], maxlen=self.params['buffer_length'])
+		self.termination_positive_examples = deque([], maxlen=self.params['buffer_length'])
+		self.termination_negative_examples = deque([], maxlen=self.params['buffer_length'])
 
 		self.success_curve = []
 		self.success_rates = {}
