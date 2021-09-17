@@ -30,7 +30,7 @@ class Option:
 		self.termination_positive_examples = deque([], maxlen=self.params['buffer_length'])
 		self.termination_negative_examples = deque([], maxlen=self.params['buffer_length'])
 
-		self.success_curve = []
+		self.success_curve = deque([], maxlen=self.params['buffer_length'])
 		self.success_rates = {}
 
 		self.gestation_period = params['gestation_period']
