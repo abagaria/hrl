@@ -116,7 +116,7 @@ class Option:
 		"""
 		# reset env
 		state = self.env.reset()
-		done = False
+		terminal = False
 
 		if self.params['use_deepmind_wrappers']:
 			state = warp_frames(state)
@@ -135,13 +135,13 @@ class Option:
 		self.num_executions += 1
 
 		# main while loop
-		while not self.is_term_true(state, eval_mode) and not done:
+		while not self.is_term_true(state, eval_mode) and not terminal:
 			# control
 			action = self.act(state.flatten())
 			next_state, reward, done, info = self.env.step(action)
-			done = done or int(info['ale.lives']) < 6  # epsidoe is done if agent dies
+			terminal = done or int(info['ale.lives']) < 6  # epsidoe is done if agent dies
 			if num_steps >= self.params['max_episode_len']:
-				done = True
+				terminal = True
 
 			# rendering
 			if rendering or eval_mode:
