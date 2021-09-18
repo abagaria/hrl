@@ -10,6 +10,7 @@ from hrl import utils
 from hrl.option.utils import get_player_position
 from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
 from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
+from hrl.wrappers.monte_pruned_actions import MontePrunedActions
 
 
 class PlayGame:
@@ -51,6 +52,8 @@ class PlayGame:
 							help="train with the agent space")
 		parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
 							help="use the deepmind wrappers")
+		parser.add_argument("--suppress_action_prunning", action='store_true', default=False,
+							help='do not prune the action space of monte')
 		parser.add_argument("--seed", type=int, default=0,
 							help="Random seed")
 		parser.add_argument("--render", action='store_true', default=False,
@@ -139,6 +142,9 @@ class PlayGame:
 				flicker=False,
 				frame_stack=False,
 			)
+		# prunning actions
+		if not self.params['suppress_action_prunning']:
+			env = MontePrunedActions(env)
 		if self.params['agent_space']:
 			env = MonteAgentSpace(env)
         # make the agent start in another place if needed
