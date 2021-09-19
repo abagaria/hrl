@@ -188,21 +188,13 @@ def episode_rollout(
             enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), filtered_obss))
         else:
             enhanced_obss = filtered_obss
-        actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)  # (num_running_env, action_dim)
+        actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
+        assert len(actions) == np.sum(np.logical_not(episode_done))  # assert actions.shape == (num_running_env, action_dim)
 
         # mask actions for each env, done_envs has action None
-        # but first need to ensure that actions have the correct length
-        try:
-            # when current `obss` have not hit None, actions is still the same len as obss
-            assert len(actions) == num_envs
-            for i, d in enumerate(episode_done):
-                if d:
-                    actions[i] = StopExecution
-        except AssertionError:
-            # when `obss` contains None, len(actions) < num_envs, use this block
-            action_iter = iter(actions)
-            actions = [StopExecution if episode_done[idx_env] else next(action_iter) for idx_env in range(num_envs)]
-            assert len(actions) == num_envs
+        action_iter = iter(actions)
+        actions = [StopExecution if episode_done[idx_env] else next(action_iter) for idx_env in range(num_envs)]
+        assert len(actions) == num_envs
 
         # o_{t+1}, r_{t+1}
         next_obss, rs, dones, infos = env.step(actions)
@@ -260,6 +252,7 @@ def episode_rollout(
             trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, resets))
         
         # update obss
+        next_obss = [StopExecution if episode_done[i]==True else obs for i, obs in enumerate(next_obss)]  # mask done states
         obss = next_obss
     
     if testing:
