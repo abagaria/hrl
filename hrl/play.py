@@ -124,7 +124,7 @@ class PlayGame:
 				assert next_state.shape == (56, 40, 3)
 			except AssertionError:
 				print(next_state.shape)
-			print(f'taking action {action}')
+			print(f'taking action {action} and got reward {r}')
 			state = next_state
 			if self.params['get_player_position']:  # get position
 				pos = get_player_position(self.env.unwrapped.ale.getRAM())
