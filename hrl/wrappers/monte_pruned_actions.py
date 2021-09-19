@@ -35,8 +35,8 @@ class MontePrunedActions(Wrapper):
 			2: 4,  # LEFT
 			3: 5,  # DOWN
 			4: 10,  # UPFIRE
-			5: 13,  # UPRIGHTFIRE
-			6: 14,  # UPLEFTFIRE
+			5: 14,  # UPRIGHTFIRE
+			6: 15,  # UPLEFTFIRE
 		}
 		original_action = action_to_original_action[action]
 		return self.env.step(original_action)
