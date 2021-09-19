@@ -5,9 +5,11 @@ import traceback
 from pathlib import Path
 
 import numpy as np
+from numpy.lib.utils import info
 
 from hrl.envs.vector_env import SyncVectorEnv
 from hrl import utils
+from hrl.utils import filter_token
 from hrl.utils import StopExecution
 
 
@@ -181,12 +183,12 @@ def episode_rollout(
     while not np.all(episode_done):
         # a_t
         assert len(obss) == num_envs
-        filtered_obss = list(filter(lambda obs: obs is not StopExecution, obss))  # remove the None
+        filtered_obss = filter_token(obss)  # (num_running_env, state_dim)
         if goal_conditoned:
             enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), filtered_obss))
         else:
             enhanced_obss = filtered_obss
-        actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
+        actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)  # (num_running_env, action_dim)
 
         # mask actions for each env, done_envs has action None
         # but first need to ensure that actions have the correct length
@@ -204,9 +206,9 @@ def episode_rollout(
 
         # o_{t+1}, r_{t+1}
         next_obss, rs, dones, infos = env.step(actions)
-        zeroed_rs = list(map(lambda r: np.array(0) if r is StopExecution else r, rs))  # change None to 0
-        terminal = list(map(lambda done: True if done is StopExecution else done, dones))  # change None to 1
-        infos = list(map(lambda info: {} if info is StopExecution else info, infos))  # change None to {}
+        zeroed_rs = filter_token(rs, replace_with=np.array(0))  # change None to 0
+        terminal = filter_token(dones, replace_with=True)  # change None to True
+        infos = filter_token(infos, replace_with={})  # change None to {}
 
         # record stats
         if testing:
@@ -242,7 +244,7 @@ def episode_rollout(
         if not testing:
             # make sure everything is the same size
             try:
-                filtered_next_obss = list(filter(lambda obs: obs is not StopExecution, next_obss))  # remove the None
+                filtered_next_obss = filter_token(next_obss)  # remove the None
                 assert len(filtered_obss) == len(filtered_next_obss)
             except AssertionError:  # some envs hit Nones, but current `obss` is one step from being done
                 # obss should only take into account the indices on which next_obss is not None
@@ -251,9 +253,9 @@ def episode_rollout(
                 filtered_next_obss = [next_obss[idx] for idx in not_none_index]
                 assert len(filtered_obss) == len(filtered_next_obss)
             finally:
-                filtered_actions = list(filter(lambda a: a is not StopExecution, actions))  # remove the None
-                filtered_rs = list(filter(lambda r: r is not StopExecution, rs))  # remove the None
-                filtered_dones = list(filter(lambda done: done is not StopExecution, dones))  # remove the None
+                filtered_actions = filter_token(actions)  # remove the None
+                filtered_rs = filter_token(rs)  # remove the None
+                filtered_dones = filter_token(dones)  # remove the None
                 assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
             trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, resets))
         

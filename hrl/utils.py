@@ -21,6 +21,17 @@ class StopExecution:
     pass
 
 
+def filter_token(ls, replace_with=None, token=StopExecution):
+    """
+    filter a list of the token StopExecution
+    or if replace_with is not None, replace the token with something else
+    """
+    if replace_with is not None:
+        return list(map(lambda elt: replace_with if elt is token else elt, ls))
+    else:
+        return list(filter(lambda elt: elt is not token, ls))
+
+
 def determine_device(disable_gpu=False):
     """
     determine whether execute on CPU or GPU
