@@ -99,7 +99,7 @@ def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_bu
 		qvalues = qvalues[:num_points]
 		plt.scatter(x_pos, y_pos, c=qvalues)
 	plt.xlim(0, 160)  # set the limits to the monte frame
-	plt.ylim(0, 210)
+	plt.ylim(145, 240)
 	plt.colorbar()
 	file_name = f"{solver.name}_value_function_seed_{seed}_step_{step}.png"
 	save_path = os.path.join(save_dir, file_name)
