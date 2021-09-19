@@ -80,7 +80,7 @@ def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_bu
 	qvalues = np.zeros((states.shape[0],))
 	current_idx = 0
 
-	for state_chunk, action_chunk in tqdm(zip(state_chunks, action_chunks), desc="Making VF plot"):
+	for state_chunk, action_chunk in zip(state_chunks, action_chunks):
 		state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
 		action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
 		chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
