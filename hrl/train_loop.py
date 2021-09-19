@@ -329,8 +329,8 @@ def test_agent_batch(
 
     # main training loops
     try:
-        success_rates = []
-        rewards = []
+        success_rates = np.array([])
+        rewards = np.array([])
         # for each episode
         for episode in range(num_episodes):
             # episode rollout
@@ -347,27 +347,33 @@ def test_agent_batch(
             )
             
             # logging the success rate per episode
-            success_rates.append(episode_success)
-            rewards.append(episode_r)
+            success_rates = np.concatenate([success_rates, episode_success], axis=0)
+            rewards = np.concatenate([rewards, episode_r], axis=0)
             logger.info(
                 "testing episode {} with success rate: {} and reward {}".format(
                     episode,
-                    np.mean(episode_success),
-                    np.mean(episode_r),
+                    episode_success,
+                    episode_r,
                 )
             )
 
         # save the success metrics per testing run
-        average_success_rates = np.mean(success_rates)
-        average_rewards = np.mean(rewards)
-        results_file = os.path.join(saving_dir, 'metrics.csv')
         mode = 'w' if cur_episode_idx == 0 else 'a'
-        with open(results_file, mode) as f:
+        success_file = os.path.join(saving_dir, 'testing_success_rates.csv')
+        with open(success_file, mode) as f:
             csv_writer = csv.writer(f)
             if mode == 'w':  # write header
-                csv_writer.writerow(['episode_idx', 'success_rate', 'reward'])
-            csv_writer.writerow([cur_episode_idx, average_success_rates, average_rewards])
-        logger.info(f"saved metrics to file {results_file}")
+                csv_writer.writerow(['episode_idx'] + [f'success_rate_{i}' for i in range(len(success_rates))])
+            csv_writer.writerow(np.append([cur_episode_idx], success_rates))
+        logger.info(f"saved to file {success_file}")
+
+        rewards_file = os.path.join(saving_dir, 'testing_rewards.csv')
+        with open(rewards_file, mode) as f:
+            csv_writer = csv.writer(f)
+            if mode == 'w':  # write header
+                csv_writer.writerow(['episode_idx'] + [f'rewards_{i}' for i in range(len(rewards))])
+            csv_writer.writerow(np.append([cur_episode_idx], rewards))
+        logger.info(f"saved to file {rewards_file}")
     
     except Exception as e:
         logger.info('ooops, sth went wrong during testing :( ')
