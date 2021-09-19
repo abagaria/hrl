@@ -1,4 +1,5 @@
 import os
+import sys
 import csv
 import logging
 from pydoc import locate
@@ -46,14 +47,35 @@ def determine_device(disable_gpu=False):
 
 
 def create_log_dir(experiment_name):
-    path = os.path.join(os.getcwd(), experiment_name)
+    """
+    Prepare a directory for outputting training results.
+    Then the following infomation is saved into the directory:
+        command.txt: command itself
+    Additionally, if the current directory is under git control, the following
+    information is saved:
+        git-head.txt: result of `git rev-parse HEAD`
+        git-status.txt: result of `git status`
+        git-log.txt: result of `git log`
+        git-diff.txt: result of `git diff HEAD`
+    """
+    outdir = os.path.join(os.getcwd(), experiment_name)
+    # create log dir
     try:
-        os.makedirs(path, exist_ok=True)
+        os.makedirs(outdir, exist_ok=False)
     except OSError:
-        print(f"Creation of the directory {path} failed")
+        print(f"Creation of the directory {outdir} failed")
     else:
-        print(f"Successfully created the directory {path}")
-    return path
+        print(f"Successfully created the directory {outdir}")
+
+    # log the command used
+    with open(os.path.join(outdir, "command.txt"), "w") as f:
+        f.write(" ".join(sys.argv))
+
+    # log git stuff
+    from pfrl.experiments.prepare_output_dir import is_under_git_control, save_git_information
+    if is_under_git_control():
+        save_git_information(outdir)
+    return outdir
 
 
 def load_hyperparams(filepath):
