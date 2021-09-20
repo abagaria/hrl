@@ -62,7 +62,7 @@ class ExecuteOptionTrial:
         # environments
         parser.add_argument("--environment",
                             type=str,
-                            default='MontezumaRevengeNoFrameskip-v4',
+                            default='MontezumaRevenge-v0',
                             help="name of the gym environment")
         parser.add_argument("--agent_space",
                             action='store_true',
