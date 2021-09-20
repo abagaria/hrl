@@ -234,20 +234,12 @@ def episode_rollout(
         # add to experience buffer
         if not testing:
             # make sure everything is the same size
-            try:
-                filtered_next_obss = filter_token(next_obss)  # remove the None
-                assert len(filtered_obss) == len(filtered_next_obss)
-            except AssertionError:  # some envs hit Nones, but current `obss` is one step from being done
-                # obss should only take into account the indices on which next_obss is not None
-                not_none_index = [i for i, obs in enumerate(next_obss) if obs is not StopExecution]
-                filtered_obss = [obss[idx] for idx in not_none_index]
-                filtered_next_obss = [next_obss[idx] for idx in not_none_index]
-                assert len(filtered_obss) == len(filtered_next_obss)
-            finally:
-                filtered_actions = filter_token(actions)  # remove the None
-                filtered_rs = filter_token(rs)  # remove the None
-                filtered_dones = filter_token(dones)  # remove the None
-                assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
+            filtered_next_obss = filter_token(next_obss)  # remove the None
+            filtered_actions = filter_token(actions)  # remove the None
+            filtered_rs = filter_token(rs)  # remove the None
+            filtered_dones = filter_token(dones)  # remove the None
+            
+            assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
             trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, resets))
         
         # update obss
