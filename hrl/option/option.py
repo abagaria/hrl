@@ -105,7 +105,7 @@ class Option:
 		if self.is_term_true(state, eval_mode):
 			return self.params['goal_reward']
 		else:
-			return 0
+			return -1
 
 	def act(self, state):
 		"""

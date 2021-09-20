@@ -11,4 +11,4 @@ epsilon_within_goal,3.0,float
 epsilon,0.2,float
 logging_frequency,100,int
 max_episode_len,300,int
-goal_reward,10,float
+goal_reward,1000,float
