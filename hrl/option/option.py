@@ -155,7 +155,9 @@ class Option:
 
 			# rendering
 			if rendering or eval_mode:
-				save_path = Path(self.params['saving_dir']).joinpath(f"state_at_step_{step_number}.jpeg")
+				episode_dir = Path(self.params['saving_dir']).joinpath(f'episode_{self.num_executions}')
+				episode_dir.mkdir(exist_ok=True)
+				save_path = episode_dir.joinpath(f"state_at_step_{step_number}.jpeg")
 				plt.imsave(save_path, next_state)
 
 			# logging
@@ -168,7 +170,13 @@ class Option:
 			self.position_buffer.append(state_pos)
 			state = next_state
 			if step_number % self.params['logging_frequency'] == 0 and not eval_mode:
-				make_chunked_value_function_plot(self.value_learner, step_number, self.params['seed'], self.params['saving_dir'], pos_replay_buffer=self.position_buffer)
+				value_func_plots_dir = Path(self.params['saving_dir']).joinpath('value_function_plots')
+				value_func_plots_dir.mkdir(exist_ok=True)
+				make_chunked_value_function_plot(self.value_learner, 
+													step_number, 
+													self.params['seed'], 
+													value_func_plots_dir, 
+													pos_replay_buffer=self.position_buffer)
 		visited_states.append(state.flatten())
 
 		# more logging
