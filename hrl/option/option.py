@@ -107,11 +107,11 @@ class Option:
 		else:
 			return -1
 
-	def act(self, state):
+	def act(self, state, eval_mode=False):
 		"""
 		return an action for the specified state according to an epsilon greedy policy
 		"""
-		if random.random() < self.params['epsilon']:
+		if random.random() < self.params['epsilon'] and not eval_mode:
 			return self.env.action_space.sample()
 		else:
 			# the action selector is the same as the value learner
@@ -146,7 +146,7 @@ class Option:
 		# main while loop
 		while not self.is_term_true(state, eval_mode) and not terminal:
 			# control
-			action = self.act(state.flatten())
+			action = self.act(state.flatten(), eval_mode=eval_mode)
 			next_state, reward, done, info = self.env.step(action)
 			reward = self.reward_function(next_state, eval_mode)
 			terminal = done or int(info['ale.lives']) < 6  # epsidoe is done if agent dies
