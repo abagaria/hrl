@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 import pfrl
+import gym
 import numpy as np
 
 from hrl import utils
@@ -52,7 +53,7 @@ class TrainOptionTrial:
         parser.add_argument("--device", type=str, default='cuda:1',
                             help="cpu/cuda:0/cuda:1")
         # environments
-        parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
+        parser.add_argument("--environment", type=str, default='MontezumaRevenge-v0',
                             help="name of the gym environment")
         parser.add_argument("--render", action='store_true', default=False, 
                             help="save the images of states while training")
@@ -167,8 +168,8 @@ class TrainOptionTrial:
             pickle.dump(self.option, f)
 
     def make_env(self, env_name, env_seed):
-        env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
         if self.params['use_deepmind_wrappers']:
+            env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
             env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
                 env,
                 episode_life=True,
@@ -176,6 +177,8 @@ class TrainOptionTrial:
                 flicker=False,
                 frame_stack=False,
             )
+        else:
+            env = gym.make(env_name)
         # prunning actions
         if not self.params['suppress_action_prunning']:
             env = MontePrunedActions(env)
