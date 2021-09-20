@@ -5,7 +5,6 @@ import traceback
 from pathlib import Path
 
 import numpy as np
-from numpy.lib.utils import info
 
 from hrl.envs.vector_env import SyncVectorEnv
 from hrl import utils
@@ -218,8 +217,8 @@ def episode_rollout(
             resets, [info.get("needs_reset", False) for info in infos]
         )
         # Make mask. 0 if done/reset, 1 if pass
-        end = np.logical_or(resets, terminal)
-        episode_done = np.logical_or(episode_done, end)
+        terminal = np.logical_or(resets, terminal)
+        episode_done = np.logical_or(episode_done, terminal)
 
         # logging
         if logging_freq and np.max(episode_len) % logging_freq == 0:
