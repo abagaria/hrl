@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pfrl
 import gym
+import torch
 import numpy as np
 
 from hrl import utils
@@ -104,6 +105,9 @@ class TrainOptionTrial:
 
         # setting random seeds
         pfrl.utils.set_random_seed(self.params['seed'])
+
+        # torch benchmark
+        torch.backends.cudnn.benchmark = True
 
         # create the saving directories
         self.saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
