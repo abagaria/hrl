@@ -8,6 +8,7 @@ import shutil
 import pfrl
 import torch
 import seeding
+import gym
 import numpy as np
 
 from hrl import utils
@@ -135,14 +136,15 @@ class ExecuteOptionTrial:
         for _ in range(5):
             print(f"step {step_number}")
             option_transitions, total_reward = self.option.rollout(
-                step_number=step_number, eval_mode=True)
+                step_number=step_number, eval_mode=True, rendering=self.params['render']
+            )
             step_number += len(option_transitions)
 
     def make_env(self, env_name, env_seed):
-        env = pfrl.wrappers.atari_wrappers.make_atari(env_name,
-                                                      max_frames=30 * 60 *
-                                                      60)  # 30 min with 60 fps
         if self.params['use_deepmind_wrappers']:
+            env = pfrl.wrappers.atari_wrappers.make_atari(env_name,
+                                                        max_frames=30 * 60 *
+                                                        60)  # 30 min with 60 fps
             env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
                 env,
                 episode_life=True,
@@ -150,11 +152,11 @@ class ExecuteOptionTrial:
                 flicker=False,
                 frame_stack=False,
             )
+        else:
+            env = gym.make(env_name)
         if self.params['agent_space']:
             env = MonteAgentSpace(env)
             print('using the agent space to execute the option right now')
-        if self.params['render']:
-            env = pfrl.wrappers.Render(env)
         env = MonteAgentSpaceForwarding(env, self.params['start_state'], self.params['start_state_pos'])
         logging.info(f'making environment {env_name}')
         env.seed(env_seed)
