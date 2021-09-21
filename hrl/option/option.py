@@ -97,15 +97,17 @@ class Option:
 	# ------------------------------------------------------------
 	# Control Loop Methods
 	# ------------------------------------------------------------
-	def reward_function(self, state, eval_mode=False):
+	def reward_function(self, state, is_dead, eval_mode=False):
 		"""
 		override the env.step() reward, so that options that hit the subgoal
 		get a reward (the original monte environment gives no rewards)
 		"""
-		if self.is_term_true(state, eval_mode):
+		if is_dead:
+			return self.params['death_reward']
+		elif self.is_term_true(state, eval_mode):
 			return self.params['goal_reward']
 		else:
-			return -1
+			return self.params['step_reward']
 
 	def act(self, state, eval_mode=False):
 		"""
@@ -148,8 +150,9 @@ class Option:
 			# control
 			action = self.act(state.flatten(), eval_mode=eval_mode)
 			next_state, reward, done, info = self.env.step(action)
-			reward = self.reward_function(next_state, eval_mode)
-			terminal = done or int(info['ale.lives']) < 6  # epsidoe is done if agent dies
+			is_dead = int(info['ale.lives']) < 6
+			terminal = done or is_dead  # epsidoe is done if agent dies
+			reward = self.reward_function(next_state, is_dead=is_dead, eval_mode=eval_mode)
 			if num_steps >= self.params['max_episode_len']:
 				terminal = True
 

@@ -12,3 +12,5 @@ epsilon,0.2,float
 logging_frequency,100,int
 max_episode_len,300,int
 goal_reward,1000,float
+step_reward,-1,float
+death_reward,-500,float
