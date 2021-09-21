@@ -147,14 +147,16 @@ class TrainOptionTrial:
             option_transitions, total_reward = self.option.rollout(step_number=step_number, eval_mode=False, rendering=self.params['render'])
             step_number += len(option_transitions)
             episode_idx += 1
+
+            # save the results
+            if episode_idx % self.params['saving_frequency'] == 0:
+                success_curves_file_name = 'success_curves.pkl'
+                self.save_results()
+                plot_learning_curve(self.params['experiment_name'], log_file_name=success_curves_file_name)
+
             # plot_two_class_classifier(self.option, self.option.num_executions, self.params['experiment_name'], plot_examples=True)
 
         end_time = time.time()
-
-        # save the results
-        success_curves_file_name = 'success_curves.pkl'
-        self.save_results()
-        plot_learning_curve(self.params['experiment_name'], log_file_name=success_curves_file_name)
 
         print("Time taken: ", end_time - start_time)
     
