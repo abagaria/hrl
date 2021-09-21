@@ -4,6 +4,7 @@ import random
 import argparse
 import os
 import shutil
+from pathlib import Path
 
 import pfrl
 import torch
@@ -80,17 +81,24 @@ class ExecuteOptionTrial:
             type=str,
             default='results/monte-agent-space/trained_option.pkl',
             help='path the a stored trained option')
+        # start state
+        parser.add_argument(
+            "--info_dir",
+            type=Path,
+            default="resources/monte_info",
+            help="the directory where monte state info is saved",
+        )
         parser.add_argument(
             "--start_state",
             type=str,
-            default="resources/monte_info/right_ladder_top_agent_space.npy",
-            help='a path to the file that saved the starting state obs'
+            default=None,
+            help='a path to the file that saved the starting state obs, e.g. right_ladder_top_agent_space.npy'
         )
         parser.add_argument(
             "--start_state_pos",
             type=str,
-            default="resources/monte_info/right_ladder_top_pos.txt",
-            help='a path to the file that saved the starting state position'
+            default=None,
+            help='a path to the file that saved the starting state position, e.g. right_ladder_top_pos.txt'
         )
         # hyperparams
         parser.add_argument('--hyperparams',
@@ -157,7 +165,11 @@ class ExecuteOptionTrial:
         if self.params['agent_space']:
             env = MonteAgentSpace(env)
             print('using the agent space to execute the option right now')
-        env = MonteAgentSpaceForwarding(env, self.params['start_state'], self.params['start_state_pos'])
+        # make the agent start in another place if needed
+        if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
+            start_state_path = self.params['info_dir'].joinpath(self.params['start_state'])
+            start_state_pos_path = self.params['info_dir'].joinpath(self.params['start_state_pos'])
+            env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
         logging.info(f'making environment {env_name}')
         env.seed(env_seed)
         return env
