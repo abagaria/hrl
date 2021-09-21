@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.spatial import distance
 
-from mdp.MDPClass import MDP
-from mdp.StateClass import State
-from salient_event.SalientEventClass import SalientEvent
+from hrl.mdp.MDPClass import MDP
+from hrl.mdp.StateClass import State
+from hrl.salient_event.SalientEventClass import SalientEvent
 
 
 class GoalDirectedMDP(MDP):

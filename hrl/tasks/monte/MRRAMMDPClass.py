@@ -1,8 +1,8 @@
 import gym
 import random
 import numpy as np
-from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
-from tasks.monte.MRRAMStateClass import MRRAMState
+from hrl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
+from hrl.tasks.monte.MRRAMStateClass import MRRAMState
 
 class MontezumaRAMMDP(GoalDirectedMDP):
     def __init__(self, render, seed):

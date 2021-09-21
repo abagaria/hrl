@@ -1,5 +1,5 @@
 import numpy as np
-from mdp.StateClass import State
+from hrl.mdp.StateClass import State
 
 class MRRAMState(State):
     def __init__(self, ram, skull_direction, is_dead, is_terminal):
