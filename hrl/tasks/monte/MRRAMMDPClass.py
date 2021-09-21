@@ -1,13 +1,18 @@
 import gym
 import random
 import numpy as np
-from hrl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from hrl.tasks.monte.MRRAMStateClass import MRRAMState
+from hrl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
+from hrl.wrappers.gym_wrappers import make_atari, wrap_deepmind
 
+# TODO remove dependency from GoalDirectedMDP
+
+# TODO support mdp.sample_goal()
+#              mdp.reward_function(state, goal)
 class MontezumaRAMMDP(GoalDirectedMDP):
     def __init__(self, render, seed):
         self.env_name = "MontezumaRevengeNoFrameskip-v4"
-        self.env = gym.make(self.env_name)
+        self.env = wrap_deepmind(make_atari(env_id=self.env_name), episode_life=False, frame_stack=True,)
 
         self.render = render
         self.seed = seed
@@ -38,7 +43,8 @@ class MontezumaRAMMDP(GoalDirectedMDP):
         return reward
 
     def _step(self, state, action):
-        _, reward, done, _ = self.env.step(action)
+        # TODO incorporate observation
+        obs, reward, done, _ = self.env.step(action)
         ram = self.get_current_ram()
 
         if self.render:
