@@ -6,6 +6,7 @@ eval_n_episodes,10,int
 logging_frequency,200,int
 testing_frequency,10,int
 plotting_frequency,10,int
+saving_frequency,100,int
 normalize_action_space,True,bool
 max_episode_len,1000,int
 goal_conditioned,True,bool

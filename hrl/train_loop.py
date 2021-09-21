@@ -1,5 +1,6 @@
 import os
 import csv
+import pickle
 import logging
 import traceback
 from pathlib import Path
@@ -24,6 +25,7 @@ def train_agent_batch_with_eval(
     logging_freq=None,
     testing_freq=None,
     plotting_freq=None,
+    saving_freq=None,
     saving_dir=None,
     state_to_goal_fn=None,
 ):
@@ -110,6 +112,12 @@ def train_agent_batch_with_eval(
                     goal_state=goal_state,
                     saving_dir=saving_dir,
                 )
+            
+            # saving the agent
+            if saving_freq is not None and episode % saving_freq == 0:
+                agent_save_path = Path(saving_dir).joinpath('latest_agent.pkl')
+                with open(agent_save_path, 'wb') as f:
+                    pickle.dump(agent, f)
             
             # plotting the value function and reward func
             if plotting_freq is not None and episode % plotting_freq == 0:
