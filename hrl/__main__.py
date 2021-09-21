@@ -95,7 +95,6 @@ if __name__ == "__main__":
             "seed": args.seed,
             "lr_c": args.lr_c,
             "lr_a": args.lr_a,
-            "max_num_children": args.max_num_children
     }
 
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)
