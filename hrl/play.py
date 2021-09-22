@@ -1,5 +1,4 @@
 import argparse
-import logging
 import pfrl
 import os
 from pathlib import Path
@@ -7,10 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from hrl import utils
-from hrl.option.utils import get_player_position
-from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
-from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
-from hrl.wrappers.monte_pruned_actions import MontePrunedActions
+from hrl.option.utils import get_player_position, make_env
 
 
 class PlayGame:
@@ -46,7 +42,7 @@ class PlayGame:
 		parser.add_argument("--results_dir", type=str, default='resources',
 							help='the name of the directory used to store results')
 		# environments
-		parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
+		parser.add_argument("--environment", type=str, default='MontezumaRevenge-v0',
 							help="name of the gym environment")
 		parser.add_argument("--agent_space", action='store_true', default=False,
 							help="train with the agent space")
@@ -87,7 +83,7 @@ class PlayGame:
 		utils.create_log_dir(self.saving_dir)
 
 		# make env
-		self.env = self.make_env(self.params['environment'], self.params['seed'], render=self.params['render'])
+		self.env = make_env(self.params['environment'], self.params['seed'])
 
 	def play(self):
 		"""
@@ -131,32 +127,6 @@ class PlayGame:
 				print(f"current position is {pos}")
 			if done:
 				break
-
-	def make_env(self, env_name, env_seed, render=True):
-		env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
-		if self.params['use_deepmind_wrappers']:
-			env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
-				env,
-				episode_life=True,
-				clip_rewards=True,
-				flicker=False,
-				frame_stack=False,
-			)
-		# prunning actions
-		if not self.params['suppress_action_prunning']:
-			env = MontePrunedActions(env)
-		if self.params['agent_space']:
-			env = MonteAgentSpace(env)
-        # make the agent start in another place if needed
-		if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
-			start_state_path = self.params['goal_state_dir'].joinpath(self.params['start_state'])
-			start_state_pos_path = self.params['goal_state_dir'].joinpath(self.params['start_state_pos'])
-			env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
-		if render:
-			env = pfrl.wrappers.Render(env)
-		logging.info(f'making environment {env_name}')
-		env.seed(env_seed)
-		return env
 
 
 def main():

@@ -1,4 +1,5 @@
 import os
+import logging
 
 import gym
 import numpy as np
@@ -6,8 +7,42 @@ import cv2
 import matplotlib.pyplot as plt
 import torch
 from tqdm import tqdm
+import pfrl
+
+from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
+from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
+from hrl.wrappers.monte_pruned_actions import MontePrunedActions
 
 cv2.ocl.setUseOpenCL(False)
+
+
+def make_env(self, env_name, env_seed):
+	if self.params['use_deepmind_wrappers']:
+		env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
+		env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
+			env,
+			episode_life=True,
+			clip_rewards=True,
+			flicker=False,
+			frame_stack=False,
+		)
+	else:
+		env = gym.make(env_name)
+	# prunning actions
+	if not self.params['suppress_action_prunning']:
+		env = MontePrunedActions(env)
+	# make agent space
+	if self.params['agent_space']:
+		env = MonteAgentSpace(env)
+		print('using the agent space to train the option right now')
+	# make the agent start in another place if needed
+	if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
+		start_state_path = self.params['goal_state_dir'].joinpath(self.params['start_state'])
+		start_state_pos_path = self.params['goal_state_dir'].joinpath(self.params['start_state_pos'])
+		env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
+	logging.info(f'making environment {env_name}')
+	env.seed(env_seed)
+	return env
 
 
 def warp_frames(state):

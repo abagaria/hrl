@@ -1,4 +1,3 @@
-import logging
 import pickle
 import random
 import argparse
@@ -9,13 +8,10 @@ from pathlib import Path
 import pfrl
 import torch
 import seeding
-import gym
 import numpy as np
 
 from hrl import utils
-from hrl.option.option import Option
-from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
-from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
+from hrl.option.utils import make_env
 
 
 class ExecuteOptionTrial:
@@ -73,6 +69,8 @@ class ExecuteOptionTrial:
                             action='store_true',
                             default=False,
                             help="use the deepmind wrappers")
+        parser.add_argument("--suppress_action_prunning", action='store_true', default=False,
+                            help='do not prune the action space of monte')
         parser.add_argument("--render", action='store_true', default=False, 
                             help="render the environment as it goes")
         parser.add_argument("--seed", type=int, default=0, help="Random seed")
@@ -120,8 +118,7 @@ class ExecuteOptionTrial:
         pfrl.utils.set_random_seed(self.params['seed'])
 
         # set up env and the forwarding target
-        self.env = self.make_env(self.params['environment'],
-                                 self.params['seed'])
+        self.env = make_env(self.params['environment'], self.params['seed'])
 
         # create the saving directories
         self.saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])
@@ -147,32 +144,6 @@ class ExecuteOptionTrial:
                 step_number=step_number, eval_mode=True, rendering=self.params['render']
             )
             step_number += len(option_transitions)
-
-    def make_env(self, env_name, env_seed):
-        if self.params['use_deepmind_wrappers']:
-            env = pfrl.wrappers.atari_wrappers.make_atari(env_name,
-                                                        max_frames=30 * 60 *
-                                                        60)  # 30 min with 60 fps
-            env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
-                env,
-                episode_life=True,
-                clip_rewards=True,
-                flicker=False,
-                frame_stack=False,
-            )
-        else:
-            env = gym.make(env_name)
-        if self.params['agent_space']:
-            env = MonteAgentSpace(env)
-            print('using the agent space to execute the option right now')
-        # make the agent start in another place if needed
-        if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
-            start_state_path = self.params['info_dir'].joinpath(self.params['start_state'])
-            start_state_pos_path = self.params['info_dir'].joinpath(self.params['start_state_pos'])
-            env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
-        logging.info(f'making environment {env_name}')
-        env.seed(env_seed)
-        return env
 
 
 def main():
