@@ -10,81 +10,37 @@ import torch
 import numpy as np
 
 from hrl import utils
-from hrl.option.utils import make_env
+from hrl.option.utils import SingleOptionTrial
 from hrl.option.option import Option
 from hrl.plot import main as plot_learning_curve
 
 
-class TrainOptionTrial:
+class TrainOptionTrial(SingleOptionTrial):
     """
     a class for running experiments to train an option
     """
     def __init__(self):
+        super().__init__()
         args = self.parse_args()
         self.params = self.load_hyperparams(args)
         self.setup()
-    
-    def load_hyperparams(self, args):
-        """
-        load the hyper params from args to a params dictionary
-        """
-        params = utils.load_hyperparams(args.hyperparams)
-        for arg_name, arg_value in vars(args).items():
-            if arg_name == 'hyperparams':
-                continue
-            params[arg_name] = arg_value
-        for arg_name, arg_value in args.other_args:
-            utils.update_param(params, arg_name, arg_value)
-        return params
 
     def parse_args(self):
         """
         parse the inputted argument
         """
-        parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-        # system 
-        parser.add_argument("--experiment_name", type=str, default='monte',
-                            help="Experiment Name, also used as the directory name to save results")
-        parser.add_argument("--results_dir", type=str, default='results',
-                            help='the name of the directory used to store results')
-        parser.add_argument("--device", type=str, default='cuda:1',
-                            help="cpu/cuda:0/cuda:1")
-        # environments
-        parser.add_argument("--environment", type=str, default='MontezumaRevenge-v0',
-                            help="name of the gym environment")
-        parser.add_argument("--render", action='store_true', default=False, 
-                            help="save the images of states while training")
-        parser.add_argument("--agent_space", action='store_true', default=False,
-                            help="train with the agent space")
-        parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
-                            help="use the deepmind wrappers")
-        parser.add_argument("--suppress_action_prunning", action='store_true', default=False,
-                            help='do not prune the action space of monte')
-        parser.add_argument("--seed", type=int, default=0,
-                            help="Random seed")
-        # start state
-        parser.add_argument("--start_state", type=str, default=None,
-                            help='a path to the file that saved the starting state obs. e.g: right_ladder_top_agent_space.npy')
-        parser.add_argument("--start_state_pos", type=str, default=None,
-                            help='a path to the file that saved the starting state position. e.g: right_ladder_top_pos.txt')
+        parser = argparse.ArgumentParser(
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            parents=[self.get_common_arg_parser()]
+        )
         # goal state
-        parser.add_argument("--goal_state_dir", type=Path, default="resources/monte_info",
-                            help="where the goal state files are stored")
         parser.add_argument("--goal_state", type=str, default="middle_ladder_bottom.npy",
-                            help="a file in goal_state_dir that stores the image of the agent in goal state")
+                            help="a file in info_dir that stores the image of the agent in goal state")
         parser.add_argument("--goal_state_agent_space", type=str, default="middle_ladder_bottom_agent_space.npy",
-                            help="a file in goal_state_dir that store the agent space image of agent in goal state")
+                            help="a file in info_dir that store the agent space image of agent in goal state")
         parser.add_argument("--goal_state_pos", type=str, default="middle_ladder_bottom_pos.txt",
-                            help="a file in goal_state_dir that store the x, y coordinates of goal state")
-        # hyperparams
-        parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
-                            help='path to the hyperparams file to use')
-        args, unknown = parser.parse_known_args()
-        other_args = {
-            (utils.remove_prefix(key, '--'), val)
-            for (key, val) in zip (unknown[::2], unknown[1::2])
-        }
-        args.other_args = other_args
+                            help="a file in info_dir that store the x, y coordinates of goal state")
+        args = self.parse_common_args(parser)
         return args
 
     def check_params_validity(self):
@@ -116,12 +72,12 @@ class TrainOptionTrial:
         utils.save_hyperparams(os.path.join(self.saving_dir, "hyperparams.csv"), self.params)
 
         # set up env and its goal
-        self.env = make_env(self.params['environment'], self.params['seed'])
+        self.env = self.make_env(self.params['environment'], self.params['seed'])
         if self.params['agent_space']:
-            goal_state_path = self.params['goal_state_dir'].joinpath(self.params['goal_state_agent_space'])
+            goal_state_path = self.params['info_dir'].joinpath(self.params['goal_state_agent_space'])
         else:
-            goal_state_path = self.params['goal_state_dir'].joinpath(self.params['goal_state'])
-        goal_state_pos_path = self.params['goal_state_dir'].joinpath(self.params['goal_state_pos'])
+            goal_state_path = self.params['info_dir'].joinpath(self.params['goal_state'])
+        goal_state_pos_path = self.params['info_dir'].joinpath(self.params['goal_state_pos'])
         self.params['goal_state'] = np.load(goal_state_path)
         self.params['goal_state_position'] = np.loadtxt(goal_state_pos_path)
         print(f"aiming for goal location {self.params['goal_state_position']}")

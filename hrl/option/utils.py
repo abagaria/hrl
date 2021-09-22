@@ -1,5 +1,7 @@
+import argparse
 import os
 import logging
+from pathlib import Path
 
 import gym
 import numpy as np
@@ -8,40 +10,110 @@ import matplotlib.pyplot as plt
 import torch
 import pfrl
 
+from hrl import utils
+
 cv2.ocl.setUseOpenCL(False)
 
 
-def make_env(self, env_name, env_seed):
-	from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
-	from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
-	from hrl.wrappers.monte_pruned_actions import MontePrunedActions
+class SingleOptionTrial:
+	"""
+	a base class for every class that deals with training/executing a single option
+	"""
+	def __init__(self):
+		pass
 
-	if self.params['use_deepmind_wrappers']:
-		env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
-		env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
-			env,
-			episode_life=True,
-			clip_rewards=True,
-			flicker=False,
-			frame_stack=False,
+	def get_common_arg_parser(self):
+		parser = argparse.ArgumentParser(
+			formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+			add_help=False,
 		)
-	else:
-		env = gym.make(env_name)
-	# prunning actions
-	if not self.params['suppress_action_prunning']:
-		env = MontePrunedActions(env)
-	# make agent space
-	if self.params['agent_space']:
-		env = MonteAgentSpace(env)
-		print('using the agent space to train the option right now')
-	# make the agent start in another place if needed
-	if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
-		start_state_path = self.params['goal_state_dir'].joinpath(self.params['start_state'])
-		start_state_pos_path = self.params['goal_state_dir'].joinpath(self.params['start_state_pos'])
-		env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
-	logging.info(f'making environment {env_name}')
-	env.seed(env_seed)
-	return env
+		# common args
+        # system 
+		parser.add_argument("--experiment_name", type=str, default='monte',
+							help="Experiment Name, also used as the directory name to save results")
+		parser.add_argument("--results_dir", type=str, default='results',
+							help='the name of the directory used to store results')
+		parser.add_argument("--device", type=str, default='cuda:1',
+							help="cpu/cuda:0/cuda:1")
+		# environments
+		parser.add_argument("--environment", type=str, default='MontezumaRevenge-v0',
+							help="name of the gym environment")
+		parser.add_argument("--render", action='store_true', default=False, 
+							help="save the images of states while training")
+		parser.add_argument("--agent_space", action='store_true', default=False,
+							help="train with the agent space")
+		parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
+							help="use the deepmind wrappers")
+		parser.add_argument("--suppress_action_prunning", action='store_true', default=False,
+							help='do not prune the action space of monte')
+		parser.add_argument("--seed", type=int, default=0,
+							help="Random seed")
+		# start state
+		parser.add_argument("--info_dir", type=Path, default="resources/monte_info",
+							help="where the goal state files are stored")
+
+		parser.add_argument("--start_state", type=str, default=None,
+							help='a path to the file that saved the starting state obs. e.g: right_ladder_top_agent_space.npy')
+		parser.add_argument("--start_state_pos", type=str, default=None,
+							help='a path to the file that saved the starting state position. e.g: right_ladder_top_pos.txt')
+		# hyperparams
+		parser.add_argument('--hyperparams', type=str, default='hyperparams/monte.csv',
+							help='path to the hyperparams file to use')
+		return parser
+
+	def parse_common_args(self, parser):
+		args, unknown = parser.parse_known_args()
+		other_args = {
+			(utils.remove_prefix(key, '--'), val)
+			for (key, val) in zip(unknown[::2], unknown[1::2])
+		}
+		args.other_args = other_args
+		return args
+
+	def load_hyperparams(self, args):
+		"""
+		load the hyper params from args to a params dictionary
+		"""
+		params = utils.load_hyperparams(args.hyperparams)
+		for arg_name, arg_value in vars(args).items():
+			if arg_name == 'hyperparams':
+				continue
+			params[arg_name] = arg_value
+		for arg_name, arg_value in args.other_args:
+			utils.update_param(params, arg_name, arg_value)
+		return params
+
+	def make_env(self, env_name, env_seed):
+		from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
+		from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
+		from hrl.wrappers.monte_pruned_actions import MontePrunedActions
+
+		if self.params['use_deepmind_wrappers']:
+			env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
+			env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
+				env,
+				episode_life=True,
+				clip_rewards=True,
+				flicker=False,
+				frame_stack=False,
+			)
+		else:
+			env = gym.make(env_name)
+		# prunning actions
+		if not self.params['suppress_action_prunning']:
+			env = MontePrunedActions(env)
+		# make agent space
+		if self.params['agent_space']:
+			env = MonteAgentSpace(env)
+			print('using the agent space to train the option right now')
+		# make the agent start in another place if needed
+		if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
+			start_state_path = self.params['info_dir'].joinpath(self.params['start_state'])
+			start_state_pos_path = self.params['info_dir'].joinpath(self.params['start_state_pos'])
+			env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
+		logging.info(f'making environment {env_name}')
+		env.seed(env_seed)
+		return env
 
 
 def warp_frames(state):
