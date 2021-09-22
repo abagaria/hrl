@@ -6,17 +6,16 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import torch
-from tqdm import tqdm
 import pfrl
-
-from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
-from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
-from hrl.wrappers.monte_pruned_actions import MontePrunedActions
 
 cv2.ocl.setUseOpenCL(False)
 
 
 def make_env(self, env_name, env_seed):
+	from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
+	from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
+	from hrl.wrappers.monte_pruned_actions import MontePrunedActions
+
 	if self.params['use_deepmind_wrappers']:
 		env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
 		env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
