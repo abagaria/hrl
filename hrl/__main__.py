@@ -172,7 +172,7 @@ class Trial:
         end_time = time.time()
 
         # plot the learning curve when experiemnt is done
-        plot_learning_curve(self.params['experiment_name'])
+        plot_learning_curve(experiment_name=self.params['experiment_name'])
 
         print("Time taken: ", end_time - start_time)
 
