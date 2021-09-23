@@ -1,8 +1,7 @@
 import argparse
-import pfrl
 import os
-from pathlib import Path
 
+import seeding
 import numpy as np
 
 from hrl import utils
@@ -34,7 +33,7 @@ class PlayGame(SingleOptionTrial):
 	
 	def setup(self):
 		# setting random seeds
-		pfrl.utils.set_random_seed(self.params['seed'])
+		seeding.seed(self.params['seed'], np)
 
 		# saving
 		self.saving_dir = os.path.join(self.params['results_dir'], self.params['experiment_name'])

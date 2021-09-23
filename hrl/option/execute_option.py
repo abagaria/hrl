@@ -3,9 +3,7 @@ import random
 import argparse
 import os
 import shutil
-from pathlib import Path
 
-import pfrl
 import torch
 import seeding
 import numpy as np
@@ -45,8 +43,7 @@ class ExecuteOptionTrial(SingleOptionTrial):
 		do set up for the experiment
 		"""
         # setting random seeds
-        seeding.seed(0, random, torch, np)
-        pfrl.utils.set_random_seed(self.params['seed'])
+        seeding.seed(self.params['seed'], random, np, torch)
 
         # set up env and the forwarding target
         self.env = self.make_env(self.params['environment'], self.params['seed'])

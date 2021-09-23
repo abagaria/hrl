@@ -1,12 +1,12 @@
 import time
 import pickle
+import random
 import os
 import argparse
 import shutil
-from pathlib import Path
 
-import pfrl
 import torch
+import seeding
 import numpy as np
 
 from hrl import utils
@@ -56,7 +56,7 @@ class TrainOptionTrial(SingleOptionTrial):
         self.check_params_validity()
 
         # setting random seeds
-        pfrl.utils.set_random_seed(self.params['seed'])
+        seeding.seed(self.params['seed'], random, np, torch)
 
         # torch benchmark
         torch.backends.cudnn.benchmark = True

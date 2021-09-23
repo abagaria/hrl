@@ -113,6 +113,7 @@ class SingleOptionTrial:
 			env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
 		logging.info(f'making environment {env_name}')
 		env.seed(env_seed)
+		env.action_space.seed(env_seed)
 		return env
 
 
