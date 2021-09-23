@@ -96,7 +96,7 @@ def train_agent_batch_with_eval(
                 assert state_to_goal_fn is not None
                 highsight_experience_replay(trajectory, agent.batch_observe, goal_state, state_to_goal_fn=state_to_goal_fn)
             else:
-                experience_replay(trajectory, agent.batch_observe)
+                normal_experience_replay(trajectory, agent.batch_observe)
             
             # testing the agent
             if testing_freq is not None and episode % testing_freq == 0:
@@ -260,7 +260,7 @@ def episode_rollout(
         return trajectory, episode_r, episode_len, starting_poss
 
 
-def experience_replay_for_goal(t, observe_fn, target_goals=None):
+def experience_replay(t, observe_fn, target_goals=None):
     """
     experience replay targeting a specific goal
     the `target_goal` here should be a list of lenght num_envs, and each element of length goal_size
@@ -279,11 +279,11 @@ def experience_replay_for_goal(t, observe_fn, target_goals=None):
             observe_fn(goal_augmented_obss, actions, rs, goal_augmented_next_obss, dones)
 
 
-def experience_replay(trajectories, agent_observe_fn):
+def normal_experience_replay(trajectories, agent_observe_fn):
     """
     normal experience replay
     """
-    experience_replay_for_goal(t=trajectories, observe_fn=agent_observe_fn, target_goals=None)
+    experience_replay(t=trajectories, observe_fn=agent_observe_fn, target_goals=None)
 
 
 def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, state_to_goal_fn=lambda x: x):
@@ -298,8 +298,8 @@ def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, stat
     goal_state = [goal_state] * len(reached_goals)
 
     # hindsight
-    experience_replay_for_goal(t=trajectories, observe_fn=agent_observe_fn, target_goals=goal_state)
-    experience_replay_for_goal(t=trajectories, observe_fn=agent_observe_fn, target_goals=reached_goals)
+    experience_replay(t=trajectories, observe_fn=agent_observe_fn, target_goals=goal_state)
+    experience_replay(t=trajectories, observe_fn=agent_observe_fn, target_goals=reached_goals)
 
 
 def test_agent_batch(
