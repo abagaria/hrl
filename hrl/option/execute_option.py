@@ -33,7 +33,7 @@ class ExecuteOptionTrial(SingleOptionTrial):
         parser.add_argument(
             "--saved_option",
             type=str,
-            default='results/monte-agent-space/trained_option.pkl',
+            default='results/monte-middle-ladder/trained_option.pkl',
             help='path the a stored trained option')
         args = self.parse_common_args(parser)
         return args
