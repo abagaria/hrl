@@ -291,7 +291,7 @@ def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, stat
     highsight experience replay
     """
     # recover the reached goals 
-    last_obss = trajectories[-1][0]  # the last observation, -1 index last, 0 index obss in a transition
+    last_obss = trajectories[-1][3]  # the last observation, -1 index last, 0 index next_obss in a transition
     reached_goals = list(map(state_to_goal_fn, last_obss))
 
     # make goal_state into a list
