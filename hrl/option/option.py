@@ -6,7 +6,6 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
-from numpy.lib.utils import info
 from thundersvm import SVC, OneClassSVM
 import matplotlib.pyplot as plt
 
@@ -79,10 +78,13 @@ class Option:
 
 		return self.initiation_classifier.predict([state])[0] == 1
 
-	def is_term_true(self, state, eval_mode=False):
+	def is_term_true(self, state, is_dead, eval_mode=False):
 		"""
 		whether the termination condition is true
 		"""
+		if is_dead:
+			# ensure the agent is not dead when hitting the goal
+			return False
 		if not eval_mode:
 			# termination is always true if the state is near the goal
 			position = get_player_position(self.env.unwrapped.ale.getRAM())
@@ -104,7 +106,7 @@ class Option:
 		"""
 		if is_dead:
 			return self.params['death_reward']
-		elif self.is_term_true(state, eval_mode):
+		elif self.is_term_true(state, is_dead=is_dead, eval_mode=eval_mode):
 			return self.params['goal_reward']
 		else:
 			return self.params['step_reward']
@@ -128,6 +130,7 @@ class Option:
 		# reset env
 		state = self.env.reset()
 		terminal = False
+		is_dead = False
 
 		if self.params['use_deepmind_wrappers']:
 			state = warp_frames(state)
@@ -146,11 +149,12 @@ class Option:
 		self.num_executions += 1
 
 		# main while loop
-		while not self.is_term_true(state, eval_mode) and not terminal:
+		while not self.is_term_true(state, is_dead=is_dead, eval_mode=eval_mode) and not terminal:
 			# control
 			action = self.act(state.flatten(), eval_mode=eval_mode)
 			next_state, reward, done, info = self.env.step(action)
 			is_dead = int(info['ale.lives']) < 6
+			done = self.is_term_true(next_state, is_dead=is_dead, eval_mode=eval_mode)
 			terminal = done or is_dead  # epsidoe is done if agent dies
 			reward = self.reward_function(next_state, is_dead=is_dead, eval_mode=eval_mode)
 			if num_steps >= self.params['max_episode_len']:
@@ -183,15 +187,15 @@ class Option:
 		visited_states.append(state.flatten())
 
 		# more logging
-		self.success_curve.append(self.is_term_true(state, eval_mode))
+		self.success_curve.append(self.is_term_true(state, is_dead=is_dead, eval_mode=eval_mode))
 		self.success_rates[step_number] = {'success': self.get_success_rate()}
-		if self.is_term_true(state, eval_mode):
+		if self.is_term_true(state, is_dead=is_dead, eval_mode=eval_mode):
 			self.num_goal_hits += 1
 			print(f"num goal hits increased to {self.num_goal_hits}")
 		
 		# training
 		if not eval_mode:
-			self.derive_positive_and_negative_examples(visited_states)
+			self.derive_positive_and_negative_examples(visited_states, final_state_is_dead=is_dead)
 			# this is updating the value function
 			self.experience_replay(option_transitions)
 			# refining your initiation/termination classifier
@@ -202,20 +206,19 @@ class Option:
 
 	def experience_replay(self, trajectory):
 		for state, action, reward, next_state, done in trajectory:
-			done = self.is_term_true(next_state)
 			self.value_learner.step(state, action, reward, next_state, done)
 
 	# ------------------------------------------------------------
 	# Classifiers
 	# ------------------------------------------------------------
-	def derive_positive_and_negative_examples(self, visited_states):
+	def derive_positive_and_negative_examples(self, visited_states, final_state_is_dead):
 		"""
 		derive positive and negative examples used to train classifiers
 		"""
 		start_state = visited_states[0]
 		final_state = visited_states[-1]
 
-		if self.is_term_true(final_state):
+		if self.is_term_true(final_state, is_dead=final_state_is_dead):
 			# positive
 			positive_states = [start_state] + visited_states[-self.params['buffer_length']:]
 			self.initiation_positive_examples.append(positive_states)
