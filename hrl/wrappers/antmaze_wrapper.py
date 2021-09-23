@@ -20,20 +20,21 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 	def action_space_size(self):
 		return self.env.action_space.shape[0]
 	
-	def sparse_gc_reward_func(self, states, goals, batched=False):
+	def sparse_gc_reward_func(self, states, goals):
 		"""
 		overwritting sparse gc reward function for antmaze
 		"""
 		# assert input is np array or torch tensor
-		assert isinstance(states, (np.ndarray, torch.Tensor))
-		assert isinstance(goals, (np.ndarray, torch.Tensor))
+		try:
+			assert isinstance(states, (np.ndarray, torch.Tensor))
+			assert isinstance(goals, (np.ndarray, torch.Tensor))
+		except AssertionError:
+			states = np.array(states)
+			goals = np.array(goals)
 
-		if batched:
-			current_positions = states[:,:2]
-			goal_positions = goals[:,:2]
-		else:
-			current_positions = states[:2]
-			goal_positions = goals[:2]
+		current_positions = np.take(states, [0,1], axis=-1)  # taking first two index of every state
+		goal_positions = np.take(goals, [0,1], axis=-1)  # taking first two index of every goal
+
 		distances = self.norm_func(current_positions-goal_positions)
 		dones = distances <= self.goal_tolerance
 
@@ -47,15 +48,16 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		"""
 		overwritting dense gc reward function for antmaze
 		"""
-		assert isinstance(states, (np.ndarray, torch.Tensor))
-		assert isinstance(goals, (np.ndarray, torch.Tensor))
+		try:
+			assert isinstance(states, (np.ndarray, torch.Tensor))
+			assert isinstance(goals, (np.ndarray, torch.Tensor))
+		except AssertionError:
+			states = np.array(states)
+			goals = np.array(goals)
 
-		if batched:
-			current_positions = states[:,:2]
-			goal_positions = goals[:,:2]
-		else:
-			current_positions = states[:2]
-			goal_positions = goals[:2]
+		current_positions = np.take(states, [0,1], axis=-1)  # taking first two index of every state
+		goal_positions = np.take(goals, [0,1], axis=-1)  # taking first two index of every goal
+		
 		distances = self.norm_func(current_positions - goal_positions)
 		dones = distances <= self.goal_tolerance
 
