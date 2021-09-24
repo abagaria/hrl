@@ -28,6 +28,7 @@ def train_agent_batch_with_eval(
     saving_freq=None,
     saving_dir=None,
     state_to_goal_fn=None,
+    reward_fn=None,
 ):
     """Train an agent in a batch environment.
 
@@ -53,7 +54,7 @@ def train_agent_batch_with_eval(
         # for each episode
         for episode in range(num_episodes):
             # episode rollout
-            trajectory, episode_r, episode_len, episode_start_poss = episode_rollout(
+            trajectory, episode_r, episode_len, episode_start_poss, episode_reached_pos = episode_rollout(
                 testing=False,
                 episode_idx=episode,
                 env=env,
@@ -63,8 +64,9 @@ def train_agent_batch_with_eval(
                 goal_state=goal_state,
                 logger=logger,
                 logging_freq=logging_freq,
+                state_to_goal_fn=state_to_goal_fn,
             )
-            assert len(episode_r) == len(episode_len) == len(episode_start_poss)
+            assert len(episode_r) == len(episode_len) == len(episode_start_poss) == len(episode_reached_pos)
 
             # logging the testing stats
             mode = 'w' if episode == 0 else 'a'
@@ -94,7 +96,7 @@ def train_agent_batch_with_eval(
             if goal_conditioned:
                 assert goal_state is not None
                 assert state_to_goal_fn is not None
-                highsight_experience_replay(trajectory, agent.batch_observe, goal_state, state_to_goal_fn=state_to_goal_fn)
+                highsight_experience_replay(trajectory, agent.batch_observe, reward_fn, intended_goals=[goal_state] * env.num_envs, reached_goals=episode_reached_pos)
             else:
                 normal_experience_replay(trajectory, agent.batch_observe)
             
@@ -163,6 +165,7 @@ def episode_rollout(
     max_episode_len,
     logger,
     logging_freq,
+    state_to_goal_fn=None,
 ):
     """
     rollout one episode
@@ -175,7 +178,8 @@ def episode_rollout(
     obss = env.reset(mask=None, testing=testing)
     obss = list(map(lambda obs: obs.astype(np.float32), obss))  # convert np.float64 to np.float32, for torch forward pass
     if not testing:
-        starting_poss = [obs[:2] for obs in obss]
+        starting_poss = [state_to_goal_fn(obs) for obs in obss]
+        episode_reached_pos = starting_poss
         print(f"start position is {starting_poss}")
 
     if not testing:
@@ -212,6 +216,8 @@ def episode_rollout(
         # record stats
         if testing:
             episode_success = np.logical_or(episode_success, terminal)
+        else:
+            episode_reached_pos = [episode_reached_pos[i] if obs is StopExecution else state_to_goal_fn(obs) for i, obs in enumerate(next_obss)]
         episode_not_done = np.logical_not(episode_done)
         episode_r += zeroed_rs * episode_not_done
         episode_len += 1 * episode_not_done
@@ -225,8 +231,8 @@ def episode_rollout(
             resets, [info.get("needs_reset", False) for info in infos]
         )
         # Make mask. 0 if done/reset, 1 if pass
-        terminal = np.logical_or(resets, terminal)
         episode_done = np.logical_or(episode_done, terminal)
+        episode_done = np.logical_or(episode_done, resets)
 
         # logging
         if logging_freq and np.max(episode_len) % logging_freq == 0:
@@ -248,34 +254,50 @@ def episode_rollout(
             filtered_dones = filter_token(dones)  # remove the None
             
             assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
-            trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, resets))
+            trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, terminal))
         
         # update obss
-        next_obss = [StopExecution if episode_done[i]==True else obs for i, obs in enumerate(next_obss)]  # mask done states
-        obss = next_obss
+        obss = [StopExecution if episode_done[i]==True else obs for i, obs in enumerate(next_obss)]  # mask done states
     
     if testing:
         return episode_r, episode_success
     else:
-        return trajectory, episode_r, episode_len, starting_poss
+        return trajectory, episode_r, episode_len, starting_poss, episode_reached_pos
 
 
-def experience_replay(t, observe_fn, target_goals=None):
+def experience_replay(t, observe_fn, reward_fn=None, target_goals=None):
     """
     experience replay targeting a specific goal
-    the `target_goal` here should be a list of lenght num_envs, and each element of length goal_size
+    Args:
+        t: trajectory, which is a list of transitions
+        observe_fn: the agent.observe function
+        reward_fn: the reward function of the environment. Need this because in HER,
+                    we need to override the rewards & dones in case the target_goal
+                    is the reached_goal
+                    reward_fn(state, goal) -> reward, done
+        target_goal: should be a np.array of length num_envs, and each element of length goal_size
     """
     if target_goals is None:
         # for normal ER
-        for obss, actions, rs, next_obss, dones, resets in t:
+        for obss, actions, rs, next_obss, dones, terminal in t:
             observe_fn(obss, actions, rs, next_obss, dones)
     else:
         # for HER
-        for obss, actions, rs, next_obss, dones, resets in t:
+        prev_terminal = [False] * len(t[0][0])
+        for obss, actions, rs, next_obss, dones, terminal in t:
+            # get target_goals for env_idx that have not terminated
+            # check prev_terminal because len(obss) is dependent on whether previous step terminated
+            step_target_goals = target_goals[np.logical_not(prev_terminal)]
+            assert len(obss) == len(next_obss) == len(step_target_goals)
+            prev_terminal = terminal
+
+            # override reward for target_goals
+            rs, dones = reward_fn(next_obss, step_target_goals)
+
             # augment the obss with target_goal
-            goal_augmented_obss = [utils.augment_state(obs, g) for obs, g in zip(obss, target_goals)]
+            goal_augmented_obss = [utils.augment_state(obs, g) for obs, g in zip(obss, step_target_goals)]
             # augment the next_obss with target goal
-            goal_augmented_next_obss = [utils.augment_state(obs, g) for obs, g in zip(next_obss, target_goals)]
+            goal_augmented_next_obss = [utils.augment_state(obs, g) for obs, g in zip(next_obss, step_target_goals)]
             observe_fn(goal_augmented_obss, actions, rs, goal_augmented_next_obss, dones)
 
 
@@ -286,20 +308,16 @@ def normal_experience_replay(trajectories, agent_observe_fn):
     experience_replay(t=trajectories, observe_fn=agent_observe_fn, target_goals=None)
 
 
-def highsight_experience_replay(trajectories, agent_observe_fn, goal_state, state_to_goal_fn=lambda x: x):
+def highsight_experience_replay(trajectories, agent_observe_fn, reward_fn, intended_goals, reached_goals):
     """
     highsight experience replay
+    Args:
+        intended_goals: a list of shape (num_envs, goal_size)
+        reached_goals: a list of shape (num_envs, reached_goals)
     """
-    # recover the reached goals 
-    last_obss = trajectories[-1][3]  # the last observation, -1 index last, 0 index next_obss in a transition
-    reached_goals = list(map(state_to_goal_fn, last_obss))
-
-    # make goal_state into a list
-    goal_state = [goal_state] * len(reached_goals)
-
     # hindsight
-    experience_replay(t=trajectories, observe_fn=agent_observe_fn, target_goals=goal_state)
-    experience_replay(t=trajectories, observe_fn=agent_observe_fn, target_goals=reached_goals)
+    experience_replay(t=trajectories, observe_fn=agent_observe_fn, reward_fn=reward_fn, target_goals=np.array(intended_goals))
+    experience_replay(t=trajectories, observe_fn=agent_observe_fn, reward_fn=reward_fn, target_goals=np.array(reached_goals))
 
 
 def test_agent_batch(

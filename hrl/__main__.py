@@ -143,6 +143,7 @@ class Trial:
         if self.params['goal_conditioned']:
             dummy_env = self.make_env(env_seed=0)
             goal_state = dummy_env.goal_state
+            reward_fn = dummy_env.reward_func
         train_agent_batch_with_eval(
             agent=self.agent,
             env=self.env,
@@ -158,6 +159,7 @@ class Trial:
             saving_freq=self.params['saving_frequency'],
             saving_dir=self.saving_dir,
             state_to_goal_fn=dummy_env.get_position,
+            reward_fn=reward_fn,
         )
 
     def run(self):
