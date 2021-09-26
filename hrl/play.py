@@ -3,6 +3,7 @@ import os
 
 import seeding
 import numpy as np
+import pfrl
 
 from hrl import utils
 from hrl.option.utils import get_player_position, SingleOptionTrial
@@ -41,6 +42,7 @@ class PlayGame(SingleOptionTrial):
 
 		# make env
 		self.env = self.make_env(self.params['environment'], self.params['seed'])
+		self.env = pfrl.wrappers.Render(self.env)
 
 	def play(self):
 		"""
