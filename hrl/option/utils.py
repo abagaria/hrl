@@ -168,6 +168,21 @@ def set_player_position(env, x, y):
 	env.step(0)  # NO-OP action to update the RAM state
 
 
+def make_done_state_plot(replay_buffer, episode_idx, save_dir):
+	"""
+	visualize the done positions
+	"""
+	states = np.array([exp[0] for exp in replay_buffer])
+	dones = np.array([exp[-1] for exp in replay_buffer])
+	done_states = states[dones]
+
+	for i in range(len(done_states)):
+		s = done_states[i]
+		s = s.reshape((56, 40, 3))  # states in replay buffer are flattened, reshape to monte frame
+		file_name = save_dir.joinpath(f"done_state_plot_at_episode_{episode_idx}__{i}.jpg")
+		plt.imsave(file_name, s)
+
+
 def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_buffer, chunk_size=1000):
 	"""
 	helper function to visualize the value function

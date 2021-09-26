@@ -4,13 +4,14 @@ import random
 import os
 import argparse
 import shutil
+from pathlib import Path
 
 import torch
 import seeding
 import numpy as np
 
 from hrl import utils
-from hrl.option.utils import SingleOptionTrial
+from hrl.option.utils import SingleOptionTrial, make_done_state_plot
 from hrl.option.option import Option
 from hrl.plot import main as plot_learning_curve
 
@@ -99,6 +100,11 @@ class TrainOptionTrial(SingleOptionTrial):
             option_transitions, total_reward = self.option.rollout(step_number=step_number, eval_mode=False, rendering=self.params['render'])
             step_number += len(option_transitions)
             episode_idx += 1
+
+            # plot the done state
+            done_state_dir = Path(self.saving_dir).joinpath('done_states_plot')
+            done_state_dir.mkdir(exist_ok=True)
+            make_done_state_plot(replay_buffer=option_transitions, episode_idx=episode_idx, save_dir=done_state_dir)
 
             # save the results
             if episode_idx % self.params['saving_frequency'] == 0:
