@@ -1,10 +1,10 @@
 import time
 import os
 import math
-import random
 import argparse
 import shutil
 import logging
+from pathlib import Path
 
 import gym
 import d4rl
@@ -177,6 +177,13 @@ class Trial:
         plot_learning_curve(experiment_name=self.params['experiment_name'])
 
         print("Time taken: ", end_time - start_time)
+
+        time_file = Path(self.saving_dir).joinpath('time_taken.txt')
+        with open(time_file, 'w') as f:
+            seconds = end_time - start_time
+            hours = seconds // 3600
+            f.write(f'{seconds} seconds')
+            f.write(f'{hours} hours {(seconds - hours * 3600)/60} minutes')
 
 
     def make_env(self, env_seed, test=False):
