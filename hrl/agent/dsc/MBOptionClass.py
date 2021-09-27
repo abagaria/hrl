@@ -5,7 +5,7 @@ from copy import deepcopy
 import torch
 import numpy as np
 from scipy.spatial import distance
-from thundersvm import OneClassSVM, SVC
+from sklearn.svm import OneClassSVM, SVC
 
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
@@ -254,9 +254,8 @@ class ModelBasedOption(object):
                                     reached_goal=self.extract_goal_dimensions(state))
 
         is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(state_buffer=visited_states)
-        init_update_condition = (self.is_term_true(state) and is_valid_data) or not self.is_term_true(state)
 
-        if not self.global_init and init_update_condition:
+        if not self.global_init and is_valid_data:
             self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
@@ -350,9 +349,11 @@ class ModelBasedOption(object):
         pessimistic_samples = self.get_states_inside_pessimistic_classifier_region()
 
         if len(pessimistic_samples) > 0:
-            return random.choice(pessimistic_samples)
+            sample = random.choice(pessimistic_samples)
+            return self.mdp.extract_features_for_initiation_classifier(sample)
 
-        return random.choice(self.effect_set)
+        sample = random.choice(self.effect_set)
+        return self.mdp.extract_features_for_initiation_classifier(sample)
 
     def sample_from_initiation_region_fast(self):
         """ Sample from the pessimistic initiation classifier. """
@@ -437,10 +438,10 @@ class ModelBasedOption(object):
 
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+        self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="auto")
         self.pessimistic_classifier.fit(positive_feature_matrix)
 
-        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10.)
+        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10., gamma="auto")
         self.optimistic_classifier.fit(positive_feature_matrix)
 
     def train_two_class_classifier(self, nu=0.1):
@@ -464,7 +465,7 @@ class ModelBasedOption(object):
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="auto")
             self.pessimistic_classifier.fit(positive_training_examples)
 
     def is_valid_init_data(self, state_buffer):

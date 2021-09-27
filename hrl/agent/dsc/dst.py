@@ -247,13 +247,13 @@ class RobustDST(object):
                 if self.use_global_vf:
                     make_chunked_goal_conditioned_value_function_plot(option.global_value_learner,
                                                                       goal=option.get_goal_for_rollout(),
-                                                                      episode=episode, seed=self.seed,
+                                                                      episode=-1, seed=self.seed,
                                                                       experiment_name=self.experiment_name,
                                                                       option_idx=option.option_idx)
                 else:
                     make_chunked_goal_conditioned_value_function_plot(option.value_learner,
                                                                       goal=option.get_goal_for_rollout(),
-                                                                      episode=episode, seed=self.seed,
+                                                                      episode=-1, seed=self.seed,
                                                                       experiment_name=self.experiment_name)
 
     def create_model_based_option(self, name, parent=None):
@@ -305,7 +305,8 @@ class RobustDST(object):
         if self.use_diverse_starts and episode > self.warmup_episodes:
             random_state = self.mdp.sample_random_state()
             random_position = self.mdp.get_position(random_state)
-            self.mdp.set_xy(random_position)
+            if not self.mdp.is_goal_region(random_state):
+                self.mdp.set_xy(random_position)
 
         print(f"[Episode {episode}] Reset state to {self.mdp.cur_state}")
 
