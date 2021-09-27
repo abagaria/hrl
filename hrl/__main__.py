@@ -182,7 +182,7 @@ class Trial:
         with open(time_file, 'w') as f:
             seconds = end_time - start_time
             hours = seconds // 3600
-            f.write(f'{seconds} seconds')
+            f.write(f'{seconds} seconds\n')
             f.write(f'{hours} hours {(seconds - hours * 3600)/60} minutes')
 
 
