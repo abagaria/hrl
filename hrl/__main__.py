@@ -116,8 +116,8 @@ class Trial:
         utils.save_hyperparams(os.path.join(saving_dir, "hyperparams.csv"), self.params)
 
         # set up env and experiment
-        self.env = self.make_batch_env(test=False)
-        self.test_env = self.make_batch_env(test=True)
+        self.env = self.make_batch_env(num_envs=self.params['num_envs'], test=False)
+        self.test_env = self.make_batch_env(num_envs=1, test=True)
         if self.params['agent'] == 'dsc':
             self.exp = RobustDSC(mdp=self.env, params=self.params)
         else:
@@ -149,7 +149,7 @@ class Trial:
             env=self.env,
             num_episodes=self.params['episodes'],
             test_env=self.test_env,
-            num_test_episodes=math.ceil(self.params['eval_n_episodes'] / self.params['num_envs']),
+            num_test_episodes=self.params['eval_n_episodes'],
             goal_conditioned=self.params['goal_conditioned'],
             goal_state=goal_state if self.params['goal_conditioned'] else None,
             max_episode_len=self.params['max_episode_len'],
@@ -224,15 +224,15 @@ class Trial:
         return env
 
 
-    def make_batch_env(self, test=False):
+    def make_batch_env(self, num_envs, test=False):
         # get a batch of seeds
-        process_seeds = np.arange(self.params['num_envs']) + self.params['seed'] * self.params['num_envs']
+        process_seeds = np.arange(num_envs) + self.params['seed'] * num_envs
         assert process_seeds.max() < 2 ** 32
         # make vector env
         vec_env = SyncVectorEnv(
             [
                 (lambda i: lambda: self.make_env(env_seed=int(process_seeds[i]), test=test))(idx)
-                for idx, env in enumerate(range(self.params['num_envs']))
+                for idx, env in enumerate(range(num_envs))
             ]
         )
         return vec_env
