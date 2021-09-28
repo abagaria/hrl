@@ -13,7 +13,8 @@ class RobustDSC(object):
     def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, lr_c, lr_a,
                  experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
+                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc, max_num_children):
+        assert max_num_children == 1, f"Use DST for {max_num_children} children"
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -61,7 +62,7 @@ class RobustDSC(object):
         for option in self.chain:
             if option.is_init_true(state):
                 subgoal = option.get_goal_for_rollout()
-                if not option.is_at_local_goal(state, subgoal):
+                if not option.is_term_true(state):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
 
@@ -246,7 +247,8 @@ class RobustDSC(object):
         self.mdp.reset()
 
         if self.use_diverse_starts and episode > self.warmup_episodes:
-            random_state = self.mdp.sample_random_state()
+            goal_cond = lambda s: self.mdp.is_goal_region(np.array([s]))[0]
+            random_state = self.mdp.sample_random_state(reject_cond=goal_cond)
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
 

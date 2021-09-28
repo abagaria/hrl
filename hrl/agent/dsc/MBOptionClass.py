@@ -1,12 +1,10 @@
 import random
-import itertools
-from copy import deepcopy
-
 import torch
+import itertools
 import numpy as np
+from copy import deepcopy
 from scipy.spatial import distance
 from sklearn.svm import OneClassSVM, SVC
-
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
 
@@ -153,13 +151,6 @@ class ModelBasedOption(object):
         features = self.mdp.extract_features_for_initiation_classifier(state)
         return self.pessimistic_classifier.predict([features])[0] == 1
 
-    def is_at_local_goal(self, state, goal):
-        """ Goal-conditioned termination condition. """
-
-        reached_goal = self.mdp.sparse_gc_reward_func(state, goal)[1]
-        reached_term = self.is_term_true(state)
-        return reached_goal and reached_term
-
     # ------------------------------------------------------------
     # Control Loop Methods
     # ------------------------------------------------------------
@@ -201,7 +192,7 @@ class ModelBasedOption(object):
         assert sampled_goal is not None
 
         if isinstance(sampled_goal, np.ndarray):
-            return sampled_goal.squeeze()
+            return self.extract_goal_dimensions(sampled_goal.squeeze())
 
         return self.extract_goal_dimensions(sampled_goal)
 
@@ -223,7 +214,7 @@ class ModelBasedOption(object):
 
         self.num_executions += 1
 
-        while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
+        while not self.is_term_true(state) and step_number < self.max_steps and num_steps < self.timeout:
 
             # Control
             action = self.act(state, goal)
@@ -249,9 +240,7 @@ class ModelBasedOption(object):
             self.effect_set.append(state)
 
         if self.use_vf and not eval_mode:
-            self.update_value_function(option_transitions,
-                                    pursued_goal=goal,
-                                    reached_goal=self.extract_goal_dimensions(state))
+            self.update_value_function_without_reward_func(option_transitions, goal)
 
         is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(state_buffer=visited_states)
 
@@ -273,6 +262,34 @@ class ModelBasedOption(object):
 
         self.experience_replay(option_transitions, pursued_goal)
         self.experience_replay(option_transitions, reached_goal)
+
+    def update_value_function_without_reward_func(self, transitions, pursued_goal):
+        final_state = transitions[-1][-2]
+        reached_goal = self.extract_goal_dimensions(final_state)
+
+        relabeled_successful_transitions = self.relabel_rewards(transitions, reached_goal)
+
+        if not self.is_term_true(final_state):
+            relabeled_unsuccessful_transitions = self.relabel_rewards(transitions, pursued_goal)
+            self.experience_replay(relabeled_unsuccessful_transitions, pursued_goal)
+            
+        self.experience_replay(relabeled_successful_transitions, reached_goal)
+
+    def relabel_rewards(self, trajectory, goal):
+        def _state_equal(s1, s2):
+            sg1 = self.extract_goal_dimensions(s1)
+            sg2 = self.extract_goal_dimensions(s2)
+            assert sg1.shape == sg2.shape, f"{sg1.shape, sg2.shape}"
+            return np.allclose(sg1, sg2)
+
+        relabeled_trajectory = []
+        
+        for state, action, _, next_state, _ in trajectory: 
+            relabeled_done = _state_equal(next_state, goal) or self.is_term_true(next_state)
+            relabeled_reward = 0. if relabeled_done else -1.
+            relabeled_trajectory.append((state, action, relabeled_reward, next_state, relabeled_done))
+
+        return relabeled_trajectory
 
     def initialize_value_function_with_global_value_function(self):
         self.value_learner.actor.load_state_dict(self.global_value_learner.actor.state_dict())
@@ -297,19 +314,14 @@ class ModelBasedOption(object):
         for state, action, reward, next_state, next_done in trajectory:
             augmented_state = self.get_augmented_state(state, goal=goal_state)
             augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
-            done = self.is_at_local_goal(next_state, goal_state)
 
-            reward_func = self.overall_mdp.dense_gc_reward_func if self.dense_reward \
-                else self.overall_mdp.sparse_gc_reward_func
-            reward, global_done = reward_func(next_state, goal_state)
-
-            if not self.use_global_vf or self.global_init:
-                self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
+            if self.global_init:
+                self.value_learner.step(augmented_state, action, reward, augmented_next_state, next_done)
 
             # Off-policy updates to the global option value function
             if not self.global_init:
                 assert self.global_value_learner is not None
-                self.global_value_learner.step(augmented_state, action, reward, augmented_next_state, global_done)
+                self.global_value_learner.step(augmented_state, action, reward, augmented_next_state, next_done)
 
     def value_function(self, states, goals):
         assert isinstance(states, np.ndarray)

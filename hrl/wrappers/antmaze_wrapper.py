@@ -126,14 +126,14 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
     # Used during testing only
     # ---------------------------------
 
-	def sample_random_state(self, cond=lambda x: True):
+	def sample_random_state(self, reject_cond=lambda x: False):
 		num_tries = 0
 		rejected = True
 		while rejected and num_tries < 200:
 			low = np.array((self.xlims[0], self.ylims[0]))
 			high = np.array((self.xlims[1], self.ylims[1]))
 			sampled_point = np.random.uniform(low=low, high=high)
-			rejected = self.env.env.wrapped_env._is_in_collision(sampled_point) or not cond(sampled_point)
+			rejected = self.env.env.wrapped_env._is_in_collision(sampled_point) or reject_cond(sampled_point)
 			num_tries += 1
 
 			if not rejected:

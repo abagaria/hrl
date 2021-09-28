@@ -303,7 +303,8 @@ class RobustDST(object):
         self.mdp.reset()
 
         if self.use_diverse_starts and episode > self.warmup_episodes:
-            random_state = self.mdp.sample_random_state()
+            goal_cond = lambda s: self.mdp.is_goal_region(np.array([s]))[0]
+            random_state = self.mdp.sample_random_state(reject_cond=goal_cond)
             random_position = self.mdp.get_position(random_state)
             if not self.mdp.is_goal_region(random_state):
                 self.mdp.set_xy(random_position)
