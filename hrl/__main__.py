@@ -102,6 +102,7 @@ if __name__ == "__main__":
 
     # create the saving directories
     saving_dir = os.path.join(args.results_dir, args.experiment_name)
+    create_log_dir(args.results_dir)
     create_log_dir(saving_dir)
     create_log_dir(os.path.join(saving_dir, "initiation_set_plots/"))
     create_log_dir(os.path.join(saving_dir, "value_function_plots/"))
