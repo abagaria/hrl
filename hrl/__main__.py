@@ -17,7 +17,7 @@ from hrl.train_loop import train_agent_batch_with_eval
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.make_agent import make_ppo_agent, make_sac_agent, make_td3_agent
-from hrl.envs.vector_env import SyncVectorEnv
+from hrl.envs.vector_env import EpisodicSyncVectorEnv
 from hrl.plot import main as plot_learning_curve
 
 
@@ -152,7 +152,6 @@ class Trial:
             num_test_episodes=self.params['eval_n_episodes'],
             goal_conditioned=self.params['goal_conditioned'],
             goal_state=goal_state if self.params['goal_conditioned'] else None,
-            max_episode_len=self.params['max_episode_len'],
             logging_freq=self.params['logging_frequency'],
             testing_freq=self.params['testing_frequency'],
             plotting_freq=self.params['plotting_frequency'],
@@ -229,11 +228,12 @@ class Trial:
         process_seeds = np.arange(num_envs) + self.params['seed'] * num_envs
         assert process_seeds.max() < 2 ** 32
         # make vector env
-        vec_env = SyncVectorEnv(
+        vec_env = EpisodicSyncVectorEnv(
             [
                 (lambda i: lambda: self.make_env(env_seed=int(process_seeds[i]), test=test))(idx)
                 for idx, env in enumerate(range(num_envs))
-            ]
+            ],
+            max_episode_len=self.params['max_episode_len']
         )
         return vec_env
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from hrl.envs.vector_env import SyncVectorEnv
+from hrl.envs.vector_env import EpisodicSyncVectorEnv
 from hrl import utils
 from hrl.utils import filter_token
 from hrl.utils import StopExecution
@@ -21,7 +21,6 @@ def train_agent_batch_with_eval(
     num_test_episodes=None,
     goal_conditioned=False,
     goal_state=None,
-    max_episode_len=None,
     logging_freq=None,
     testing_freq=None,
     plotting_freq=None,
@@ -47,7 +46,7 @@ def train_agent_batch_with_eval(
     logger = logging.getLogger("training")
     logger.setLevel(logging.INFO)
 
-    assert isinstance(env, SyncVectorEnv)
+    assert isinstance(env, EpisodicSyncVectorEnv)
 
     # main training loops
     try:
@@ -59,7 +58,6 @@ def train_agent_batch_with_eval(
                 episode_idx=episode,
                 env=env,
                 agent=agent,
-                max_episode_len=max_episode_len,
                 goal_conditoned=goal_conditioned,
                 goal_state=goal_state,
                 logger=logger,
@@ -109,7 +107,6 @@ def train_agent_batch_with_eval(
                     test_env=test_env,
                     num_episodes=num_test_episodes,
                     cur_episode_idx=episode,
-                    max_episode_len=max_episode_len,
                     goal_conditioned=goal_conditioned,
                     goal_state=goal_state,
                     saving_dir=saving_dir,
@@ -162,7 +159,6 @@ def episode_rollout(
     agent,
     goal_conditoned,
     goal_state,
-    max_episode_len,
     logger,
     logging_freq,
     state_to_goal_fn=None,
@@ -182,16 +178,12 @@ def episode_rollout(
         episode_reached_pos = starting_poss
         print(f"start position is {starting_poss}")
 
+    # create trajectory accumulator
     if not testing:
         trajectory = []
-    episode_r = np.zeros(num_envs, dtype=np.float32)  # reward for the current episode
-    episode_len = np.zeros(num_envs, dtype="i")  # the idx of step each env is on for their cur episode
-    episode_done = np.zeros(num_envs, dtype="i")  # whether the corresponding env is done with the cur episode
-    if testing:
-        episode_success = np.zeros(num_envs, dtype="i")  # whether each corresponding succeeded
 
     # run until all parallel envs finish the current episode
-    while not np.all(episode_done):
+    while not env.all_envs_done:
         # a_t
         assert len(obss) == num_envs
         filtered_obss = filter_token(obss)  # (num_running_env, state_dim)
@@ -200,48 +192,23 @@ def episode_rollout(
         else:
             enhanced_obss = filtered_obss
         actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
-        assert len(actions) == np.sum(np.logical_not(episode_done))  # assert actions.shape == (num_running_env, action_dim)
-
-        # mask actions for each env, done_envs has action None
-        action_iter = iter(actions)
-        actions = [StopExecution if episode_done[idx_env] else next(action_iter) for idx_env in range(num_envs)]
-        assert len(actions) == num_envs
+        assert len(actions) == num_envs - env.n_done_envs  # assert actions.shape == (num_running_env, action_dim)
 
         # o_{t+1}, r_{t+1}
         next_obss, rs, dones, infos = env.step(actions)
-        zeroed_rs = filter_token(rs, replace_with=np.array(0))  # change None to 0
-        terminal = filter_token(dones, replace_with=True)  # change None to True
-        infos = filter_token(infos, replace_with={})  # change None to {}
 
         # record stats
-        if testing:
-            episode_success = np.logical_or(episode_success, terminal)
-        else:
+        if not testing:
             episode_reached_pos = [episode_reached_pos[i] if obs is StopExecution else state_to_goal_fn(obs) for i, obs in enumerate(next_obss)]
-        episode_not_done = np.logical_not(episode_done)
-        episode_r += zeroed_rs * episode_not_done
-        episode_len += 1 * episode_not_done
-
-        # Compute mask for done and reset
-        if max_episode_len is None:
-            resets = np.zeros(num_envs, dtype=bool)
-        else:
-            resets = episode_len == max_episode_len
-        resets = np.logical_or(
-            resets, [info.get("needs_reset", False) for info in infos]
-        )
-        # Make mask. 0 if done/reset, 1 if pass
-        episode_done = np.logical_or(episode_done, terminal)
-        episode_done = np.logical_or(episode_done, resets)
 
         # logging
-        if logging_freq and np.max(episode_len) % logging_freq == 0:
+        if logging_freq and np.max(env.episode_lens) % logging_freq == 0:
             assert logger is not None
             logger.info(
                 "at episode {}, step {}, with reward {}".format(
                     episode_idx,
-                    episode_len,
-                    episode_r,
+                    env.episode_lens,
+                    env.episode_rs,
                 )
             )
 
@@ -254,15 +221,15 @@ def episode_rollout(
             filtered_dones = filter_token(dones)  # remove the None
             
             assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
-            trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, terminal))
+            trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, env.episode_dones))
         
         # update obss
-        obss = [StopExecution if episode_done[i]==True else obs for i, obs in enumerate(next_obss)]  # mask done states
+        obss = [StopExecution if env.episode_dones[i]==True else obs for i, obs in enumerate(next_obss)]  # mask done states
     
     if testing:
-        return episode_r, episode_success
+        return env.episode_rs, env.episode_successes
     else:
-        return trajectory, episode_r, episode_len, starting_poss, episode_reached_pos
+        return trajectory, env.episode_rs, env.episode_lens, starting_poss, episode_reached_pos
 
 
 def experience_replay(t, observe_fn, reward_fn=None, target_goals=None):
@@ -325,7 +292,6 @@ def test_agent_batch(
     test_env,
     num_episodes,
     cur_episode_idx,
-    max_episode_len,
     goal_conditioned,
     goal_state,
     saving_dir,
@@ -337,7 +303,7 @@ def test_agent_batch(
     logger = logging.getLogger("testing")
     logger.setLevel(logging.INFO)
 
-    assert isinstance(test_env, SyncVectorEnv)
+    assert isinstance(test_env, EpisodicSyncVectorEnv)
 
     # main training loops
     try:
@@ -351,7 +317,6 @@ def test_agent_batch(
                 episode_idx=episode,
                 env=test_env,
                 agent=agent,
-                max_episode_len=max_episode_len,
                 goal_conditoned=goal_conditioned,
                 goal_state=goal_state,
                 logger=None,
