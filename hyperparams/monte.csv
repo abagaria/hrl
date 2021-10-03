@@ -5,8 +5,8 @@ use_global_value_function,True,bool
 use_model,True,bool
 multithread_mpc,False,bool
 use_dense_rewards,True,bool
-lr_a,1e-5,float
-lr_c,1e-5,float
+lr_a,1e-4,float
+lr_c,1e-4,float
 epsilon_within_goal,3.0,float
 epsilon,0.2,float
 logging_frequency,100,int
