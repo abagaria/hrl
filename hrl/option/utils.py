@@ -36,7 +36,7 @@ class SingleOptionTrial:
 		parser.add_argument("--device", type=str, default='cuda:1',
 							help="cpu/cuda:0/cuda:1")
 		# environments
-		parser.add_argument("--environment", type=str, default='MontezumaRevenge-v0',
+		parser.add_argument("--environment", type=str, default='MontezumaRevenge-v4',
 							help="name of the gym environment")
 		parser.add_argument("--render", action='store_true', default=False, 
 							help="save the images of states while training")
