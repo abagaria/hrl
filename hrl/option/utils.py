@@ -89,7 +89,8 @@ class SingleOptionTrial:
 		from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
 		from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
 		from hrl.wrappers.monte_pruned_actions import MontePrunedActions
-		from hrl.wrappers.monte_down_sample import MonteDownSampleFrames
+		from hrl.wrappers.grey_scale import GreyScaleFrame
+		from pfrl.wrappers.atari_wrappers import ScaledFloatFrame
 
 		if self.params['use_deepmind_wrappers']:
 			env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
@@ -114,9 +115,12 @@ class SingleOptionTrial:
 			start_state_path = self.params['info_dir'].joinpath(self.params['start_state'])
 			start_state_pos_path = self.params['info_dir'].joinpath(self.params['start_state_pos'])
 			env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
+		# grey scale and float
+		env = GreyScaleFrame(env)
+		env = ScaledFloatFrame(env)
 		# down sacle observations
 		if self.params['down_sample']:
-			env = MonteDownSampleFrames(env)
+			pass
 		logging.info(f'making environment {env_name}')
 		env.seed(env_seed)
 		env.action_space.seed(env_seed)
