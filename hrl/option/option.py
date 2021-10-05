@@ -142,7 +142,8 @@ class Option:
 		option_transitions = []
 		if not eval_mode:
 			goal = self.params['goal_state']
-			assert goal.shape == state.shape
+			# channel doesn't need to match, in case we down sampled
+			assert goal.shape[:-1] == state.shape[:-1]
 
 		# print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
 
@@ -165,7 +166,11 @@ class Option:
 				episode_dir = Path(self.params['saving_dir']).joinpath(f'episode_{self.num_executions}')
 				episode_dir.mkdir(exist_ok=True)
 				save_path = episode_dir.joinpath(f"state_at_step_{step_number}.jpeg")
-				plt.imsave(save_path, next_state)
+				try:
+					plt.imsave(save_path, next_state)
+				except ValueError:
+					# cannot plot because next_state is grey scale image with last dimension 1
+					plt.imsave(save_path, next_state.squeeze())
 
 			# logging
 			num_steps += 1

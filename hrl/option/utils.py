@@ -42,6 +42,8 @@ class SingleOptionTrial:
 							help="save the images of states while training")
 		parser.add_argument("--agent_space", action='store_true', default=False,
 							help="train with the agent space")
+		parser.add_argument("--down_sample", "-d", action='store_true', default=False, 
+							help="down sample the monte frame by converting to grey scale and divide by 255")
 		parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
 							help="use the deepmind wrappers")
 		parser.add_argument("--suppress_action_prunning", action='store_true', default=False,
@@ -87,6 +89,7 @@ class SingleOptionTrial:
 		from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
 		from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
 		from hrl.wrappers.monte_pruned_actions import MontePrunedActions
+		from hrl.wrappers.monte_down_sample import MonteDownSampleFrames
 
 		if self.params['use_deepmind_wrappers']:
 			env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
@@ -111,6 +114,9 @@ class SingleOptionTrial:
 			start_state_path = self.params['info_dir'].joinpath(self.params['start_state'])
 			start_state_pos_path = self.params['info_dir'].joinpath(self.params['start_state_pos'])
 			env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
+		# down sacle observations
+		if self.params['down_sample']:
+			env = MonteDownSampleFrames(env)
 		logging.info(f'making environment {env_name}')
 		env.seed(env_seed)
 		env.action_space.seed(env_seed)
@@ -178,9 +184,13 @@ def make_done_state_plot(replay_buffer, episode_idx, save_dir):
 
 	for i in range(len(done_states)):
 		s = done_states[i]
-		s = s.reshape((56, 40, 3))  # states in replay buffer are flattened, reshape to monte frame
+		s = s.reshape((56, 40, -1))  # states in replay buffer are flattened, reshape to monte frame
 		file_name = save_dir.joinpath(f"done_state_plot_at_episode_{episode_idx}__{i}.jpg")
-		plt.imsave(file_name, s)
+		try:
+			plt.imsave(file_name, s)
+		except ValueError:
+			# cannot plot image with channel 1
+			plt.imsave(file_name, s.squeeze())
 
 
 def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_buffer, chunk_size=1000):

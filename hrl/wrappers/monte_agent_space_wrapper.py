@@ -15,8 +15,10 @@ class MonteAgentSpace(Wrapper):
 		self.width = width
 		self.height = height
 		self.y_offset = 8
-		# by default, the observation shape is (56, 40, 3)
-		self.img_shape = (2 * height + self.y_offset, 2 * width, 3)
+		num_channel = env.observation_space.low.shape[-1]
+		assert num_channel is 1 or 3
+		# by default, the observation shape is (56, 40, 3) or (56, 40)
+		self.img_shape = (2 * height + self.y_offset, 2 * width, num_channel)
 		self.observation_space = Box(0, 255, self.img_shape)
 	
 	def get_pixels_around_player(self, image):
