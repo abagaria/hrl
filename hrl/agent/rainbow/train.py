@@ -1,10 +1,12 @@
+import os
+import ipdb
 import time
 import json
 import pfrl
+import random
 import pickle
 import argparse
 
-from torch import optim
 from hrl.utils import create_log_dir
 from hrl.agent.rainbow.rainbow import Rainbow
 from pfrl.wrappers import atari_wrappers
@@ -26,6 +28,13 @@ def make_env(env_name, seed, test_mode, test_epsilon=0.05, terminal_on_loss_of_l
     return MontezumaInfoWrapper(env)
 
 
+def load_goal_state(dir_path):
+    file_name = os.path.join(dir_path, "bottom_right_states.pkl")
+    with open(file_name, "rb") as f:
+        goals = pickle.load(f)
+    return random.choice(goals).frame
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int)
@@ -40,6 +49,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_steps", type=int, default=3)
     parser.add_argument("--replay_start_size", type=int, default=80_000)
     parser.add_argument("--num_training_steps", type=int, default=int(13e6))
+    parser.add_argument("--goal_conditioned", action="store_true", default=False)
     parser.add_argument("--terminal_on_loss_of_life", action="store_true", default=False)
     args = parser.parse_args()
 
@@ -66,7 +76,8 @@ if __name__ == "__main__":
                             n_steps=args.n_steps,
                             betasteps=args.num_training_steps / 4,
                             replay_start_size=args.replay_start_size,
-                            gpu=args.gpu_id
+                            gpu=args.gpu_id,
+                            goal_conditioned=args.goal_conditioned
                     )
 
     t0 = time.time()
@@ -78,13 +89,22 @@ if __name__ == "__main__":
     _log_rewards = []
     _log_max_rewards = []
 
+    g0 = load_goal_state(os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states"))
+
     while current_step_number < args.num_training_steps:
         s0 = env.reset()
-
-        episodic_reward, episodic_duration, max_episodic_reward = rainbow_agent.rollout(env,
-                                                                                        s0,
-                                                                                        current_episode_number,
-                                                                                        max_episodic_reward)
+        
+        if args.goal_conditioned:
+            episodic_reward, episodic_duration, max_episodic_reward = rainbow_agent.gc_rollout(env,
+                                                                                               s0,
+                                                                                               g0,
+                                                                                               current_episode_number,
+                                                                                               max_episodic_reward)
+        else:
+            episodic_reward, episodic_duration, max_episodic_reward = rainbow_agent.rollout(env,
+                                                                                            s0,
+                                                                                            current_episode_number,
+                                                                                            max_episodic_reward)
 
         current_episode_number += 1
         current_step_number += episodic_duration
