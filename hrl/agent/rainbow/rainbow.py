@@ -71,22 +71,35 @@ class Rainbow:
     def rollout(self, env, state, episode, max_reward_so_far):
         """ Single episodic rollout of the agent's policy. """
 
+        def is_close(pos1, pos2, tol):
+            return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
+
+        def rf(info_dict):
+            p1 = info_dict["player_x"], info_dict["player_y"]
+            p2 = 123, 148
+            d = is_close(p1, p2, 2)
+            return float(d), d
+
         done = False
         reset = False
+        reached = False
+
         episode_length = 0
         episode_reward = 0.
         episode_trajectory = []
 
-        while not done and not reset:
+        while not done and not reset and not reached:
             action = self.act(state)
             next_state, reward, done, info  = env.step(action)
             reset = info.get("needs_reset", False)
+
+            reward, reached = rf(info)
 
             episode_trajectory.append((state,
                                        action,
                                        np.sign(reward), 
                                        next_state, 
-                                       done, 
+                                       done or reached, 
                                        reset))
 
             self.T += 1

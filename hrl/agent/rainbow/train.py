@@ -8,6 +8,7 @@ from torch import optim
 from hrl.utils import create_log_dir
 from hrl.agent.rainbow.rainbow import Rainbow
 from pfrl.wrappers import atari_wrappers
+from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
 
 
 def make_env(env_name, seed, test_mode, test_epsilon=0.05, terminal_on_loss_of_life=False):
@@ -22,7 +23,7 @@ def make_env(env_name, seed, test_mode, test_epsilon=0.05, terminal_on_loss_of_l
     if test_mode:
         env = pfrl.wrappers.RandomizeAction(env, test_epsilon)
     
-    return env
+    return MontezumaInfoWrapper(env)
 
 
 if __name__ == "__main__":
