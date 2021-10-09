@@ -1,8 +1,7 @@
 import numpy as np
-from hrl.mdp.StateClass import State
 
-class MRRAMState(State):
-    def __init__(self, ram, skull_direction, is_dead, is_terminal):
+class MRRAMState:
+    def __init__(self, ram, image):
         """
         Constructor for MR RAM State.
         Args:
@@ -11,26 +10,8 @@ class MRRAMState(State):
             is_dead: whether the player died in the current frame
             is_terminal: whether the game was over in the current frame
         """
-        x = self.get_player_x(ram)
-        y = self.get_player_y(ram)
-        direction = self.get_direction(ram)
-        lives = self.get_num_lives(ram)
-        jumping = self.get_is_jumping(ram)
-        falling = self.get_is_falling(ram)
-        has_key = self.get_has_key(ram)
-        skull_pos = self.get_skull_position(ram)
-        skull_present = self.get_is_skull_present(ram)
-        skull_dir = skull_direction
-        left_door_locked = self.get_is_left_door_locked(ram)
-        right_door_locked = self.get_is_right_door_locked(ram)
-        self.is_dead = int(is_dead)
-
-        features = [x, y, direction, lives, jumping, falling, has_key,
-                    skull_pos, skull_dir, skull_present, left_door_locked, right_door_locked, is_dead]
-
-        self.position = self.get_position(ram)
-
-        State.__init__(self, data=features, is_terminal=is_terminal)
+        self.image = image
+        self.ram = ram
 
     def get_player_x(self, ram):
         return int(self.getByte(ram, 'aa')) / 150.
