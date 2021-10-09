@@ -72,6 +72,23 @@ class Rainbow:
         for transition in trajectory:
             self.step(*transition)
 
+    def gc_experience_replay(self, trajectory, goal, goal_position):
+        """ Add trajectory to the replay buffer and perform agent learning updates. """
+
+        def is_close(pos1, pos2, tol):
+            return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
+
+        def rf(pos, goal_pos):
+            d = is_close(pos, goal_pos, tol=2)
+            return float(d), d    
+        
+        for state, action, _, next_state, done, reset, next_pos in trajectory:
+            augmented_state = self.get_augmented_state(state, goal)
+            augmented_next_state = self.get_augmented_state(next_state, goal)
+            reward, reached = rf(next_pos, goal_position)
+            relabeled_transition = augmented_state, action, reward, augmented_next_state, reached or done, reset
+            self.step(*relabeled_transition)
+
     def get_augmented_state(self, state, goal):
         assert isinstance(goal, atari_wrappers.LazyFrames), type(goal)
         assert isinstance(state, atari_wrappers.LazyFrames), type(state)
@@ -136,6 +153,7 @@ class Rainbow:
             d = is_close(p1, p2, 2)
             return float(d), d
 
+        info = {}
         done = False
         reset = False
         reached = False
@@ -149,16 +167,19 @@ class Rainbow:
             action = self.act(sg)
             next_state, reward, done, info  = env.step(action)
             reset = info.get("needs_reset", False)
-            spg = self.get_augmented_state(next_state, goal)
 
             reward, reached = rf(info)
 
-            episode_trajectory.append((sg,
+            episode_trajectory.append(
+                                      (state,
                                        action,
                                        np.sign(reward), 
-                                       spg, 
+                                       next_state, 
                                        done or reached, 
-                                       reset))
+                                       reset,
+                                       (info["player_x"], info["player_y"])
+                                    )
+                                )
 
             self.T += 1
             episode_length += 1
@@ -166,8 +187,15 @@ class Rainbow:
 
             state = next_state
 
-        self.experience_replay(episode_trajectory)
+        self.her(episode_trajectory, goal, state, info)
+
         max_reward_so_far = max(episode_reward, max_reward_so_far)
         print(f"Episode: {episode}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
         return episode_reward, episode_length, max_reward_so_far
+    
+    def her(self, trajectory, pursued_goal, reached_goal, info):
+        goal_position = (123, 148)
+        reached_position = info["player_x"], info["player_y"]
+        self.gc_experience_replay(trajectory, pursued_goal, goal_position)
+        self.gc_experience_replay(trajectory, reached_goal, reached_position)
