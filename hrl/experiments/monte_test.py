@@ -7,3 +7,5 @@ for i in range(5):
     mdp.step(a)
     mdp.saveImage(f"img_{a}_{i+2}")
 print("success!")
+
+# python -m hrl.experiments.monte_test

@@ -41,7 +41,7 @@ class MontezumaRAMMDP:
         # is_dead = self.get_num_lives(ram) < self.num_lives
         # skull_direction = int(self.skull_pos > self.get_skull_pos(ram))
 
-        self.cur = MRRAMState(ram, image)
+        self.curr_state = MRRAMState(ram, image)
 
         return 0 # TODO change later
 
@@ -116,4 +116,4 @@ class MontezumaRAMMDP:
         self.execute_agent_action(0)  # NO-OP action to update the RAM state
     
     def saveImage(self, path):
-        cv2.imwrite(f"{path}.png", self.curr_state.image[-1,:,:])
+        cv2.imwrite(f"{path}.png", self.curr_state.image[:,:,-1])
