@@ -26,11 +26,7 @@ class MontezumaRAMMDP:
     def get_current_ram(self):
         return self.env.env.ale.getRAM()
 
-    def _reward_func(self, state, action):
-        reward = self._step(state, action)
-        return reward
-
-    def step(self, action):
+    def execute_agent_action(self, action):
         image, _, _, _ = self.env.step(action)
         ram = self.get_current_ram()
 
