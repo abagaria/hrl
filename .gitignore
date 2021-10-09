@@ -146,3 +146,6 @@ initiation_set_plots/
 new_repo_check/
 value_function_plots/
 MUJOCO_LOG.TXT
+
+# images
+*.png
