@@ -1,7 +1,5 @@
 # hrl
-Robust deep skill chaining
-
-# Robustly Learning Composable Options in Deep Reinforcement Learning
+library for enabling parallelized environments for Hierarchical RL algorithms
 
 ## Installation & Dependencies
  Users will need a mujoco license to run experiments.
