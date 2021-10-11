@@ -42,7 +42,6 @@ class PlayGame(SingleOptionTrial):
 
 		# make env
 		self.env = self.make_env(self.params['environment'], self.params['seed'])
-		self.env = pfrl.wrappers.Render(self.env)
 
 	def play(self):
 		"""
@@ -54,6 +53,9 @@ class PlayGame(SingleOptionTrial):
 			pos = get_player_position(self.env.unwrapped.ale.getRAM())
 			print(f"current position is {pos}")
 		while True:
+			# render env
+			self.env.unwrapped.render()
+			print(f"state shape is {state.shape}")
 			# user input an action to take
 			action_input = input() 
 			if action_input == 'save':
@@ -75,10 +77,6 @@ class PlayGame(SingleOptionTrial):
 
 			# take the action
 			next_state, r, done, info = self.env.step(action)
-			try:
-				assert next_state.shape == (56, 40, 3)
-			except AssertionError:
-				print(next_state.shape)
 			print(f'taking action {action} and got reward {r}')
 			state = next_state
 			if self.params['get_player_position']:  # get position
