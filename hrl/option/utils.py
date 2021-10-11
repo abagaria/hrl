@@ -36,7 +36,7 @@ class SingleOptionTrial:
 		parser.add_argument("--device", type=str, default='cuda:1',
 							help="cpu/cuda:0/cuda:1")
 		# environments
-		parser.add_argument("--environment", type=str, default='MontezumaRevenge-v4',
+		parser.add_argument("--environment", type=str, default='MontezumaRevengeNoFrameskip-v4',
 							help="name of the gym environment")
 		parser.add_argument("--render", action='store_true', default=False, 
 							help="save the images of states while training")
@@ -44,7 +44,7 @@ class SingleOptionTrial:
 							help="train with the agent space")
 		parser.add_argument("--down_sample", "-d", action='store_true', default=False, 
 							help="down sample the monte frame by converting to grey scale and divide by 255")
-		parser.add_argument("--use_deepmind_wrappers", action='store_true', default=False,
+		parser.add_argument("--use_deepmind_wrappers", action='store_true', default=True,
 							help="use the deepmind wrappers")
 		parser.add_argument("--suppress_action_prunning", action='store_true', default=False,
 							help='do not prune the action space of monte')
@@ -89,8 +89,7 @@ class SingleOptionTrial:
 		from hrl.wrappers.monte_agent_space_wrapper import MonteAgentSpace
 		from hrl.wrappers.monte_agent_space_forwarding_wrapper import MonteAgentSpaceForwarding
 		from hrl.wrappers.monte_pruned_actions import MontePrunedActions
-		from hrl.wrappers.grey_scale import GreyScaleFrame
-		from pfrl.wrappers.atari_wrappers import ScaledFloatFrame
+		from hrl.wrappers.monte_dm_agent_space import MonteDeepMindAgentSpace
 
 		if self.params['use_deepmind_wrappers']:
 			env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
@@ -98,26 +97,30 @@ class SingleOptionTrial:
 				env,
 				episode_life=True,
 				clip_rewards=True,
+				frame_stack=True,
+				scale=False,
+				fire_reset=False,
+				channel_order="chw",
 				flicker=False,
-				frame_stack=False,
 			)
+			# make agent space
+			if self.params['agent_space']:
+				env = MonteDeepMindAgentSpace(env)
+				print('using the agent space to train the optin right now')
 		else:
 			env = gym.make(env_name)
+			# make agent space
+			if self.params['agent_space']:
+				env = MonteAgentSpace(env)
+				print('using the agent space to train the option right now')
 		# prunning actions
 		if not self.params['suppress_action_prunning']:
 			env = MontePrunedActions(env)
-		# make agent space
-		if self.params['agent_space']:
-			env = MonteAgentSpace(env)
-			print('using the agent space to train the option right now')
 		# make the agent start in another place if needed
 		if self.params['start_state'] is not None and self.params['start_state_pos'] is not None:
 			start_state_path = self.params['info_dir'].joinpath(self.params['start_state'])
 			start_state_pos_path = self.params['info_dir'].joinpath(self.params['start_state_pos'])
 			env = MonteAgentSpaceForwarding(env, start_state_path, start_state_pos_path)
-		# grey scale and float
-		env = GreyScaleFrame(env)
-		env = ScaledFloatFrame(env)
 		# down sacle observations
 		if self.params['down_sample']:
 			pass
@@ -182,19 +185,22 @@ def make_done_state_plot(replay_buffer, episode_idx, save_dir):
 	"""
 	visualize the done positions
 	"""
+	if not replay_buffer:
+		# if replay buffer is empty
+		return
 	states = np.array([exp[0] for exp in replay_buffer])
 	dones = np.array([exp[-1] for exp in replay_buffer])
 	done_states = states[dones]
 
 	for i in range(len(done_states)):
 		s = done_states[i]
-		s = s.reshape((56, 40, -1))  # states in replay buffer are flattened, reshape to monte frame
+		frame = s[:24*24].reshape((24, 24))  # states in replay buffer are flattened, reshape to monte frame
 		file_name = save_dir.joinpath(f"done_state_plot_at_episode_{episode_idx}__{i}.jpg")
 		try:
-			plt.imsave(file_name, s)
+			plt.imsave(file_name, frame)
 		except ValueError:
 			# cannot plot image with channel 1
-			plt.imsave(file_name, s.squeeze())
+			plt.imsave(file_name, frame.squeeze())
 
 
 def make_chunked_value_function_plot(solver, step, seed, save_dir, pos_replay_buffer, chunk_size=1000):

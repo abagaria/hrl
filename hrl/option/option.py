@@ -128,12 +128,11 @@ class Option:
 		main control loop for option execution
 		"""
 		# reset env
+		self.env.unwrapped.reset()
 		state = self.env.reset()
 		terminal = False
 		is_dead = False
 
-		if self.params['use_deepmind_wrappers']:
-			state = warp_frames(state)
 		assert self.is_init_true(state)
 
 		num_steps = 0
@@ -143,7 +142,7 @@ class Option:
 		if not eval_mode:
 			goal = self.params['goal_state']
 			# channel doesn't need to match, in case we down sampled
-			assert goal.shape[:-1] == state.shape[:-1]
+			# assert goal.shape[:-1] == state.shape[:-1]
 
 		# print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
 
@@ -156,7 +155,7 @@ class Option:
 			next_state, reward, done, info = self.env.step(action)
 			is_dead = int(info['ale.lives']) < 6
 			done = self.is_term_true(next_state, is_dead=is_dead, eval_mode=eval_mode)
-			terminal = done or is_dead  # epsidoe is done if agent dies
+			terminal = done or is_dead or info.get('needs_reset', False) # epsidoe is done if agent dies
 			reward = self.reward_function(next_state, is_dead=is_dead, eval_mode=eval_mode)
 			if num_steps >= self.params['max_episode_len']:
 				terminal = True
@@ -169,8 +168,8 @@ class Option:
 				try:
 					plt.imsave(save_path, next_state)
 				except ValueError:
-					# cannot plot because next_state is grey scale image with last dimension 1
-					plt.imsave(save_path, next_state.squeeze())
+					# cannot plot because next_state is a framestack of 4
+					plt.imsave(save_path, next_state[0])
 
 			# logging
 			num_steps += 1
