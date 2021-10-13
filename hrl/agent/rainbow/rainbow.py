@@ -1,5 +1,5 @@
-from numpy.lib.arraysetops import isin
 import torch
+import random
 import numpy as np
 from pfrl import nn as pnn
 from pfrl import replay_buffers
@@ -10,7 +10,9 @@ from pfrl.q_functions import DistributionalDuelingDQN
 
 class Rainbow:
     def __init__(self, n_actions, n_atoms, v_min, v_max, noisy_net_sigma, lr, 
-                 n_steps, betasteps, replay_start_size, gpu, goal_conditioned):
+                 n_steps, betasteps, replay_start_size, replay_buffer_size, gpu,
+                 goal_conditioned, use_her):
+        self.use_her = use_her
         self.n_actions = n_actions
         n_channels = 4 + int(goal_conditioned)
         self.goal_conditioned = goal_conditioned
@@ -22,7 +24,7 @@ class Rainbow:
         opt = torch.optim.Adam(self.q_func.parameters(), lr, eps=1.5e-4)
 
         self.rbuf = replay_buffers.PrioritizedReplayBuffer(
-            10 ** 6,
+            replay_buffer_size,
             alpha=0.5, 
             beta0=0.4,
             betasteps=betasteps,
@@ -46,6 +48,7 @@ class Rainbow:
         )
 
         self.T = 0
+        self.device = torch.device(f"cuda:{gpu}" if gpu > -1 else "cpu")
 
     @staticmethod
     def phi(x):
@@ -56,7 +59,7 @@ class Rainbow:
         """ Action selection method at the current state. """
         return self.agent.act(state)
 
-    def step(self, state, action, reward, next_state, done, reset=False):
+    def step(self, state, action, reward, next_state, done, reset):
         """ Learning update based on a given transition from the environment. """
         self._overwrite_pfrl_state(state, action)
         self.agent.observe(next_state, reward, done, reset)
@@ -65,6 +68,12 @@ class Rainbow:
         """ Hack the pfrl state so that we can call act() consecutively during an episode before calling step(). """
         self.agent.batch_last_obs = [state]
         self.agent.batch_last_action = [action]
+
+    @torch.no_grad()
+    def value_function(self, states):
+        batch_states = self.agent.batch_states(states, self.device, self.phi)
+        action_values = self.agent.model(batch_states).q_values
+        return action_values.max(dim=1).values
 
     def experience_replay(self, trajectory):
         """ Add trajectory to the replay buffer and perform agent learning updates. """
@@ -80,7 +89,7 @@ class Rainbow:
 
         def rf(pos, goal_pos):
             d = is_close(pos, goal_pos, tol=2)
-            return float(d), d    
+            return float(d), d  
         
         for state, action, _, next_state, done, reset, next_pos in trajectory:
             augmented_state = self.get_augmented_state(state, goal)
@@ -88,6 +97,7 @@ class Rainbow:
             reward, reached = rf(next_pos, goal_position)
             relabeled_transition = augmented_state, action, reward, augmented_next_state, reached or done, reset
             self.step(*relabeled_transition)
+            if reached: break  # it helps to truncate the trajectory for HER strategy `future`
 
     def get_augmented_state(self, state, goal):
         assert isinstance(goal, atari_wrappers.LazyFrames), type(goal)
@@ -160,6 +170,7 @@ class Rainbow:
 
         episode_length = 0
         episode_reward = 0.
+        episode_positions = []
         episode_trajectory = []
 
         while not done and not reset and not reached:
@@ -170,6 +181,8 @@ class Rainbow:
 
             reward, reached = rf(info)
 
+            player_pos = info["player_x"], info["player_y"]
+            episode_positions.append(player_pos)
             episode_trajectory.append(
                                       (state,
                                        action,
@@ -177,7 +190,7 @@ class Rainbow:
                                        next_state, 
                                        done or reached, 
                                        reset,
-                                       (info["player_x"], info["player_y"])
+                                       player_pos
                                     )
                                 )
 
@@ -187,15 +200,29 @@ class Rainbow:
 
             state = next_state
 
-        self.her(episode_trajectory, goal, state, info)
+        self.her(episode_trajectory, episode_positions, goal)
 
         max_reward_so_far = max(episode_reward, max_reward_so_far)
         print(f"Episode: {episode}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
         return episode_reward, episode_length, max_reward_so_far
     
-    def her(self, trajectory, pursued_goal, reached_goal, info):
-        goal_position = (123, 148)
-        reached_position = info["player_x"], info["player_y"]
-        self.gc_experience_replay(trajectory, pursued_goal, goal_position)
-        self.gc_experience_replay(trajectory, reached_goal, reached_position)
+    def her(self, trajectory, visited_positions, pursued_goal, pursued_goal_position=(123, 148)):
+        hindsight_goal, hindsight_goal_idx = self.pick_hindsight_goal(trajectory)
+        self.gc_experience_replay(trajectory, pursued_goal, pursued_goal_position)
+        self.gc_experience_replay(trajectory, hindsight_goal, visited_positions[hindsight_goal_idx])
+
+    def pick_hindsight_goal(self, trajectory, strategy="future"):
+        """ Select a hindsight goal from the input trajectory. """
+        assert strategy in ("final", "future"), strategy
+        
+        goal_idx = -1
+        
+        if strategy == "future":
+            start_idx = len(trajectory) // 2
+            goal_idx = random.randint(start_idx, len(trajectory) - 1)
+
+        goal_transition = trajectory[goal_idx]
+        goal_state = goal_transition[3]
+        assert isinstance(goal_state, atari_wrappers.LazyFrames), type(goal_state)
+        return goal_state, goal_idx

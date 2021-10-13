@@ -1,5 +1,4 @@
 import os
-import ipdb
 import time
 import json
 import pfrl
@@ -48,7 +47,9 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=6.25e-5)
     parser.add_argument("--n_steps", type=int, default=3)
     parser.add_argument("--replay_start_size", type=int, default=80_000)
+    parser.add_argument("--replay_buffer_size", type=int, default=10**6)
     parser.add_argument("--num_training_steps", type=int, default=int(13e6))
+    parser.add_argument("--use_her", action="store_true", default=False)
     parser.add_argument("--goal_conditioned", action="store_true", default=False)
     parser.add_argument("--terminal_on_loss_of_life", action="store_true", default=False)
     args = parser.parse_args()
@@ -76,8 +77,10 @@ if __name__ == "__main__":
                             n_steps=args.n_steps,
                             betasteps=args.num_training_steps / 4,
                             replay_start_size=args.replay_start_size,
+                            replay_buffer_size=args.replay_buffer_size,
                             gpu=args.gpu_id,
-                            goal_conditioned=args.goal_conditioned
+                            use_her=args.use_her,
+                            goal_conditioned=args.goal_conditioned,
                     )
 
     t0 = time.time()
