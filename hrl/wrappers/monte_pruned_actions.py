@@ -11,6 +11,7 @@ class MontePrunedActions(Wrapper):
 		super().__init__(env)
 		self.env = env
 		self.meaningful_actions = [
+			'NOOP',
 			'UP',
 			'RIGHT',
 			'LEFT',
@@ -30,13 +31,14 @@ class MontePrunedActions(Wrapper):
 		if action not in self.action_space:
 			raise RuntimeError('action not in range for pruned actions')
 		action_to_original_action = {
-			0: 2,  # UP
-			1: 3,  # RIGHT
-			2: 4,  # LEFT
-			3: 5,  # DOWN
-			4: 10,  # UPFIRE
-			5: 14,  # UPRIGHTFIRE
-			6: 15,  # UPLEFTFIRE
+			0: 0,  # NOOP
+			1: 2,  # UP
+			2: 3,  # RIGHT
+			3: 4,  # LEFT
+			4: 5,  # DOWN
+			5: 10,  # UPFIRE
+			6: 14,  # UPRIGHTFIRE
+			7: 15,  # UPLEFTFIRE
 		}
 		original_action = action_to_original_action[action]
 		return self.env.step(original_action)
