@@ -48,7 +48,7 @@ class SingleOptionTrial:
 							help="use the deepmind wrappers")
 		parser.add_argument("--suppress_action_prunning", action='store_true', default=False,
 							help='do not prune the action space of monte')
-		parser.add_argument("--seed", type=int, default=0,
+		parser.add_argument("--seed", type=int, default=1,
 							help="Random seed")
 		# start state
 		parser.add_argument("--info_dir", type=Path, default="resources/monte_info",
