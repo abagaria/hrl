@@ -95,7 +95,7 @@ class SingleOptionTrial:
 			env = pfrl.wrappers.atari_wrappers.make_atari(env_name, max_frames=30*60*60)  # 30 min with 60 fps
 			env = pfrl.wrappers.atari_wrappers.wrap_deepmind(
 				env,
-				episode_life=True,
+				episode_life=False,
 				clip_rewards=True,
 				frame_stack=True,
 				scale=False,

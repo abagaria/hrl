@@ -128,7 +128,6 @@ class Option:
 		main control loop for option execution
 		"""
 		# reset env
-		self.env.unwrapped.reset()
 		state = self.env.reset()
 		terminal = False
 		is_dead = False
@@ -142,7 +141,7 @@ class Option:
 		if not eval_mode:
 			goal = self.params['goal_state']
 			# channel doesn't need to match, in case we down sampled
-			# assert goal.shape[:-1] == state.shape[:-1]
+			assert goal.shape[:-1] == state.shape[:-1]
 
 		# print(f"[Step: {step_number}] Rolling out {self.name}, from {state} targeting {goal}")
 
