@@ -91,6 +91,8 @@ class Option:
 			distance_to_goal = np.linalg.norm(position - self.params['goal_state_position'])
 			if distance_to_goal < self.params['epsilon_within_goal']:
 				return True
+			else:
+				return False
 		# if termination classifier isn't initialized, and state is not goal state
 		if self.termination_classifier is None:
 			return False
@@ -148,14 +150,14 @@ class Option:
 		self.num_executions += 1
 
 		# main while loop
-		while not self.is_term_true(state, is_dead=is_dead, eval_mode=eval_mode) and not terminal:
+		while not self.is_term_true(state.flatten(), is_dead=is_dead, eval_mode=eval_mode) and not terminal:
 			# control
 			action = self.act(state.flatten(), eval_mode=eval_mode)
 			next_state, reward, done, info = self.env.step(action)
 			is_dead = int(info['ale.lives']) < 6
-			done = self.is_term_true(next_state, is_dead=is_dead, eval_mode=eval_mode)
+			done = self.is_term_true(next_state.flatten(), is_dead=is_dead, eval_mode=eval_mode)
 			terminal = done or is_dead or info.get('needs_reset', False) # epsidoe is done if agent dies
-			reward = self.reward_function(next_state, is_dead=is_dead, eval_mode=eval_mode)
+			reward = self.reward_function(next_state.flatten(), is_dead=is_dead, eval_mode=eval_mode)
 			if num_steps >= self.params['max_episode_len']:
 				terminal = True
 
@@ -190,9 +192,9 @@ class Option:
 		visited_states.append(state.flatten())
 
 		# more logging
-		self.success_curve.append(self.is_term_true(state, is_dead=is_dead, eval_mode=eval_mode))
+		self.success_curve.append(self.is_term_true(state.flatten(), is_dead=is_dead, eval_mode=eval_mode))
 		self.success_rates[step_number] = {'success': self.get_success_rate()}
-		if self.is_term_true(state, is_dead=is_dead, eval_mode=eval_mode):
+		if self.is_term_true(state.flatten(), is_dead=is_dead, eval_mode=eval_mode):
 			self.num_goal_hits += 1
 			print(f"num goal hits increased to {self.num_goal_hits}")
 		
@@ -202,8 +204,8 @@ class Option:
 			# this is updating the value function
 			self.experience_replay(option_transitions)
 			# refining your initiation/termination classifier
-			self.fit_classifier(self.initiation_classifier, self.initiation_positive_examples, self.initiation_negative_examples)
-			self.fit_classifier(self.termination_classifier, self.termination_positive_examples, self.termination_negative_examples)
+			self.fit_classifier(self.initiation_positive_examples, self.initiation_negative_examples, 'initiation')
+			self.fit_classifier(self.termination_positive_examples, self.termination_negative_examples, 'termination')
 		
 		return option_transitions, total_reward
 
@@ -224,11 +226,11 @@ class Option:
 		if self.is_term_true(final_state, is_dead=final_state_is_dead):
 			# positive
 			positive_states = [start_state] + visited_states[-self.params['buffer_length']:]
-			self.initiation_positive_examples.append(positive_states)
+			self.initiation_positive_examples += positive_states
 			self.termination_positive_examples.append(final_state)
 		else:
 			negative_examples = [start_state]
-			self.initiation_negative_examples.append(negative_examples)
+			self.initiation_negative_examples += negative_examples
 			self.termination_negative_examples.append(final_state)
 
 	def construct_feature_matrix(self, examples):
@@ -236,22 +238,26 @@ class Option:
 		states = np.array(states).reshape(len(states), -1)  # reshape to (batch_size, state_size)
 		return np.array(states)
 	
-	def fit_classifier(self, classifier, positive_examples, negative_examples):
+	def fit_classifier(self, positive_examples, negative_examples, classifier):
 		"""
 		fit the initiation/termination classifier using positive and negative examples
 		"""
-		assert classifier is self.initiation_classifier or self.termination_classifier
+		assert classifier is 'initiation' or 'termination'
 		if len(negative_examples) > 0 and len(positive_examples) > 0:
 			self.train_two_class_classifier(classifier, positive_examples, negative_examples)
 		elif len(positive_examples) > 0:
 			self.train_one_class_svm(classifier, positive_examples)
 
-	def train_one_class_svm(self, classifier, positive_examples, nu=0.1):
+	def train_one_class_svm(self, classifier_class, positive_examples, nu=0.1):
 		positive_feature_matrix = self.construct_feature_matrix(positive_examples)
 		classifier = OneClassSVM(kernel="rbf", nu=nu)  # or nu=nu/10. for pessimestic
 		classifier.fit(positive_feature_matrix)
+		if classifier_class == 'initiation':
+			self.initiation_classifier = classifier
+		else:
+			self.termination_classifier = classifier
 
-	def train_two_class_classifier(self, classifier, positive_examples, negative_examples, nu=0.1):
+	def train_two_class_classifier(self, classifier_class, positive_examples, negative_examples, nu=0.1):
 		positive_feature_matrix = self.construct_feature_matrix(positive_examples)
 		negative_feature_matrix = self.construct_feature_matrix(negative_examples)
 		positive_labels = [1] * positive_feature_matrix.shape[0]
@@ -267,6 +273,10 @@ class Option:
 
 		classifier = SVC(**kwargs)
 		classifier.fit(X, Y)
+		if classifier_class == 'initiation':
+			self.initiation_classifier = classifier
+		else:
+			self.termination_classifier = classifier
 	
 	# ------------------------------------------------------------
 	# testing
