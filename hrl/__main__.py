@@ -16,7 +16,7 @@ from hrl.wrappers import D4RLAntMazeWrapper
 from hrl.train_loop import train_agent_batch_with_eval
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
-from hrl.agent.make_agent import make_td3_agent
+from hrl.agent.make_agent import make_ppo_agent, make_sac_agent, make_td3_agent
 from hrl.envs.vector_env import EpisodicSyncVectorEnv
 from hrl.plot import main as plot_learning_curve
 
@@ -63,7 +63,7 @@ class Trial:
         # environments
         parser.add_argument("--environment", type=str, required=True, 
                             help="name of the gym environment")
-        parser.add_argument('--agent', type=str, default='dsc', choices=['dsc', 'td3'],
+        parser.add_argument('--agent', type=str, default='dsc', choices=['dsc', 'ppo', 'sac', 'td3'],
                             help='choose which agent to run')
         parser.add_argument("--seed", type=int, default=1,
                             help="Random seed")
@@ -127,7 +127,11 @@ class Trial:
         """
         create the agent
         """
-        if self.params['agent'] == 'td3':
+        if self.params['agent'] == 'ppo':
+            return make_ppo_agent(self.env.observation_space, self.env.action_space, self.params)
+        elif self.params['agent'] == 'sac':
+            return make_sac_agent(self.env.observation_space, self.env.action_space, self.params)
+        elif self.params['agent'] == 'td3':
             return make_td3_agent(self.env.observation_space, self.env.action_space, self.params)
         else:
             raise NotImplementedError
