@@ -154,8 +154,20 @@ def augment_state(obs, goal):
 
 def make_done_position_plot(solver, episode, saving_dir, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([exp[0] for exp in replay_buffer])
-    dones = np.array([exp[4] for exp in replay_buffer])
+    from hrl.agent.td3.replay_buffer import ReplayBuffer as td3_rb
+    from pfrl.replay_buffers.replay_buffer import ReplayBuffer as pfrl_rb
+    if isinstance(replay_buffer, td3_rb):
+        states = np.array([exp[0] for exp in replay_buffer])
+        dones = np.array([exp[4] for exp in replay_buffer])
+    elif isinstance(replay_buffer, pfrl_rb):
+        # replay buffer from pfrl are structured differently
+        states = np.array([exp[0]['state'] for exp in replay_buffer.memory])
+        dones = np.array([exp[0]['is_state_terminal'] for exp in replay_buffer.memory])
+    else:
+        # memory from pfrl.PPO is not a pfrl.replay_buffer
+        assert isinstance(replay_buffer, list)
+        states = np.array([exp['state'] for instance in replay_buffer for exp in instance])
+        dones = np.array([1-exp['nonterminal'] for instance in replay_buffer for exp in instance])
 
     # squeeze into 2-dim arrays, so it's compatible with vector-env states, dones
     states = states.reshape((-1, states.shape[-1]))
@@ -170,8 +182,20 @@ def make_done_position_plot(solver, episode, saving_dir, replay_buffer=None):
 
 def make_reward_plot(solver, episode, saving_dir, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([exp[0] for exp in replay_buffer])
-    rewards = np.array([exp[2] for exp in replay_buffer])
+    from hrl.agent.td3.replay_buffer import ReplayBuffer as td3_rb
+    from pfrl.replay_buffers.replay_buffer import ReplayBuffer as pfrl_rb
+    if isinstance(replay_buffer, td3_rb):
+        states = np.array([exp[0] for exp in replay_buffer])
+        rewards = np.array([exp[2] for exp in replay_buffer])
+    elif isinstance(replay_buffer, pfrl_rb):
+        # replay buffer from pfrl are structured differently     
+        states = np.array([exp[0]['state'] for exp in replay_buffer.memory])
+        rewards = np.array([exp[0]['reward'] for exp in replay_buffer.memory])
+    else:
+        # memory from pfrl.PPO is not a pfrl.replay_buffer
+        assert isinstance(replay_buffer, list)
+        states = np.array([exp['state'] for instance in replay_buffer for exp in instance])
+        rewards = np.array([exp['reward'] for instance in replay_buffer for exp in instance])
 
     # squeeze into 2-dim arrays
     states = states.reshape((-1, states.shape[-1]))
@@ -184,10 +208,15 @@ def make_reward_plot(solver, episode, saving_dir, replay_buffer=None):
     plt.close()
 
 
-def make_chunked_value_function_plot(solver, episode, saving_dir, goal, chunk_size=1000, replay_buffer=None):
+def make_chunked_q_value_function_plot(solver, episode, saving_dir, goal, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([np.concatenate([exp[0], goal], axis=-1) for exp in replay_buffer])  # goal conditioned
-    actions = np.array([exp[1] for exp in replay_buffer])
+    try:
+        states = np.array([np.concatenate([exp[0], goal], axis=-1) for exp in replay_buffer])  # goal conditioned
+        actions = np.array([exp[1] for exp in replay_buffer])
+    except:
+        # replay buffer from pfrl are structured differently
+        states = np.array([np.concatenate([exp[0]['state'], goal], axis=-1) for exp in replay_buffer.memory])
+        actions = np.array([exp[0]['action'] for exp in replay_buffer.memory])
 
     # squeeze into 2-dim arrays
     states = states.reshape((-1, states.shape[-1]))
@@ -204,7 +233,7 @@ def make_chunked_value_function_plot(solver, episode, saving_dir, goal, chunk_si
     qvalues = np.zeros((states.shape[0],))
     current_idx = 0
 
-    for state_chunk, action_chunk in tqdm(zip(state_chunks, action_chunks), desc="Making VF plot"):
+    for state_chunk, action_chunk in tqdm(zip(state_chunks, action_chunks), desc="Making QF plot"):
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
         with torch.no_grad():
@@ -215,8 +244,46 @@ def make_chunked_value_function_plot(solver, episode, saving_dir, goal, chunk_si
 
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
-    file_name = f"value_function_episode_{episode}.png"
+    file_name = f"q_value_function_episode_{episode}.png"
     plt.savefig(os.path.join(saving_dir, file_name))
     plt.close()
 
     return qvalues.max()
+
+
+def make_chunked_value_function_plot(solver, episode, saving_dir, goal, chunk_size=1000, replay_buffer=None):
+    """
+    made for PPO, as it doesn't have q values
+    """
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    # replay_buffer is ppo.memory
+    assert isinstance(replay_buffer, list)
+    states = np.array([exp['state'] for instance in replay_buffer for exp in instance])
+
+    # squeeze into 2-dim arrays
+    states = states.reshape((-1, states.shape[-1]))
+
+    # Chunk up the inputs so as to conserve GPU memory
+    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+    if num_chunks == 0:
+        return 0.
+
+    state_chunks = np.array_split(states, num_chunks, axis=0)
+    values = np.zeros((states.shape[0],))
+    current_idx = 0
+
+    for state_chunk in tqdm(state_chunks, desc="Making VF plot"):
+        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+        with torch.no_grad():
+            chunk_values = solver.get_values(state_chunk).cpu().numpy().squeeze(-1)
+        current_chunk_size = len(state_chunk)
+        values[current_idx:current_idx + current_chunk_size] = chunk_values
+        current_idx += current_chunk_size
+
+    plt.scatter(states[:, 0], states[:, 1], c=values)
+    plt.colorbar()
+    file_name = f"value_function_episode_{episode}.png"
+    plt.savefig(os.path.join(saving_dir, file_name))
+    plt.close()
+
+    return values.max()

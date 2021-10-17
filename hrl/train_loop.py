@@ -114,20 +114,33 @@ def train_agent_batch_with_eval(
             
             # saving the agent
             if saving_freq is not None and episode % saving_freq == 0:
-                agent_save_path = Path(saving_dir).joinpath('latest_agent.pkl')
-                with open(agent_save_path, 'wb') as f:
-                    pickle.dump(agent, f)
+                try:
+                    agent_save_path = Path(saving_dir).joinpath('latest_agent.pkl')
+                    with open(agent_save_path, 'wb') as f:
+                        pickle.dump(agent, f)
+                except:
+                    # might fail because something can't be pickled
+                    pass
             
             # plotting the value function and reward func
             if plotting_freq is not None and episode % plotting_freq == 0:
                 # value function
                 value_func_dir = Path(saving_dir).joinpath('value_function_plots')
                 value_func_dir.mkdir(exist_ok=True)
-                utils.make_chunked_value_function_plot(solver=agent, 
-                                                        episode=episode, 
-                                                        goal=goal_state, 
-                                                        saving_dir=value_func_dir, 
-                                                        replay_buffer=None)
+                try:
+                    utils.make_chunked_q_value_function_plot(solver=agent, 
+                                                            episode=episode, 
+                                                            goal=goal_state, 
+                                                            saving_dir=value_func_dir, 
+                                                            replay_buffer=None)
+                except:
+                    utils.make_chunked_value_function_plot(
+                        solver=agent,
+                        episode=episode,
+                        saving_dir=value_func_dir,
+                        goal=goal_state,
+                        replay_buffer=None,
+                    )
                 # reward
                 reward_dir = Path(saving_dir).joinpath('reward_plots')
                 reward_dir.mkdir(exist_ok=True)
