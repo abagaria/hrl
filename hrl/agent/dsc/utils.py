@@ -42,33 +42,28 @@ class SkillTree(object):
         self._tree.show()
 
 
-def make_meshgrid(x, y, h=.02):
+def make_meshgrid(x, y, h=1.):
     x_min, x_max = x.min() - 1, x.max() + 1
     y_min, y_max = y.min() - 1, y.max() + 1
     xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
                          np.arange(y_min, y_max, h))
     return xx, yy
 
-def get_grid_states(mdp):
+def get_grid_states(low, high, res):
     ss = []
-    x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim+1, 1):
-        for y in np.arange(y_low_lim, y_high_lim+1, 1):
-            ss.append(np.array((x, y)))
+    for x in np.arange(low[0], high[0]+res, res):
+        for y in np.arange(low[1], high[1]+res, res):
+            pos = np.array((x, y))
+            ss.append(pos)
     return ss
 
 
-def get_initiation_set_values(option):
+def get_initiation_set_values(option, low, high, res):
     values = []
-    x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim+1, 1):
-        for y in np.arange(y_low_lim, y_high_lim+1, 1):
+    for x in np.arange(low[0], high[0]+res, res):
+        for y in np.arange(low[1], high[1]+res, res):
             pos = np.array((x, y))
             init = option.is_init_true(pos)
-            if hasattr(option.overall_mdp.env, 'env'):
-                init = init and not option.overall_mdp.env.env._is_in_collision(pos)
             values.append(init)
     return values
 
@@ -76,22 +71,24 @@ def plot_one_class_initiation_classifier(option):
 
     colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
 
-    X = option.construct_feature_matrix(option.positive_examples)
+    X = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.positive_examples)
     X0, X1 = X[:, 0], X[:, 1]
     xx, yy = make_meshgrid(X0, X1)
-    Z1 = option.pessimistic_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
+    Z1 = option.initiation_classifier.pessimistic_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
     Z1 = Z1.reshape(xx.shape)
 
     color = colors[option.option_idx % len(colors)]
     plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
 
 def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True, seed=0):
-    states = get_grid_states(option.overall_mdp)
-    values = get_initiation_set_values(option)
+    low = 0, 140
+    high = 150, 250
+    states = get_grid_states(low, high, res=10)
+    values = get_initiation_set_values(option, low, high, res=10)
 
     x = np.array([state[0] for state in states])
     y = np.array([state[1] for state in states])
-    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+    xi, yi = np.linspace(x.min(), x.max(), 100), np.linspace(y.min(), y.max(), 100)
     xx, yy = np.meshgrid(xi, yi)
     rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
     zz = rbf(xx, yy)
@@ -99,8 +96,8 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     plt.colorbar()
 
     # Plot trajectories
-    positive_examples = option.construct_feature_matrix(option.positive_examples)
-    negative_examples = option.construct_feature_matrix(option.negative_examples)
+    positive_examples = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.positive_examples)
+    negative_examples = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.negative_examples)
 
     if positive_examples.shape[0] > 0 and plot_examples:
         plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", c="black", alpha=0.3, s=10)
@@ -108,16 +105,14 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     if negative_examples.shape[0] > 0 and plot_examples:
         plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", c="lime", alpha=1.0, s=10)
 
-    if option.pessimistic_classifier is not None:
+    if option.initiation_classifier.pessimistic_classifier is not None:
         plot_one_class_initiation_classifier(option)
 
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-    name = option.name if episode is None else option.name + f"_{experiment_name}_{episode}"
     plt.title(f"{option.name} Initiation Set")
-    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{name}_initiation_classifier_{seed}.png')
-    plt.savefig(saving_path)
+    plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option.name}_{episode}_initiation_classifier.png")
     plt.close()
 
 

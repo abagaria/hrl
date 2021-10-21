@@ -16,6 +16,9 @@ class MontezumaInfoWrapper(gym.Wrapper):
 
         return obs, reward, done, info
 
+    def get_current_position(self):
+        return self.get_player_x(), self.get_player_y()
+
     def get_player_x(self):
         return int(self.getByte(self.get_current_ram(), 'aa'))
 
