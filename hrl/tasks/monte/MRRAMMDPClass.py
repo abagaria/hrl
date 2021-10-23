@@ -9,13 +9,15 @@ from hrl.wrappers.gym_wrappers import make_atari, wrap_deepmind
 class MontezumaRAMMDP:
     def __init__(self, render, seed):
         self.env_name = "MontezumaRevengeNoFrameskip-v4"
-        self.env = wrap_deepmind(make_atari(env_id=self.env_name), episode_life=False, frame_stack=True,)
+        self.env = wrap_deepmind(
+            make_atari(env_id=self.env_name), 
+            episode_life=False, 
+            frame_stack=True,)
 
         self.render = render
         self.seed = seed
 
-        self.actions = range(self.env.action_space.n)
-        print(self.actions)
+        self.actions = list(range(self.env.action_space.n))
 
         self.env.seed(seed)
         self.reset()
@@ -55,7 +57,7 @@ class MontezumaRAMMDP:
 
     def reset(self):
         self.env.reset()
-        # self.remove_skull()
+        self.remove_skull()
 
         for _ in range(4):
             image, _, _, _ = self.env.step(0)  # no-op to get agent onto ground
@@ -67,7 +69,7 @@ class MontezumaRAMMDP:
         self.curr_state = MRRAMState(ram, image)
 
     def state_space_size(self):
-        return self.init_state.features().shape[0]
+        return self.curr_state.features().shape[0]
 
     def action_space_size(self):
         return len(self.actions)
@@ -98,7 +100,6 @@ class MontezumaRAMMDP:
         self.execute_agent_action(0) # NO-OP action to update the RAM state
 
     def remove_skull(self):
-        print("Setting skull position")
         state_ref = self.env.env.ale.cloneState()
         state = self.env.env.ale.encodeState(state_ref)
         self.env.env.ale.deleteState(state_ref)
