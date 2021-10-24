@@ -6,13 +6,8 @@ from torch import nn, distributions
 import pfrl
 from pfrl.nn.lmbda import Lambda
 
-from hrl.models.utils import phi
-from hrl.models.sequential import SequentialModel
-from hrl.models.actor_critic import ActorCritic
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.agent.soft_actor_critic import SoftActorCritic
-from hrl.agent.ppo import PPO
-from hrl import utils
 
 
 def make_td3_agent(observation_space, action_space, params):
@@ -116,59 +111,4 @@ def make_sac_agent(observation_space, action_space, params):
 		entropy_target=-action_size,
 		temperature_optimizer_lr=3e-4,
 	)
-	return agent
-
-
-def make_ppo_agent(observation_space, action_space, params):
-	"""
-	return a PPO agent, according to params specified
-	"""
-	gpu = 0 if params['device'] == torch.device('cuda') else -1
-
-	obs_size = observation_space.low.size
-	if params['goal_conditioned']:
-		assert 'goal_state_size' in params
-		obs_size += params['goal_state_size']
-	action_size = action_space.low.size
-
-	# make different agents for different envs
-	if utils.check_is_atari(params['environment']):
-		# for atari envs
-		model = SequentialModel(obs_n_channels=observation_space.low.shape[0], n_actions=action_space.n).model
-		opt = torch.optim.Adam(model.parameters(), lr=params['lr'], eps=1e-5)
-		agent = PPO(
-			model,
-			opt,
-			gpu=gpu,
-			phi=phi,
-			update_interval=params['update_interval'],
-			minibatch_size=params['batch_size'],
-			epochs=params['epochs'],
-			clip_eps=0.1,
-			clip_eps_vf=None,
-			standardize_advantages=True,
-			entropy_coef=1e-2,
-			max_grad_norm=0.5,
-		)
-	else:
-		model = ActorCritic(obs_size=obs_size, 
-							action_size=action_size).model
-		opt = torch.optim.Adam(model.parameters(), lr=params['lr'], eps=1e-5)
-		obs_normalizer = pfrl.nn.EmpiricalNormalization(
-			obs_size, clip_threshold=5
-		)
-		agent = PPO(
-			model,
-			opt,
-			obs_normalizer=obs_normalizer,
-			gpu=gpu,
-			update_interval=params['update_interval'],
-			minibatch_size=params['batch_size'],
-			epochs=params['n_epochs_per_update'],
-			clip_eps_vf=None,
-			entropy_coef=0,
-			standardize_advantages=True,
-			gamma=0.995,
-			lambd=0.97,
-		)
 	return agent
