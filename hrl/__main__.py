@@ -119,7 +119,27 @@ class Trial:
         self.env = self.make_batch_env(num_envs=self.params['num_envs'], test=False)
         self.test_env = self.make_batch_env(num_envs=1, test=True)
         if self.params['agent'] == 'dsc':
-            self.exp = RobustDSC(mdp=self.env, params=self.params)
+            self.exp = RobustDSC(mdp=self.env,
+                            gestation_period=self.params['gestation_period'],
+                            experiment_name=self.params['experiment_name'],
+                            device=self.params['device'],
+                            warmup_episodes=self.params['warmup_episodes'],
+                            max_steps=self.params['steps'],
+                            use_model=self.params['use_model'],
+                            use_vf=self.params['use_value_function'],
+                            use_global_vf=self.params['use_global_value_function'],
+                            use_diverse_starts=self.params['use_diverse_starts'],
+                            use_dense_rewards=self.params['use_dense_rewards'],
+                            multithread_mpc=self.params['multithread_mpc'],
+                            logging_freq=self.params['logging_frequency'],
+                            evaluation_freq=self.params['evaluation_frequency'],
+                            buffer_length=self.params['buffer_length'],
+                            generate_init_gif=self.params['generate_init_gif'],
+                            seed=self.params['seed'],
+                            lr_c=self.params['lr_c'],
+                            lr_a=self.params['lr_a'],
+                            clear_option_buffers=self.params['clear_option_buffers'],
+                            use_global_option_subgoals=self.params['use_global_option_subgoals'])
         else:
             self.agent = self.make_agent()
     

@@ -10,32 +10,35 @@ from hrl.option import ModelBasedOption
 
 
 class RobustDSC:
-    def __init__(self, mdp, params):
+    def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
+                 use_diverse_starts, use_dense_rewards, lr_c, lr_a, clear_option_buffers,
+                 use_global_option_subgoals, experiment_name, device,
+                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
 
-        self.lr_c = params['lr_c']
-        self.lr_a = params['lr_a']
+        self.lr_c = lr_c
+        self.lr_a = lr_a
 
-        self.device = torch.device(params['device'])
-        self.use_vf = params['use_value_function']
-        self.use_global_vf = params['use_global_value_function']
-        self.use_model = params['use_model']
-        self.experiment_name = params['experiment_name']
-        self.warmup_episodes = params['warmup_episodes']
-        self.max_steps = params['steps']
-        self.use_diverse_starts = params['use_diverse_starts']
-        self.use_dense_rewards = params['use_dense_rewards']
-        self.clear_option_buffers = params['clear_option_buffers']
-        self.use_global_option_subgoals = params['use_global_option_subgoals']
+        self.device = device
+        self.use_vf = use_vf
+        self.use_global_vf = use_global_vf
+        self.use_model = use_model
+        self.experiment_name = experiment_name
+        self.warmup_episodes = warmup_episodes
+        self.max_steps = max_steps
+        self.use_diverse_starts = use_diverse_starts
+        self.use_dense_rewards = use_dense_rewards
+        self.clear_option_buffers = clear_option_buffers
+        self.use_global_option_subgoals = use_global_option_subgoals
 
-        self.multithread_mpc = params['multithread_mpc']
+        self.multithread_mpc = multithread_mpc
 
-        self.seed = params['seed']
-        self.logging_freq = params['logging_frequency']
-        self.evaluation_freq = params['evaluation_frequency']
-        self.generate_init_gif = params['generate_init_gif']
+        self.seed = seed
+        self.logging_freq = logging_freq
+        self.evaluation_freq = evaluation_freq
+        self.generate_init_gif = generate_init_gif
 
-        self.buffer_length = params['buffer_length']
-        self.gestation_period = params['gestation_period']
+        self.buffer_length = buffer_length
+        self.gestation_period = gestation_period
 
         self.mdp = mdp #D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
         self.target_salient_event = self.mdp.get_original_target_events()[0]
