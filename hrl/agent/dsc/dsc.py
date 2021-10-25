@@ -6,7 +6,7 @@ from ...salient_event.salient_event import SalientEvent
 
 class RobustDSC(object):
     def __init__(self, mdp, gestation_period, buffer_length,
-                 experiment_name, gpu_id,
+                 experiment_name, gpu_id, use_oracle_rf,
                  init_obs, init_pos, target_obs, target_pos,
                  seed, log_filename):
 
@@ -15,6 +15,7 @@ class RobustDSC(object):
         self.gpu_id = gpu_id
         self.experiment_name = experiment_name
 
+        self.use_oracle_rf = use_oracle_rf
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
@@ -38,17 +39,19 @@ class RobustDSC(object):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
 
-    def dsc_rollout(self, state, pos, episode):
+    def dsc_rollout(self, state, pos, episode, eval_mode=False):
         done = False
         reset = False
         reached = False
 
         episode_length = 0
         episode_reward = 0.
+        rollout_trajectory = []
 
         while not done and not reset and not reached:
             selected_option, subgoal = self.act(pos)  # TODO: Maybe pass in the subgoal..
-            next_state, done, reset, length = selected_option.rollout(state, pos)
+            next_state, done, reset, visited_positions, goal_pos = selected_option.rollout(state, pos,
+                                                                                           eval_mode=eval_mode)
             
             self.manage_chain_after_rollout(selected_option, episode)
 
@@ -57,10 +60,16 @@ class RobustDSC(object):
 
             reward, reached = self.global_option.rf(pos, (123, 148))
 
-            episode_length += length
             episode_reward += reward
+            episode_length += len(visited_positions)
 
-        return episode_reward, episode_length
+            rollout_trajectory.append({
+                "goal": goal_pos,
+                "trajectory": visited_positions,
+                "option": selected_option.option_idx,
+            })
+
+        return rollout_trajectory, episode_reward, episode_length
 
     def run_loop(self, num_steps):
         step = 0
@@ -73,7 +82,7 @@ class RobustDSC(object):
             state = self.mdp.reset()
             position = self.mdp.get_current_position()
 
-            reward, length = self.dsc_rollout(state, position, episode)
+            _, reward, length = self.dsc_rollout(state, position, episode)
 
             episode += 1
             step += length
@@ -152,7 +161,8 @@ class RobustDSC(object):
                                  gestation_period=self.gestation_period,
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
-                                 target_salient_event=self.target_salient_event)
+                                 target_salient_event=self.target_salient_event,
+                                 use_oracle_rf=self.use_oracle_rf)
         return option
 
     def create_global_option(self):
@@ -168,5 +178,6 @@ class RobustDSC(object):
                                  gestation_period=self.gestation_period,
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
-                                 target_salient_event=self.target_salient_event)
+                                 target_salient_event=self.target_salient_event,
+                                 use_oracle_rf=self.use_oracle_rf)
         return option

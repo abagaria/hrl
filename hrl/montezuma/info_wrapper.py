@@ -11,19 +11,27 @@ class MontezumaInfoWrapper(gym.Wrapper):
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
 
-        info["player_x"] = self.get_player_x()
-        info["player_y"] = self.get_player_y()
+        ram = self.get_current_ram()
+        info["player_x"] = self.get_player_x(ram)
+        info["player_y"] = self.get_player_y(ram)
 
         return obs, reward, done, info
 
     def get_current_position(self):
-        return self.get_player_x(), self.get_player_y()
+        ram = self.get_current_ram()
+        return self.get_player_x(ram), self.get_player_y(ram)
 
-    def get_player_x(self):
-        return int(self.getByte(self.get_current_ram(), 'aa'))
+    def get_player_x(self, ram):
+        return int(self.getByte(ram, 'aa'))
 
-    def get_player_y(self):
-        return int(self.getByte(self.get_current_ram(), 'ab'))
+    def get_player_y(self, ram):
+        return int(self.getByte(ram, 'ab'))
+
+    def get_num_lives(self, ram):
+        return int(self.getByte(ram, 'ba'))
+    
+    def get_is_falling(self, ram):
+        return int(int(self.getByte(ram, 'd8')) != 0)
 
     def get_current_ale(self):
         return self.env.unwrapped.ale

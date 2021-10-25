@@ -41,6 +41,7 @@ if __name__ == "__main__":
     parser.add_argument("--buffer_length", type=int, default=50)
     parser.add_argument("--num_training_steps", type=int, default=int(2e6))
     parser.add_argument("--terminal_on_loss_of_life", action="store_true", default=False)
+    parser.add_argument("--use_oracle_rf", action="store_true", default=False)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -72,6 +73,7 @@ if __name__ == "__main__":
                           args.buffer_length,
                           args.experiment_name,
                           args.gpu_id,
+                          args.use_oracle_rf,
                           s0, p0, g0, (123, 148),
                           args.seed,
                           _log_file)

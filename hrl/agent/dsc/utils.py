@@ -1,11 +1,15 @@
 import os
-
+from re import L
+import pfrl
 import torch
 import scipy
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from treelib import Tree, Node
+from pfrl.wrappers import atari_wrappers
+from hrl.agent.rainbow.rainbow import Rainbow
+
 
 class SkillTree(object):
     def __init__(self, options):
@@ -116,72 +120,54 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     plt.close()
 
 
-def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_size=10000):
-    assert option.initiation_distribution is not None
-    data = mdp.dataset[:, :2]
+def make_chunked_goal_conditioned_value_function_plot(solver,
+                                                      goal, episode, seed,
+                                                      experiment_name, chunk_size=1000, option_idx=None):
+    assert isinstance(solver, Rainbow)
 
-    num_chunks = int(np.ceil(data.shape[0] / chunk_size))
-    if num_chunks == 0:
-        return 0.
+    replay_buffer = solver.rbuf
 
-    state_chunks = np.array_split(data, num_chunks, axis=0)
-    pvalues = np.zeros((data.shape[0],))
-    current_idx = 0
+    def _get_states():
+        states = []
+        positions = []
+        memory = replay_buffer.memory.data
+        for n_transitions in memory:
+            transition = n_transitions[-1]
+            states.append(transition["next_state"])
+            positions.append(transition["position"])
+        return states, positions
 
-    for chunk_number, state_chunk in tqdm(enumerate(state_chunks)):
-        probabilities = np.exp(option.initiation_distribution.score_samples(state_chunk))
-        pvalues[current_idx:current_idx + len(state_chunk)] = probabilities
-        current_idx += len(state_chunk)
+    def cat(s, g):
+        assert isinstance(s, atari_wrappers.LazyFrames)
+        g = g._frames[-1] if isinstance(g, atari_wrappers.LazyFrames) else g
+        return atari_wrappers.LazyFrames(list(s._frames)[:4] + [g], stack_axis=0)
 
-    plt.scatter(data[:, 0], data[:, 1], c=pvalues)
-    plt.colorbar()
-    plt.title("Density Estimator Fitted on Pessimistic Classifier")
-    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{option.name}_initiation_distribution_{episode}.png')
-    plt.savefig(saving_path)
-    plt.close()
-
-
-def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None, option_idx=None):
-    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-
-    goal = goal[:2]  # Extracting the position from the goal vector
+    def _get_gc_states():
+        states, positions = _get_states()
+        return [cat(s, goal) for s in states], positions
 
     # Take out the original goal and append the new goal
-    states = [exp[0] for exp in replay_buffer]
-    states = [state[:-2] for state in states]
-    states = np.array([np.concatenate((state, goal), axis=0) for state in states])
-
-    actions = np.array([exp[1] for exp in replay_buffer])
+    states, positions = _get_gc_states()
 
     # Chunk up the inputs so as to conserve GPU memory
-    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+    num_chunks = int(np.ceil(len(states) / chunk_size))
 
     if num_chunks == 0:
         return 0.
 
     state_chunks = np.array_split(states, num_chunks, axis=0)
-    action_chunks = np.array_split(actions, num_chunks, axis=0)
-    qvalues = np.zeros((states.shape[0],))
+    values = np.zeros((len(states),))
     current_idx = 0
 
-    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
-        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
-        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+    for state_chunk in tqdm(state_chunks, desc="Making VF plot"):
         current_chunk_size = len(state_chunk)
-        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+        values[current_idx:current_idx + current_chunk_size] = solver.value_function(state_chunk)
         current_idx += current_chunk_size
 
-    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+    plt.scatter(positions[:, 0], positions[:, 1], c=values)
     plt.colorbar()
-
-    if option_idx is None:
-        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    else:
-        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}_option_{option_idx}"
     plt.title(f"VF Targeting {np.round(goal, 2)}")
-    saving_path = os.path.join('results', experiment_name, 'value_function_plots', f'{file_name}.png')
-    plt.savefig(saving_path)
+    plt.savefig(f"plots/{experiment_name}/{seed}/value_function_episode_{episode}_option_{option_idx}.png")
     plt.close()
 
-    return qvalues.max()
+    return values.max()

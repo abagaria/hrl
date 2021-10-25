@@ -1,6 +1,6 @@
+import ipdb
 import numpy as np
 from copy import deepcopy
-from collections import deque
 from scipy.spatial import distance
 
 from hrl.agent.rainbow.rainbow import Rainbow
@@ -10,7 +10,7 @@ from .classifier.position_classifier import PositionInitiationClassifier
 class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
-                 init_salient_event, target_salient_event, n_training_steps):
+                 init_salient_event, target_salient_event, n_training_steps, use_oracle_rf):
         self.env = env
         self.name = name
         self.parent = parent
@@ -18,6 +18,7 @@ class ModelFreeOption(object):
         self.timeout = timeout
         self.global_solver = global_solver
         self.n_training_steps = n_training_steps
+        self.use_oracle_rf = use_oracle_rf
         
         self.global_init = global_init
         self.buffer_length = buffer_length
@@ -40,7 +41,7 @@ class ModelFreeOption(object):
 
         print(f"Created model-free option {self.name} with option_idx={self.option_idx}")
 
-        self.is_last_option = self.option_idx == 5
+        self.is_last_option = self.option_idx == 5  # TODO
 
     def _get_model_free_solver(self):
         if self.global_init:
@@ -107,8 +108,10 @@ class ModelFreeOption(object):
         return reward, reached
 
     def is_at_local_goal(self, pos, goal_pos):
-        _, reached = self.rf(pos, goal_pos)
-        return reached and self.is_term_true(pos)
+        if self.use_oracle_rf:
+            _, reached = self.rf(pos, goal_pos)
+            return reached and self.is_term_true(pos)
+        return self.is_term_true(pos)
 
     def act(self, state, goal):
         assert isinstance(self.solver, Rainbow), f"{type(self.solver)}"
@@ -123,6 +126,9 @@ class ModelFreeOption(object):
                    self.target_salient_event.get_target_position()
 
         sampled_goal = self.parent.initiation_classifier.sample()
+
+        # TODO: Deal with the case where sampled_goal is None
+
         return sampled_goal.obs, sampled_goal.pos
 
     def rollout(self, start_state, start_position, eval_mode=False):
@@ -176,20 +182,65 @@ class ModelFreeOption(object):
             state = next_state
 
         reached_term = self.is_term_true(pos)
-        self.success_curve.append(reached_term)
-
-        if reached_term and not eval_mode:
-            self.num_goal_hits += 1
-            print(f"{self.name} reached term set {self.num_goal_hits} times.")
+        self.success_curve.append(reached_term)            
 
         if not eval_mode:
-            self.solver.her(option_transitions, visited_positions, goal, goal_pos)
+            
+            # Update the option goal counter
+            if reached_term:
+                self.num_goal_hits += 1
+                print(f"{self.name} reached term set {self.num_goal_hits} times.")
 
+            # Update value function
+            if self.use_oracle_rf:
+                self.solver.her(option_transitions, visited_positions, goal, goal_pos)
+            else:
+                self.no_rf_update(option_transitions, goal, reached_term)
+
+            # Update initiation classifiers
             if not self.global_init:
                 self.derive_training_examples(visited_states, visited_positions, reached_term)
                 self.initiation_classifier.fit_initiation_classifier()
 
-        return state, done, reset, len(option_transitions)
+        return state, done, reset, visited_positions, goal_pos
+
+    # ------------------------------------------------------------
+    # Hindsight Experience Replay
+    # ------------------------------------------------------------
+
+    def no_rf_update(self, transitions, pursued_goal, reached_termination_region):
+        if reached_termination_region:
+            final_transition = transitions[-1]
+            reached_goal = final_transition[3]
+            relabeled_trajectory = self.positive_relabel(transitions)
+            self.experience_replay(relabeled_trajectory, reached_goal)
+        else:
+            self.experience_replay(transitions, pursued_goal)
+            
+            hindsight_goal, hindsight_goal_idx = self.solver.pick_hindsight_goal(transitions)
+            hindsight_trajectory = transitions[:hindsight_goal_idx]
+
+            if len(hindsight_trajectory) > 0:  # TODO: Remove cause its ugly
+                relabeled_trajectory = self.positive_relabel(hindsight_trajectory)
+                self.experience_replay(relabeled_trajectory, hindsight_goal)
+
+    def positive_relabel(self, trajectory):
+        """ Relabel the final transition in the trajectory as a positive goal transition. """ 
+        original_transition = trajectory[-1]
+        trajectory[-1] = original_transition[0], original_transition[1], +1., \
+                         original_transition[3], True, \
+                         original_transition[5], original_transition[6]
+        return trajectory
+
+    def experience_replay(self, trajectory, goal):
+        for state, action, reward, next_state, done, reset, _ in trajectory:
+            augmented_state = self.solver.get_augmented_state(state, goal)
+            augmented_next_state = self.solver.get_augmented_state(next_state, goal)
+            self.solver.step(augmented_state, action, deepcopy(reward), augmented_next_state, deepcopy(done), reset)
+    
+    # ------------------------------------------------------------
+    # Learning initiation classifiers
+    # ------------------------------------------------------------
 
     def derive_training_examples(self, visited_states, visited_positions, reached_term):
         assert len(visited_states) == len(visited_positions)
