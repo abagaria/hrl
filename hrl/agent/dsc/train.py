@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_training_steps", type=int, default=int(2e6))
     parser.add_argument("--terminal_on_loss_of_life", action="store_true", default=False)
     parser.add_argument("--use_oracle_rf", action="store_true", default=False)
+    parser.add_argument("--max_num_options", type=int, default=5)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -53,7 +54,6 @@ if __name__ == "__main__":
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/initiation_set_plots")
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/value_function_plots")
 
-
     with open(f"logs/{args.experiment_name}/{args.seed}/hyperparameters.txt", "w+") as _args_file:
         json.dump(args.__dict__, _args_file, indent=2)
 
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     env = make_env(args.environment_name,
                    seed=args.seed, terminal_on_loss_of_life=args.terminal_on_loss_of_life)
 
-    s0 = env.reset()
+    s0, _ = env.reset()
     p0 = env.get_current_position()
     g0 = load_goal_state(os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states"))
 
@@ -75,6 +75,7 @@ if __name__ == "__main__":
                           args.gpu_id,
                           args.use_oracle_rf,
                           s0, p0, g0, (123, 148),
+                          args.max_num_options,
                           args.seed,
                           _log_file)
 

@@ -1,4 +1,6 @@
+import ipdb
 import pickle
+
 from hrl.agent.dsc.utils import *
 from .option import ModelFreeOption
 from ...salient_event.salient_event import SalientEvent
@@ -8,7 +10,7 @@ class RobustDSC(object):
     def __init__(self, mdp, gestation_period, buffer_length,
                  experiment_name, gpu_id, use_oracle_rf,
                  init_obs, init_pos, target_obs, target_pos,
-                 seed, log_filename):
+                 max_num_options, seed, log_filename):
 
         self.mdp = mdp
         self.seed = seed
@@ -16,6 +18,8 @@ class RobustDSC(object):
         self.experiment_name = experiment_name
 
         self.use_oracle_rf = use_oracle_rf
+        self.max_num_options = max_num_options
+        
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
@@ -31,15 +35,16 @@ class RobustDSC(object):
 
         self.log_file = log_filename
 
-    def act(self, state):
+    def act(self, info):  # TODO
+        position = info["player_x"], info["player_y"]
         for option in self.chain:
-            if option.is_init_true(state):
+            if option.is_init_true(position):
                 subgoal = option.get_goal_for_rollout()
-                if not option.is_term_true(state):
+                if not option.is_term_true(position, info):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
 
-    def dsc_rollout(self, state, pos, episode, eval_mode=False):
+    def dsc_rollout(self, state, info, episode, eval_mode=False):
         done = False
         reset = False
         reached = False
@@ -48,10 +53,11 @@ class RobustDSC(object):
         episode_reward = 0.
         rollout_trajectory = []
 
-        while not done and not reset and not reached:
-            selected_option, subgoal = self.act(pos)  # TODO: Maybe pass in the subgoal..
-            next_state, done, reset, visited_positions, goal_pos = selected_option.rollout(state, pos,
-                                                                                           eval_mode=eval_mode)
+        while not done and not reset and not reached:            
+            selected_option, subgoal = self.act(info)  # TODO: Maybe pass in the subgoal..
+            next_state, done, reset, visited_positions, goal_pos, info = selected_option.rollout(state,
+                                                                                                 info,
+                                                                                                 eval_mode=eval_mode)
             
             self.manage_chain_after_rollout(selected_option, episode)
 
@@ -79,10 +85,9 @@ class RobustDSC(object):
         _log_rewards = []
 
         while step < num_steps:
-            state = self.mdp.reset()
-            position = self.mdp.get_current_position()
+            state, info = self.mdp.reset()
 
-            _, reward, length = self.dsc_rollout(state, position, episode)
+            _, reward, length = self.dsc_rollout(state, info, episode)
 
             episode += 1
             step += length
@@ -102,7 +107,7 @@ class RobustDSC(object):
             if episode > 0 and episode % 100 == 0:
                 for option in self.mature_options:
                     plot_two_class_classifier(option, episode, self.experiment_name, seed=self.seed)
-
+    
     def is_chain_complete(self):
         return all([option.get_training_phase() == "initiation_done" for option in self.chain]) \
                 and self.contains_init_state()
@@ -162,7 +167,8 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
                                  target_salient_event=self.target_salient_event,
-                                 use_oracle_rf=self.use_oracle_rf)
+                                 use_oracle_rf=self.use_oracle_rf,
+                                 max_num_options=self.max_num_options)
         return option
 
     def create_global_option(self):
@@ -179,5 +185,6 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
                                  target_salient_event=self.target_salient_event,
-                                 use_oracle_rf=self.use_oracle_rf)
+                                 use_oracle_rf=self.use_oracle_rf,
+                                 max_num_options=self.max_num_options)
         return option

@@ -1,4 +1,3 @@
-import ipdb
 import numpy as np
 from copy import deepcopy
 from scipy.spatial import distance
@@ -10,7 +9,8 @@ from .classifier.position_classifier import PositionInitiationClassifier
 class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
-                 init_salient_event, target_salient_event, n_training_steps, use_oracle_rf):
+                 init_salient_event, target_salient_event, n_training_steps,
+                 use_oracle_rf, max_num_options):
         self.env = env
         self.name = name
         self.parent = parent
@@ -41,7 +41,7 @@ class ModelFreeOption(object):
 
         print(f"Created model-free option {self.name} with option_idx={self.option_idx}")
 
-        self.is_last_option = self.option_idx == 5  # TODO
+        self.is_last_option = self.option_idx == max_num_options
 
     def _get_model_free_solver(self):
         if self.global_init:
@@ -87,9 +87,12 @@ class ModelFreeOption(object):
 
         return self.initiation_classifier.pessimistic_predict(state)
 
-    def is_term_true(self, state):
+    def is_term_true(self, state, info):
         if self.parent is None:
             return self.target_salient_event(state)
+
+        if info["falling"] or info["dead"]:
+            return False
 
         return self.parent.pessimistic_is_init_true(state)
 
@@ -107,11 +110,12 @@ class ModelFreeOption(object):
 
         return reward, reached
 
-    def is_at_local_goal(self, pos, goal_pos):
+    def is_at_local_goal(self, info, goal_pos):
+        pos = info["player_x"], info["player_y"]
         if self.use_oracle_rf:
             _, reached = self.rf(pos, goal_pos)
-            return reached and self.is_term_true(pos)
-        return self.is_term_true(pos)
+            return reached and self.is_term_true(pos, info)
+        return self.is_term_true(pos, info)
 
     def act(self, state, goal):
         assert isinstance(self.solver, Rainbow), f"{type(self.solver)}"
@@ -131,11 +135,11 @@ class ModelFreeOption(object):
 
         return sampled_goal.obs, sampled_goal.pos
 
-    def rollout(self, start_state, start_position, eval_mode=False):
+    def rollout(self, start_state, info, eval_mode=False):
         """ Main option control loop. """
+        start_position = info["player_x"], info["player_y"]
         assert self.is_init_true(start_position)
 
-        info = {}
         done = False
         reset = False
         reached = False
@@ -145,7 +149,7 @@ class ModelFreeOption(object):
         option_transitions = []
         self.num_executions += 1
 
-        state = deepcopy(start_state)
+        state = deepcopy(start_state)  # TODO: Do we need to deepcopy?
         pos = deepcopy(start_position)
 
         visited_positions = [pos]
@@ -176,12 +180,21 @@ class ModelFreeOption(object):
                                       next_state, 
                                       done or reached, 
                                       reset,   # TODO: Think about done and reset for options
-                                      pos)
+                                      info)
             )
+
+            # Truncate initiation trajectories around death transitions
+            if info["dead"] and not self.global_init:
+                self.derive_training_examples(visited_states,
+                                              visited_positions,
+                                              reached_term=False)
+
+                visited_states = []
+                visited_positions = []
 
             state = next_state
 
-        reached_term = self.is_term_true(pos)
+        reached_term = self.is_term_true(pos, info)
         self.success_curve.append(reached_term)            
 
         if not eval_mode:
@@ -198,11 +211,13 @@ class ModelFreeOption(object):
                 self.no_rf_update(option_transitions, goal, reached_term)
 
             # Update initiation classifiers
-            if not self.global_init:
+            if not self.global_init and len(visited_states) > 0:
                 self.derive_training_examples(visited_states, visited_positions, reached_term)
+            
+            if not self.global_init:
                 self.initiation_classifier.fit_initiation_classifier()
 
-        return state, done, reset, visited_positions, goal_pos
+        return state, done, reset, visited_positions, goal_pos, info
 
     # ------------------------------------------------------------
     # Hindsight Experience Replay
@@ -253,9 +268,6 @@ class ModelFreeOption(object):
             positive_positions = [start_position] + visited_positions[-self.buffer_length:]
             
             self.initiation_classifier.add_positive_examples(positive_states, positive_positions)
-
-            # if self.init_salient_event(start_position):
-            #     self.is_last_option = True
         else:
             negative_states = [start_state]
             negative_positions = [start_position]
@@ -265,6 +277,10 @@ class ModelFreeOption(object):
     # ------------------------------------------------------------
     # Distance functions
     # ------------------------------------------------------------
+
+    def value_function(self, obs, goals):
+        augmented_states = [self.solver.get_augmented_state(obs, goal) for goal in goals]
+        return self.solver.value_function(augmented_states)
 
     def distance_to_state(self, pos, metric="euclidean"):
         """ Compute the distance between the current option and the input `state`. """

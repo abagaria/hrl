@@ -1,3 +1,4 @@
+import ipdb
 import random
 import itertools
 import numpy as np
@@ -145,9 +146,15 @@ class PositionInitiationClassifier(InitiationClassifier):
                 return state
 
     def get_states_inside_pessimistic_classifier_region(self):
+        def get_observations(idx):
+            positive_examples = itertools.chain.from_iterable(self.positive_examples)
+            return [positive_examples[i].obs for i in idx]
+
         if self.pessimistic_classifier is not None:
             point_array = self.construct_feature_matrix(self.positive_examples)
             point_array_predictions = self.pessimistic_classifier.predict(point_array)
-            positive_point_array = point_array[point_array_predictions == 1]
-            return positive_point_array
+            ipdb.set_trace()  # TODO: Test if np.where works here
+            positive_indices = np.where(point_array_predictions==1)
+            positive_observations = get_observations(positive_indices)
+            return positive_observations
         return []

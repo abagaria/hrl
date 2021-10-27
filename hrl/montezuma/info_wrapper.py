@@ -3,19 +3,32 @@ import gym
 
 class MontezumaInfoWrapper(gym.Wrapper):
     def __init__(self, env):
+        self.num_lives = None
         gym.Wrapper.__init__(self, env)
     
     def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
+        s0 = self.env.reset(**kwargs)
+        self.num_lives = self.get_num_lives(self.get_current_ram())
+        info = self.get_current_info()
+        return s0, info
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
+        info = self.get_current_info()
+        self.num_lives = info["lives"]
+        return obs, reward, done, info
 
+    def get_current_info(self):
         ram = self.get_current_ram()
+        
+        info = {}
+        info["lives"] = self.get_num_lives(ram)
+        info["falling"] = self.get_is_falling(ram)
         info["player_x"] = self.get_player_x(ram)
         info["player_y"] = self.get_player_y(ram)
+        info["dead"] = int(info["lives"] < self.num_lives)
 
-        return obs, reward, done, info
+        return info
 
     def get_current_position(self):
         ram = self.get_current_ram()
