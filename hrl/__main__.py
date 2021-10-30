@@ -16,7 +16,7 @@ from hrl.wrappers import D4RLAntMazeWrapper
 from hrl.train_loop import train_agent_batch_with_eval
 from hrl import utils
 from hrl.agent.dsc.dsc import RobustDSC
-from hrl.agent.make_agent import make_sac_agent, make_td3_agent
+from hrl.agent.make_agent import make_sac_agent, make_td3_agent, make_dsc_agent
 from hrl.envs.vector_env import EpisodicSyncVectorEnv
 from hrl.plot import main as plot_learning_curve
 
@@ -115,33 +115,10 @@ class Trial:
         # save the hyperparams
         utils.save_hyperparams(os.path.join(saving_dir, "hyperparams.csv"), self.params)
 
-        # set up env and experiment
+        # set up env and agent
         self.env = self.make_batch_env(num_envs=self.params['num_envs'], test=False)
         self.test_env = self.make_batch_env(num_envs=1, test=True)
-        if self.params['agent'] == 'dsc':
-            self.exp = RobustDSC(mdp=self.env,
-                            gestation_period=self.params['gestation_period'],
-                            experiment_name=self.params['experiment_name'],
-                            device=self.params['device'],
-                            warmup_episodes=self.params['warmup_episodes'],
-                            max_steps=self.params['steps'],
-                            use_model=self.params['use_model'],
-                            use_vf=self.params['use_value_function'],
-                            use_global_vf=self.params['use_global_value_function'],
-                            use_diverse_starts=self.params['use_diverse_starts'],
-                            use_dense_rewards=self.params['use_dense_rewards'],
-                            multithread_mpc=self.params['multithread_mpc'],
-                            logging_freq=self.params['logging_frequency'],
-                            evaluation_freq=self.params['evaluation_frequency'],
-                            buffer_length=self.params['buffer_length'],
-                            generate_init_gif=self.params['generate_init_gif'],
-                            seed=self.params['seed'],
-                            lr_c=self.params['lr_c'],
-                            lr_a=self.params['lr_a'],
-                            clear_option_buffers=self.params['clear_option_buffers'],
-                            use_global_option_subgoals=self.params['use_global_option_subgoals'])
-        else:
-            self.agent = self.make_agent()
+        self.agent = self.make_agent()
     
     def make_agent(self):
         """
@@ -151,6 +128,8 @@ class Trial:
             return make_sac_agent(self.env.observation_space, self.env.action_space, self.params)
         elif self.params['agent'] == 'td3':
             return make_td3_agent(self.env.observation_space, self.env.action_space, self.params)
+        elif self.params['agent'] == 'dsc':
+            return make_dsc_agent(self.env, self.params)
         else:
             raise NotImplementedError
     
@@ -169,10 +148,11 @@ class Trial:
             test_env=self.test_env,
             num_test_episodes=self.params['eval_n_episodes'],
             goal_conditioned=self.params['goal_conditioned'],
+            hierarchical=self.params['hierarchical'],
             goal_state=goal_state if self.params['goal_conditioned'] else None,
             logging_freq=self.params['logging_frequency'],
             testing_freq=self.params['testing_frequency'],
-            plotting_freq=self.params['plotting_frequency'],
+            plotting_freq=None if self.params['plotting_frequency'] == 0 else self.params['plotting_frequency'],
             saving_freq=self.params['saving_frequency'],
             saving_dir=self.saving_dir,
             state_to_goal_fn=dummy_env.get_position,
@@ -184,10 +164,7 @@ class Trial:
         run the actual experiment
         """
         start_time = time.time()
-        if self.params['agent'] == 'dsc':
-            durations = self.exp.run_loop(self.params['episodes'], self.params['steps'])
-        else:
-            self.train()
+        self.train()
         end_time = time.time()
 
         # plot the learning curve when experiemnt is done

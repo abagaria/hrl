@@ -1,6 +1,5 @@
 import random
 import itertools
-from copy import deepcopy
 
 import torch
 import numpy as np
@@ -12,10 +11,11 @@ from hrl.agent.td3.TD3AgentClass import TD3
 
 
 class ParallelModelBasedOption(object):
-    def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
+    def __init__(self, *, name, parent, env, goal_state_size, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
                  option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model="", multithread_mpc=False):
-        self.mdp = mdp
+        self.env = env
+        self.goal_state_size = goal_state_size
         self.name = name
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -34,8 +34,11 @@ class ParallelModelBasedOption(object):
         self.target_salient_event = target_salient_event
         self.multithread_mpc = multithread_mpc
 
-        # TODO
-        self.overall_mdp = mdp
+        # observation and action size
+        self.obs_size = self.env.observation_space.low.size
+        self.enhanced_obs_size = self.obs_size + goal_state_size
+        self.action_size = self.env.action_space.low.size
+
         self.seed = 0
         self.option_idx = option_idx
 
@@ -54,8 +57,8 @@ class ParallelModelBasedOption(object):
         use_output_norm = self.use_model
 
         if not self.use_global_vf or global_init:
-            self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                    action_dim=self.mdp.action_space_size(),
+            self.value_learner = TD3(state_dim=self.enhanced_obs_size,
+                                    action_dim=self.action_size,
                                     max_action=1.,
                                     name=f"{name}-td3-agent",
                                     device=self.device,
@@ -88,16 +91,16 @@ class ParallelModelBasedOption(object):
 
         # experinces collected during one rollout of this option
         self.option_transitions = []
-        self.visited_states = set()
+        self.visited_states = []
         self.rollout_num_steps = 0
 
     def _get_model_based_solver(self):
         assert self.use_model
 
         if self.global_init:
-            return MPC(mdp=self.mdp,
-                       state_size=self.mdp.state_space_size(),
-                       action_size=self.mdp.action_space_size(),
+            return MPC(mdp=self.env,
+                       state_size=self.obs_size,
+                       action_size=self.action_size,
                        dense_reward=self.dense_reward,
                        device=self.device,
                        multithread=self.multithread_mpc)
@@ -131,15 +134,15 @@ class ParallelModelBasedOption(object):
         if self.num_goal_hits < self.gestation_period:
             return "gestation"
         return "initiation_done"
+    
+    def _extract_features_for_initiation_classifier(self, state):
+        return state[:self.goal_state_size]
 
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
-        
-        if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
-            return True
 
-        features = self.mdp.extract_features_for_initiation_classifier(state)
+        features = self._extract_features_for_initiation_classifier(state)
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
@@ -153,13 +156,13 @@ class ParallelModelBasedOption(object):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
 
-        features = self.mdp.extract_features_for_initiation_classifier(state)
+        features = self._extract_features_for_initiation_classifier(state)
         return self.pessimistic_classifier.predict([features])[0] == 1
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
 
-        reached_goal = self.mdp.reward_func(state, goal)[1]
+        reached_goal = self.env.reward_func(state, goal)[1]
         reached_term = self.is_term_true(state)
         return reached_goal and reached_term
 
@@ -174,11 +177,11 @@ class ParallelModelBasedOption(object):
             return 0.8
         return 0.2
 
-    def act(self, state, goal):
+    def act(self, state, goal, eval_mode=False):
         """ Epsilon-greedy action selection. """
 
-        if random.random() < self._get_epsilon():
-            return self.mdp.action_space.sample()
+        if random.random() < self._get_epsilon() and eval_mode:
+            return self.env.action_space.sample()
 
         if self.use_model:
             assert isinstance(self.solver, MPC), f"{type(self.solver)}"
@@ -203,14 +206,15 @@ class ParallelModelBasedOption(object):
         sampled_goal = self.parent.sample_from_initiation_region_fast_and_epsilon()
         assert sampled_goal is not None
 
-        return self.mdp.extract_features_for_initiation_classifier(sampled_goal)
+        return self._extract_features_for_initiation_classifier(sampled_goal)
     
     def observe(self, state, action, reward, next_state, done):
         """
         observe the option transitions just by keeping track of them
         """
-        self.visited_states.add(state)
-        self.visited_states.add(next_state)
+        self.visited_states.append(state)
+        if done:
+            self.visited_states.append(next_state)
         self.option_transitions.append((state, action, reward, next_state, done))
         if self.use_model:
             self.update_model(state, action, reward, next_state, done)
@@ -233,7 +237,7 @@ class ParallelModelBasedOption(object):
         if self.use_vf:
             self.update_value_function(self.option_transitions,
                                     pursued_goal=rollout_goal,
-                                    reached_goal=self.mdp.extract_features_for_initiation_classifier(final_state))
+                                    reached_goal=self._extract_features_for_initiation_classifier(final_state))
 
         # Always be refining your initiation classifier
         self.derive_positive_and_negative_examples(self.visited_states)
@@ -242,7 +246,7 @@ class ParallelModelBasedOption(object):
         
         # reset the transitions after this rollout
         self.option_transitions = []
-        self.visited_states = set()
+        self.visited_states = []
         self.rollout_num_steps = 0
 
     # ------------------------------------------------------------
@@ -264,7 +268,7 @@ class ParallelModelBasedOption(object):
     def get_augmented_state(self, state, goal):
         assert goal is not None and isinstance(goal, np.ndarray)
 
-        goal_position = self.mdp.extract_features_for_initiation_classifier(goal)
+        goal_position = self._extract_features_for_initiation_classifier(goal)
         return np.concatenate((state, goal_position))
 
     def experience_replay(self, trajectory, goal_state):
@@ -273,7 +277,7 @@ class ParallelModelBasedOption(object):
             augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
             done = self.is_at_local_goal(next_state, goal_state)
 
-            reward, global_done = self.mdp.reward_func(next_state, goal_state)
+            reward, global_done = self.env.reward_func(next_state, goal_state)
 
             if not self.use_global_vf or self.global_init:
                 self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
@@ -331,7 +335,7 @@ class ParallelModelBasedOption(object):
     def sample_from_initiation_region_fast_and_epsilon(self):
         """ Sample from the pessimistic initiation classifier. """
         def compile_states(s):
-            pos0 = self.mdp.get_position(s)
+            pos0 = self.env.get_position(s)
             pos1 = np.copy(pos0)
             pos1[0] -= self.target_salient_event.tolerance
             pos2 = np.copy(pos0)
@@ -395,7 +399,7 @@ class ParallelModelBasedOption(object):
 
     def construct_feature_matrix(self, examples):
         states = list(itertools.chain.from_iterable(examples))
-        positions = [self.mdp.extract_features_for_initiation_classifier(state) for state in states]
+        positions = [self._extract_features_for_initiation_classifier(state) for state in states]
         return np.array(positions)
 
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
@@ -449,7 +453,7 @@ class ParallelModelBasedOption(object):
         return self._value_distance_to_state(state)
 
     def _euclidean_distance_to_state(self, state):
-        point = self.mdp.get_position(state)
+        point = self.env.get_position(state)
 
         assert isinstance(point, np.ndarray)
         assert point.shape == (2,), point.shape

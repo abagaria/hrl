@@ -197,3 +197,6 @@ class TD3(object):
                 actions = actions.clamp(-self.max_action, self.max_action)
             q_values = self.get_qvalues(states, actions)
         return q_values.cpu().numpy()
+    
+    def reset(self):
+        pass

@@ -15,6 +15,7 @@ def worker(remote, env_fn):
     try:
         while True:
             cmd, data = remote.recv()
+            # operations on env
             if cmd == "step":
                 ob, reward, done, info = env.step(data)
                 remote.send((ob, reward, done, info))
@@ -24,14 +25,15 @@ def worker(remote, env_fn):
             elif cmd == "close":
                 remote.close()
                 break
-            elif cmd == "get_spaces":
-                remote.send((env.action_space, env.observation_space))
-            elif cmd == "spec":
-                remote.send(env.spec)
             elif cmd == "seed":
                 remote.send(env.seed(data))
             elif cmd == "done":  # the environment should be closed
                 remote.send((StopExecution, StopExecution, StopExecution, StopExecution))
+            # get infos
+            elif cmd == "get_spaces":
+                remote.send((env.action_space, env.observation_space))
+            elif cmd == "spec":
+                remote.send(env.spec)
             else:
                 raise NotImplementedError
     finally:
@@ -68,8 +70,12 @@ class EpisodicSyncVectorEnv(pfrl.envs.MultiprocessVectorEnv):
         for p in self.ps:
             p.start()
         self.last_obs = [None] * self.num_envs
+        # get info from indivisual env
         self.remotes[0].send(("get_spaces", None))
         self.action_space, self.observation_space = self.remotes[0].recv()
+        dummy_env = env_fns[0]()
+        self.reward_func = dummy_env.reward_func
+        self.get_position = dummy_env.get_position
         self.closed = False
 
         # keep track of episodes

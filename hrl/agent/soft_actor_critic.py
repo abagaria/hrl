@@ -88,3 +88,6 @@ class SoftActorCritic(pfrl.agents.SoftActorCritic):
             q1 = self.q_func1((states, actions))
             q2 = self.q_func2((states, actions))
         return torch.min(q1, q2)
+    
+    def reset(self):
+        pass

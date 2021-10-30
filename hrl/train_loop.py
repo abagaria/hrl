@@ -20,6 +20,7 @@ def train_agent_batch_with_eval(
     test_env=None,
     num_test_episodes=None,
     goal_conditioned=False,
+    hierarchical=False,
     goal_state=None,
     logging_freq=None,
     testing_freq=None,
@@ -59,6 +60,7 @@ def train_agent_batch_with_eval(
                 env=env,
                 agent=agent,
                 goal_conditoned=goal_conditioned,
+                hierarchical=hierarchical,
                 goal_state=goal_state,
                 logger=logger,
                 logging_freq=logging_freq,
@@ -90,13 +92,15 @@ def train_agent_batch_with_eval(
                 csv_writer.writerow([episode] + episode_start_poss)
             
             # experience replay for each episode
-            logger.info(f'Episode {episode} ended. Doing experience replay')
-            if goal_conditioned:
-                assert goal_state is not None
-                assert state_to_goal_fn is not None
-                highsight_experience_replay(trajectory, agent.batch_observe, reward_fn, intended_goals=[goal_state] * env.num_envs, reached_goals=episode_reached_pos)
-            else:
-                normal_experience_replay(trajectory, agent.batch_observe)
+            if not hierarchical:
+                # hierarchical method do experience replay along with training
+                logger.info(f'Episode {episode} ended. Doing experience replay')
+                if goal_conditioned:
+                    assert goal_state is not None
+                    assert state_to_goal_fn is not None
+                    highsight_experience_replay(trajectory, agent.batch_observe, reward_fn, intended_goals=[goal_state] * env.num_envs, reached_goals=episode_reached_pos)
+                else:
+                    normal_experience_replay(trajectory, agent.batch_observe)
             
             # testing the agent
             if testing_freq is not None and episode % testing_freq == 0:
@@ -108,6 +112,7 @@ def train_agent_batch_with_eval(
                     num_episodes=num_test_episodes,
                     cur_episode_idx=episode,
                     goal_conditioned=goal_conditioned,
+                    hierarchical=hierarchical,
                     goal_state=goal_state,
                     saving_dir=saving_dir,
                 )
@@ -171,6 +176,7 @@ def episode_rollout(
     env,
     agent,
     goal_conditoned,
+    hierarchical,
     goal_state,
     logger,
     logging_freq,
@@ -195,12 +201,13 @@ def episode_rollout(
     if not testing:
         trajectory = []
 
+    agent.reset()
     # run until all parallel envs finish the current episode
     while not env.all_envs_done:
         # a_t
         assert len(obss) == num_envs
         filtered_obss = filter_token(obss)  # (num_running_env, state_dim)
-        if goal_conditoned:
+        if goal_conditoned and not hierarchical:
             enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), filtered_obss))
         else:
             enhanced_obss = filtered_obss
@@ -306,6 +313,7 @@ def test_agent_batch(
     num_episodes,
     cur_episode_idx,
     goal_conditioned,
+    hierarchical,
     goal_state,
     saving_dir,
 ):
@@ -331,6 +339,7 @@ def test_agent_batch(
                 env=test_env,
                 agent=agent,
                 goal_conditoned=goal_conditioned,
+                hierarchical=hierarchical,
                 goal_state=goal_state,
                 logger=None,
                 logging_freq=None

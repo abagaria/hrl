@@ -1,20 +1,19 @@
-import pickle
 from copy import deepcopy
-from functools import reduce
 from collections import deque
 
 import numpy as np
 
 from hrl.agent.dsc.utils import *
+from hrl.salient_event.SalientEventClass import SalientEvent
 from hrl.envs.vector_env import EpisodicSyncVectorEnv
 from hrl.option.parallel_model_based_option import ParallelModelBasedOption
 
 
-class RobustDSC:
-    def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
-                 use_diverse_starts, use_dense_rewards, lr_c, lr_a, clear_option_buffers,
+class ParallelRobustDSC:
+    def __init__(self, env, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
+                 use_diverse_starts, use_dense_rewards, lr_c, lr_a, clear_option_buffers, goal_state,
                  use_global_option_subgoals, experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
+                 logging_freq, generate_init_gif, seed, multithread_mpc):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -30,21 +29,21 @@ class RobustDSC:
         self.use_dense_rewards = use_dense_rewards
         self.clear_option_buffers = clear_option_buffers
         self.use_global_option_subgoals = use_global_option_subgoals
+        self.goal_state = goal_state
 
         self.multithread_mpc = multithread_mpc
 
         self.seed = seed
         self.logging_freq = logging_freq
-        self.evaluation_freq = evaluation_freq
         self.generate_init_gif = generate_init_gif
 
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
-        self.mdp = mdp
-        assert isinstance(mdp, EpisodicSyncVectorEnv)
-        self.nenvs = mdp.nenvs
-        self.target_salient_event = self.mdp.get_original_target_events()[0]
+        self.env = env
+        assert isinstance(env, EpisodicSyncVectorEnv)
+        self.nenvs = env.nenvs
+        self.target_salient_event = SalientEvent(target_state=goal_state, event_idx=1)
 
         self.global_option = self.create_global_model_based_option()
         self.goal_option = self.create_model_based_option(name="goal-option", parent=None)
@@ -56,6 +55,10 @@ class RobustDSC:
         self.log = {}
 
         # house keeping for parallelized envs
+        self.current_controlling_options = [self.global_option] * self.nenvs
+        self.current_subgoals = [self.global_option.get_goal_for_rollout()] * self.nenvs
+        
+    def reset(self):
         self.current_controlling_options = [self.global_option] * self.nenvs
         self.current_subgoals = [self.global_option.get_goal_for_rollout()] * self.nenvs
 
@@ -80,7 +83,7 @@ class RobustDSC:
         main API for interacting with the env: observe batched transitions
         """
         assert len(batch_states) == self.nenvs
-        for i in self.nenvs:
+        for i in range(self.nenvs):
             self.current_controlling_options[i].observe(
                 batch_states[i],
                 batch_actions[i],
@@ -89,110 +92,52 @@ class RobustDSC:
                 batch_dones[i]
             )
 
-    def batch_act(self, batch_states):
+    def batch_act(self, batch_states, evaluation_mode=False):
         """
         main API for interacting with the env: observe a batched state and 
         return batched primitive actions for the environment
+
+        the batched_states should be the original state, not enhanced by the goal
         """
-        assert len(batch_states) == self.nenvs
-        batch_options, batch_goals = self.batch_pick_options_and_goals(batch_states)
+        if not evaluation_mode:
+            assert len(batch_states) == self.nenvs
+        batch_options, batch_goals = self.batch_pick_options_and_goals(batch_states, evaluation_mode)
         batched_actions = []
         for i, (option, goal) in enumerate(zip(batch_options, batch_goals)):
-            a = option.act(batch_states[i], goal)
+            a = option.act(batch_states[i], goal, eval_mode=evaluation_mode)
             batched_actions.append(a)
         return batched_actions
         
 
-    def batch_pick_options_and_goals(self, batch_states):
+    def batch_pick_options_and_goals(self, batch_states, evaluation_mode=False):
         """
         1. picking the options and goals
         2. updating the two lists agent keeps track of
         3. updating the options themselves
         """
-        assert len(batch_states) == self.nenvs
+        if evaluation_mode:
+            nenvs = len(batch_states)
+        else:
+            assert len(batch_states) == self.nenvs
         for i, state in enumerate(batch_states):
             # see if option rollout has terminated
             option = self.current_controlling_options[i]
             at_goal = option.is_at_local_goal(state, self.current_subgoals[i])
-            timeout = option.timeout >= option.rollout_num_steps
+            timeout = option.rollout_num_steps >= option.timeout
             if at_goal or timeout:
-                # if should create new option
-                self.manage_chain_after_rollout(option)
-                # refine existing option
-                option.refine(rollout_goal=self.current_controlling_options[i])
+                if not evaluation_mode:
+                    # if should create new option
+                    self.manage_chain_after_rollout(option)
+                    # refine existing option
+                    option.refine(rollout_goal=self.current_subgoals[i])
                 # choose new controlling option
                 o, g = self.act(state)
                 self.current_controlling_options[i] = o
                 self.current_subgoals[i] = g
-
+        
+        if evaluation_mode:
+            return self.current_controlling_options[:nenvs], self.current_subgoals[:nenvs]
         return self.current_controlling_options, self.current_subgoals
-
-    def random_rollout(self, num_steps):
-        step_number = 0
-        while step_number < num_steps and not self.mdp.cur_done:
-            state = deepcopy(self.mdp.cur_state)
-            action = self.mdp.action_space.sample()
-            next_state, reward, done, _ = self.mdp.step(action)
-            if self.use_model:
-                self.global_option.update_model(state, action, reward, next_state, done)
-            step_number += 1
-        return step_number
-
-    def dsc_rollout(self, num_steps):
-        step_number = 0
-        while step_number < num_steps and not self.mdp.cur_done:
-            state = deepcopy(self.mdp.cur_state)
-            
-            selected_option, subgoal = self.act(state)
-
-            # Overwrite the subgoal for the global-option
-            if selected_option == self.global_option and self.use_global_option_subgoals:
-                subgoal = self.pick_subgoal_for_global_option(state)
-
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
-
-            if len(transitions) == 0:
-                break
-
-            self.manage_chain_after_rollout(selected_option)
-            step_number += len(transitions)
-        return step_number
-
-    def run_loop(self, num_episodes, num_steps, start_episode=0):
-        per_episode_durations = []
-        last_10_durations = deque(maxlen=10)
-
-        for episode in range(start_episode, start_episode + num_episodes):
-            self.reset(episode)
-
-            step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
-
-            last_10_durations.append(step)
-            per_episode_durations.append(step)
-            self.log_status(episode, last_10_durations)
-
-            if episode == self.warmup_episodes - 1 and self.use_model:
-                self.learn_dynamics_model(epochs=50)
-            elif episode >= self.warmup_episodes and self.use_model:
-                self.learn_dynamics_model(epochs=5)
-
-            self.log_success_metrics(episode)
-
-        return per_episode_durations
-
-    def log_success_metrics(self, episode):
-        individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
-        overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
-        self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
-
-        if episode % self.evaluation_freq == 0 and episode > self.warmup_episodes:
-            success, step_count = test_agent(self, 1, self.max_steps)
-
-            self.log[episode]["success"] = success
-            self.log[episode]["step-count"] = step_count[0]
-
-            with open(f"results/{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
-                pickle.dump(self.log, log_file)
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
         self.global_option.solver.load_data()
@@ -276,8 +221,9 @@ class RobustDSC:
 
     def create_model_based_option(self, name, parent=None):
         option_idx = len(self.chain) + 1 if parent is not None else 1
-        option = ParallelModelBasedOption(parent=parent, mdp=self.mdp,
+        option = ParallelModelBasedOption(parent=parent, env=self.env,
                                   buffer_length=self.buffer_length,
+                                  goal_state_size=len(self.goal_state),
                                   global_init=False,
                                   gestation_period=self.gestation_period,
                                   timeout=200, 
@@ -298,8 +244,9 @@ class RobustDSC:
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
-        option = ParallelModelBasedOption(parent=None, mdp=self.mdp,
+        option = ParallelModelBasedOption(parent=None, env=self.env,
                                   buffer_length=self.buffer_length,
+                                  goal_state_size=len(self.goal_state),
                                   global_init=True,
                                   gestation_period=self.gestation_period,
                                   timeout=200, 
@@ -318,52 +265,3 @@ class RobustDSC:
                                   lr_c=self.lr_c, lr_a=self.lr_a,
                                   multithread_mpc=self.multithread_mpc)
         return option
-
-    def reset(self, episode):
-        self.mdp.reset()
-
-        if self.use_diverse_starts and episode > self.warmup_episodes:
-            random_state = self.mdp.sample_random_state()
-            random_position = self.mdp.get_position(random_state)
-            self.mdp.set_xy(random_position)
-
-def test_agent(exp, num_experiments, num_steps):
-    def rollout():
-        step_number = 0
-        while step_number < num_steps and not exp.mdp.sparse_gc_reward_func(exp.mdp.cur_state, exp.mdp.goal_state)[1]:
-
-            state = deepcopy(exp.mdp.cur_state)
-            selected_option, subgoal = exp.act(state)
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
-            step_number += len(transitions)
-        return step_number
-
-    success = 0
-    step_counts = []
-
-    for _ in tqdm(range(num_experiments), desc="Performing test rollout"):
-        exp.mdp.reset()
-        steps_taken = rollout()
-        if steps_taken != num_steps:
-            success += 1
-        step_counts.append(steps_taken)
-
-    print("*" * 80)
-    print(f"Test Rollout Success Rate: {success / num_experiments}, Duration: {np.mean(step_counts)}")
-    print("*" * 80)
-
-    return success / num_experiments, step_counts
-
-def get_trajectory(exp, num_steps):
-    exp.mdp.reset()
-    
-    traj = []
-    step_number = 0
-    
-    while step_number < num_steps and not exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
-        state = deepcopy(exp.mdp.cur_state)
-        selected_option, subgoal = exp.act(state)
-        transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
-        step_number += len(transitions)
-        traj.append((selected_option.name, transitions))
-    return traj, step_number

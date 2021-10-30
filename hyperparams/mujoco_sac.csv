@@ -17,3 +17,4 @@ max_episode_len,1000,int
 goal_conditioned,True,bool
 goal_state_size,2,int
 use_diverse_starts,True,bool
+hierarchical,False,bool

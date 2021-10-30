@@ -8,6 +8,42 @@ from pfrl.nn.lmbda import Lambda
 
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.agent.soft_actor_critic import SoftActorCritic
+from hrl.agent.dsc.parallel_dsc import ParallelRobustDSC
+
+
+def make_dsc_agent(env, params):
+    """
+    make a deep skill chaining
+    """
+    # get goal state
+    assert params['goal_state']
+    goal_state = np.array(params['goal_state'])
+
+    # make agent
+    agent = ParallelRobustDSC(
+        env=env,
+        gestation_period=params['gestation_period'],
+        experiment_name=params['experiment_name'],
+        device=params['device'],
+        warmup_episodes=params['warmup_episodes'],
+        max_steps=params['max_episode_len'],
+        use_model=params['use_model'],
+        use_vf=params['use_value_function'],
+        use_global_vf=params['use_global_value_function'],
+        use_diverse_starts=params['use_diverse_starts'],
+        use_dense_rewards=params['use_dense_rewards'],
+        multithread_mpc=params['multithread_mpc'],
+        logging_freq=params['logging_frequency'],
+        buffer_length=params['buffer_length'],
+        generate_init_gif=params['generate_init_gif'],
+        seed=params['seed'],
+        lr_c=params['lr_c'],
+        lr_a=params['lr_a'],
+        clear_option_buffers=params['clear_option_buffers'],
+        goal_state=goal_state,
+        use_global_option_subgoals=params['use_global_option_subgoals']
+    )
+    return agent
 
 
 def make_td3_agent(observation_space, action_space, params):
