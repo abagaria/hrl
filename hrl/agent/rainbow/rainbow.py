@@ -96,7 +96,7 @@ class Rainbow:
             d = is_close(pos, goal_pos, tol=2)
             return float(d), d  
         
-        for state, action, _, next_state, done, reset, next_pos in tqdm(trajectory, desc="Rainbow Update"):
+        for state, action, _, next_state, done, reset, next_pos in trajectory:
             augmented_state = self.get_augmented_state(state, goal)
             augmented_next_state = self.get_augmented_state(next_state, goal)
             reward, reached = rf(next_pos, goal_position)
@@ -109,13 +109,12 @@ class Rainbow:
         # assert isinstance(goal, atari_wrappers.LazyFrames), type(goal)
         # np.concatenate((state, goal), axis=0)
         # print(state.shape, goal.shape)
-        # pdb.set_trace()
-        if np.shape(goal) == (84, 84, 1):
-            goal = np.squeeze(goal, -1)
+        if np.shape(goal) == (84, 84):
+            goal = np.expand_dims(goal, 2)
         # goal = goal[:, :, np.newaxis]
         # pdb.set_trace()
         # return np.concatenate((state, goal), axis=0)
-        res = np.concatenate((goal, state))
+        res = np.concatenate((goal, state), axis=2)
         return np.reshape(res, (5, 84, 84))
 
     def rollout(self, env, state, episode, max_reward_so_far):
@@ -164,7 +163,7 @@ class Rainbow:
 
         return episode_reward, episode_length, max_reward_so_far
 
-    def gc_rollout(self, mdp:MontezumaRAMMDP, goal_img, goal_position: Tuple, episode, max_reward_so_far):
+    def gc_rollout(self, mdp:MontezumaRAMMDP, goal_img, goal_position: Tuple, episode, max_reward_so_far, limit=50):
         """ Single episodic rollout of the agent's policy. """
 
         def is_close(pos1, pos2, tol):
@@ -186,7 +185,7 @@ class Rainbow:
         episode_positions = []
         episode_trajectory = []
 
-        while not done and not reset and not reached:
+        while not done and not reset and not reached and episode_length < limit:
             sg = self.get_augmented_state(mdp.curr_state.image, goal_img)
             action = self.act(sg)
             next_state, reward, done, _  = mdp.env.step(action)
@@ -210,10 +209,8 @@ class Rainbow:
             episode_length += 1
             episode_reward += reward
 
-            state = next_state
-
         if self.goal_conditioned:
-            self.gc_experience_replay(episode_trajectory, episode_positions, goal_img)
+            self.gc_experience_replay(episode_trajectory, goal_img, goal_position)
         else:
             pass
 

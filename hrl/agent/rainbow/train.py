@@ -112,16 +112,18 @@ if __name__ == "__main__":
         current_episode_number += 1
         current_step_number += episodic_duration
 
+        print(f"Current Episode Number: {current_episode_number}, Episodic Reward : {episodic_reward}, ")
+
         _log_steps.append(current_step_number)
         _log_rewards.append(episodic_reward)
         _log_max_rewards.append(max_episodic_reward)
 
-        with open(_log_file, "wb+") as f:
-            episode_metrics = {
-                            "step": _log_steps, 
-                            "reward": _log_rewards,
-                            "max_reward": _log_max_rewards
-            }
-            pickle.dump(episode_metrics, f)
+        # with open(_log_file, "wb+") as f:
+        #     episode_metrics = {
+        #                     "step": _log_steps, 
+        #                     "reward": _log_rewards,
+        #                     "max_reward": _log_max_rewards
+        #     }
+        #     pickle.dump(episode_metrics, f)
 
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")
