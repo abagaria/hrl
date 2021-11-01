@@ -1,5 +1,6 @@
 from typing import Tuple
 import torch
+import pdb
 import random
 import numpy as np
 from tqdm import tqdm
@@ -106,8 +107,16 @@ class Rainbow:
     def get_augmented_state(self, state, goal):
         # assert isinstance(state, atari_wrappers.LazyFrames), type(state)
         # assert isinstance(goal, atari_wrappers.LazyFrames), type(goal)
+        # np.concatenate((state, goal), axis=0)
         # print(state.shape, goal.shape)
-        return np.concatenate((state, goal), axis=0)
+        # pdb.set_trace()
+        if np.shape(goal) == (84, 84, 1):
+            goal = np.squeeze(goal, -1)
+        # goal = goal[:, :, np.newaxis]
+        # pdb.set_trace()
+        # return np.concatenate((state, goal), axis=0)
+        res = np.concatenate((goal, state))
+        return np.reshape(res, (5, 84, 84))
 
     def rollout(self, env, state, episode, max_reward_so_far):
         """ Single episodic rollout of the agent's policy. """
@@ -180,7 +189,7 @@ class Rainbow:
         while not done and not reset and not reached:
             sg = self.get_augmented_state(mdp.curr_state.image, goal_img)
             action = self.act(sg)
-            next_state, reward, done, _  = mdp.execute_agent_action(action)
+            next_state, reward, done, _  = mdp.env.step(action)
             reward, reached = rf()
 
             ram = mdp.curr_state.ram
