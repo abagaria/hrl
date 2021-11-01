@@ -8,17 +8,20 @@ from ...salient_event.salient_event import SalientEvent
 
 class RobustDSC(object):
     def __init__(self, mdp, gestation_period, buffer_length,
-                 experiment_name, gpu_id, use_oracle_rf,
+                 experiment_name, gpu_id,
+                 use_oracle_rf, use_pos_for_init, gamma,
                  init_obs, init_pos, target_obs, target_pos,
                  max_num_options, seed, log_filename):
 
         self.mdp = mdp
         self.seed = seed
+        self.gamma = gamma
         self.gpu_id = gpu_id
         self.experiment_name = experiment_name
 
         self.use_oracle_rf = use_oracle_rf
         self.max_num_options = max_num_options
+        self.use_pos_for_init = use_pos_for_init
         
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
@@ -35,12 +38,11 @@ class RobustDSC(object):
 
         self.log_file = log_filename
 
-    def act(self, info):  # TODO
-        position = info["player_x"], info["player_y"]
+    def act(self, state, info):  # TODO
         for option in self.chain:
-            if option.is_init_true(position):
+            if option.is_init_true(state, info):
                 subgoal = option.get_goal_for_rollout()
-                if not option.is_term_true(position, info):
+                if not option.is_term_true(state, info):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
 
@@ -54,7 +56,7 @@ class RobustDSC(object):
         rollout_trajectory = []
 
         while not done and not reset and not reached:            
-            selected_option, subgoal = self.act(info)  # TODO: Maybe pass in the subgoal..
+            selected_option, subgoal = self.act(state, info)  # TODO: Maybe pass in the subgoal..
             next_state, done, reset, visited_positions, goal_pos, info = selected_option.rollout(state,
                                                                                                  info,
                                                                                                  eval_mode=eval_mode)
@@ -106,7 +108,11 @@ class RobustDSC(object):
 
             if episode > 0 and episode % 100 == 0:
                 for option in self.mature_options:
-                    plot_two_class_classifier(option, episode, self.experiment_name, seed=self.seed)
+                    if self.use_pos_for_init:
+                        plot_two_class_classifier(option, episode, self.experiment_name, seed=self.seed)
+                    else:
+                        option.initiation_classifier.plot_training_predictions(option.name, episode,
+                                                                               self.experiment_name, self.seed)
     
     def is_chain_complete(self):
         return all([option.get_training_phase() == "initiation_done" for option in self.chain]) \
@@ -119,9 +125,11 @@ class RobustDSC(object):
         return False
 
     def contains_init_state(self):
+        start_obs = self.init_salient_event.get_target_obs()
         start_pos = self.init_salient_event.get_target_position()
+        start_info = {"player_x": start_pos[0], "player_y": start_pos[1]}
         for option in self.mature_options:
-            if option.is_init_true(start_pos):
+            if option.is_init_true(start_obs, start_info):
                 return True
         return False
 
@@ -131,7 +139,11 @@ class RobustDSC(object):
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
 
-            plot_two_class_classifier(executed_option, episode, self.experiment_name, seed=self.seed)
+            if self.use_pos_for_init:
+                plot_two_class_classifier(executed_option, episode, self.experiment_name, seed=self.seed)
+            else:
+                executed_option.initiation_classifier.plot_training_predictions(executed_option.name, episode,
+                                                                                self.experiment_name, self.seed)
 
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
@@ -167,8 +179,10 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
                                  target_salient_event=self.target_salient_event,
+                                 gamma=self.gamma,
                                  use_oracle_rf=self.use_oracle_rf,
-                                 max_num_options=self.max_num_options)
+                                 max_num_options=self.max_num_options,
+                                 use_pos_for_init=self.use_pos_for_init)
         return option
 
     def create_global_option(self):
@@ -185,6 +199,8 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
                                  target_salient_event=self.target_salient_event,
+                                 gamma=self.gamma,
                                  use_oracle_rf=self.use_oracle_rf,
-                                 max_num_options=self.max_num_options)
+                                 max_num_options=self.max_num_options,
+                                 use_pos_for_init=self.use_pos_for_init)
         return option

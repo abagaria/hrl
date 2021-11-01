@@ -42,7 +42,9 @@ if __name__ == "__main__":
     parser.add_argument("--num_training_steps", type=int, default=int(2e6))
     parser.add_argument("--terminal_on_loss_of_life", action="store_true", default=False)
     parser.add_argument("--use_oracle_rf", action="store_true", default=False)
+    parser.add_argument("--use_pos_for_init", action="store_true", default=False)
     parser.add_argument("--max_num_options", type=int, default=5)
+    parser.add_argument("--gamma", type=float)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -74,6 +76,8 @@ if __name__ == "__main__":
                           args.experiment_name,
                           args.gpu_id,
                           args.use_oracle_rf,
+                          args.use_pos_for_init,
+                          args.gamma,
                           s0, p0, g0, (123, 148),
                           args.max_num_options,
                           args.seed,

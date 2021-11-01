@@ -1,24 +1,28 @@
 import numpy as np
 from copy import deepcopy
+from pfrl.wrappers import atari_wrappers
 from scipy.spatial import distance
 
 from hrl.agent.rainbow.rainbow import Rainbow
 from .classifier.position_classifier import PositionInitiationClassifier
+from .classifier.image_classifier import ImageInitiationClassifier
 
 
 class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
                  init_salient_event, target_salient_event, n_training_steps,
-                 use_oracle_rf, max_num_options):
+                 gamma, use_oracle_rf, max_num_options, use_pos_for_init):
         self.env = env
         self.name = name
+        self.gamma = gamma
         self.parent = parent
         self.gpu_id = gpu_id
         self.timeout = timeout
         self.global_solver = global_solver
         self.n_training_steps = n_training_steps
         self.use_oracle_rf = use_oracle_rf
+        self.use_pos_for_init = use_pos_for_init
         
         self.global_init = global_init
         self.buffer_length = buffer_length
@@ -33,7 +37,7 @@ class ModelFreeOption(object):
         self.num_executions = 0
         self.gestation_period = gestation_period
 
-        self.initiation_classifier = PositionInitiationClassifier()
+        self.initiation_classifier = self._get_initiation_classifier()
         self.solver = self._get_model_free_solver()
 
         self.children = []
@@ -62,6 +66,11 @@ class ModelFreeOption(object):
 
         return self.global_solver
 
+    def _get_initiation_classifier(self):
+        if self.use_pos_for_init:
+            return PositionInitiationClassifier()
+        return ImageInitiationClassifier(gamma=self.gamma)
+
     # ------------------------------------------------------------
     # Learning Phase Methods
     # ------------------------------------------------------------
@@ -71,30 +80,43 @@ class ModelFreeOption(object):
             return "gestation"
         return "initiation_done"
 
-    def is_init_true(self, state):
-        if self.global_init or self.get_training_phase() == "gestation":
-            return True
-        
-        if self.is_last_option and self.init_salient_event(state):
-            return True
-        
-        return self.initiation_classifier.optimistic_predict(state) \
-            or self.pessimistic_is_init_true(state)
-
-    def pessimistic_is_init_true(self, state):
+    def is_init_true(self, state, info):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
 
-        return self.initiation_classifier.pessimistic_predict(state)
+        pos = np.array([info["player_x"], info["player_y"]])
+        
+        if self.is_last_option and self.init_salient_event(pos):
+            return True
+
+        x = self.extract_init_features(state, info)
+        
+        return self.initiation_classifier.optimistic_predict(x) \
+            or self.pessimistic_is_init_true(state, info)
+
+    def pessimistic_is_init_true(self, state, info):
+        if self.global_init or self.get_training_phase() == "gestation":
+            return True
+
+        x = self.extract_init_features(state, info)
+        return self.initiation_classifier.pessimistic_predict(x)
 
     def is_term_true(self, state, info):
         if self.parent is None:
-            return self.target_salient_event(state)
+            pos = np.array([info["player_x"], info["player_y"]])
+            return self.target_salient_event(pos)
 
         if info["falling"] or info["dead"]:
             return False
 
-        return self.parent.pessimistic_is_init_true(state)
+        return self.parent.pessimistic_is_init_true(state,  info)
+
+    def extract_init_features(self, state, info):
+        if self.use_pos_for_init:
+            return np.array([info["player_x"], info["player_y"]])
+        
+        if isinstance(state, atari_wrappers.LazyFrames):
+            return state._frames[-1]
 
     # ------------------------------------------------------------
     # Control Loop Methods
@@ -109,13 +131,6 @@ class ModelFreeOption(object):
         reward = float(reached)
 
         return reward, reached
-
-    def is_at_local_goal(self, info, goal_pos):
-        pos = info["player_x"], info["player_y"]
-        if self.use_oracle_rf:
-            _, reached = self.rf(pos, goal_pos)
-            return reached and self.is_term_true(pos, info)
-        return self.is_term_true(pos, info)
 
     def act(self, state, goal):
         assert isinstance(self.solver, Rainbow), f"{type(self.solver)}"
@@ -138,7 +153,7 @@ class ModelFreeOption(object):
     def rollout(self, start_state, info, eval_mode=False):
         """ Main option control loop. """
         start_position = info["player_x"], info["player_y"]
-        assert self.is_init_true(start_position)
+        assert self.is_init_true(start_state, info)
 
         done = False
         reset = False
@@ -194,7 +209,7 @@ class ModelFreeOption(object):
 
             state = next_state
 
-        reached_term = self.is_term_true(pos, info)
+        reached_term = self.is_term_true(state, info)
         self.success_curve.append(reached_term)            
 
         if not eval_mode:
@@ -224,6 +239,8 @@ class ModelFreeOption(object):
     # ------------------------------------------------------------
 
     def no_rf_update(self, transitions, pursued_goal, reached_termination_region):
+        """ Hindsight experience replay without requiring an oracle reward function. """
+
         if reached_termination_region:
             final_transition = transitions[-1]
             reached_goal = final_transition[3]

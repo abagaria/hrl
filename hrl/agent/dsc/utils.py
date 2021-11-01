@@ -67,7 +67,7 @@ def get_initiation_set_values(option, low, high, res):
     for x in np.arange(low[0], high[0]+res, res):
         for y in np.arange(low[1], high[1]+res, res):
             pos = np.array((x, y))
-            init = option.is_init_true(pos)
+            init = option.is_init_true(pos, {"player_x": x, "player_y": y})
             values.append(init)
     return values
 
