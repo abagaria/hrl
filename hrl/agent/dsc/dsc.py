@@ -9,35 +9,36 @@ from hrl.agent.dsc.utils import *
 from hrl.option import ModelBasedOption
 
 
-class RobustDSC:
-    def __init__(self, mdp, params):
+class RobustDSC(object):
+    def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
+                 use_diverse_starts, use_dense_rewards, lr_c, lr_a,
+                 experiment_name, device,
+                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
 
-        self.lr_c = params['lr_c']
-        self.lr_a = params['lr_a']
+        self.lr_c = lr_c
+        self.lr_a = lr_a
 
-        self.device = torch.device(params['device'])
-        self.use_vf = params['use_value_function']
-        self.use_global_vf = params['use_global_value_function']
-        self.use_model = params['use_model']
-        self.experiment_name = params['experiment_name']
-        self.warmup_episodes = params['warmup_episodes']
-        self.max_steps = params['steps']
-        self.use_diverse_starts = params['use_diverse_starts']
-        self.use_dense_rewards = params['use_dense_rewards']
-        self.clear_option_buffers = params['clear_option_buffers']
-        self.use_global_option_subgoals = params['use_global_option_subgoals']
+        self.device = device
+        self.use_vf = use_vf
+        self.use_global_vf = use_global_vf
+        self.use_model = use_model
+        self.experiment_name = experiment_name
+        self.warmup_episodes = warmup_episodes
+        self.max_steps = max_steps
+        self.use_diverse_starts = use_diverse_starts
+        self.use_dense_rewards = use_dense_rewards
+        self.multithread_mpc = multithread_mpc
 
-        self.multithread_mpc = params['multithread_mpc']
+        self.seed = seed
+        self.logging_freq = logging_freq
+        self.evaluation_freq = evaluation_freq
+        self.generate_init_gif = generate_init_gif
 
-        self.seed = params['seed']
-        self.logging_freq = params['logging_frequency']
-        self.evaluation_freq = params['evaluation_frequency']
-        self.generate_init_gif = params['generate_init_gif']
-
-        self.buffer_length = params['buffer_length']
-        self.gestation_period = params['gestation_period']
+        self.buffer_length = buffer_length
+        self.gestation_period = gestation_period
 
         self.mdp = mdp #D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
+        self.mdp = mdp
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -84,7 +85,7 @@ class RobustDSC:
             selected_option, subgoal = self.act(state)
 
             # Overwrite the subgoal for the global-option
-            if selected_option == self.global_option and self.use_global_option_subgoals:
+            if selected_option == self.global_option:
                 subgoal = self.pick_subgoal_for_global_option(state)
 
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
@@ -159,12 +160,6 @@ class RobustDSC:
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
 
-            if self.clear_option_buffers:
-                self.filter_replay_buffer(executed_option)
-
-        if executed_option.num_goal_hits == 2 * executed_option.gestation_period and self.clear_option_buffers:
-            self.filter_replay_buffer(executed_option)
-
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
             new_option = self.create_model_based_option(name, parent=self.mature_options[-1])
@@ -183,11 +178,6 @@ class RobustDSC:
         if nearest_option is not None:
             return nearest_option.sample_from_initiation_region_fast_and_epsilon()
         return self.global_option.get_goal_for_rollout()
-
-    def filter_replay_buffer(self, option):
-        assert isinstance(option, ModelBasedOption)
-        print(f"Clearing the replay buffer for {option.name}")
-        option.value_learner.replay_buffer.clear()
 
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
