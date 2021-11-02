@@ -1,11 +1,13 @@
 import numpy as np
 from copy import deepcopy
-from pfrl.wrappers import atari_wrappers
+from collections import deque
 from scipy.spatial import distance
+from pfrl.wrappers import atari_wrappers
 
 from hrl.agent.rainbow.rainbow import Rainbow
 from .classifier.position_classifier import PositionInitiationClassifier
 from .classifier.image_classifier import ImageInitiationClassifier
+from ...salient_event.salient_event import SalientEvent
 
 
 class ModelFreeOption(object):
@@ -13,7 +15,7 @@ class ModelFreeOption(object):
                  buffer_length, gestation_period, timeout, gpu_id,
                  init_salient_event, target_salient_event, n_training_steps,
                  gamma, use_oracle_rf, max_num_options, use_pos_for_init):
-        self.env = env
+        self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
         self.gamma = gamma
         self.parent = parent
@@ -42,6 +44,7 @@ class ModelFreeOption(object):
 
         self.children = []
         self.success_curve = []
+        self.effect_set = deque([], maxlen=50)
 
         print(f"Created model-free option {self.name} with option_idx={self.option_idx}")
 
@@ -213,26 +216,32 @@ class ModelFreeOption(object):
         self.success_curve.append(reached_term)            
 
         if not eval_mode:
-            
-            # Update the option goal counter
-            if reached_term:
-                self.num_goal_hits += 1
-                print(f"{self.name} reached term set {self.num_goal_hits} times.")
-
-            # Update value function
-            if self.use_oracle_rf:
-                self.solver.her(option_transitions, visited_positions, goal, goal_pos)
-            else:
-                self.no_rf_update(option_transitions, goal, reached_term)
-
-            # Update initiation classifiers
-            if not self.global_init and len(visited_states) > 0:
-                self.derive_training_examples(visited_states, visited_positions, reached_term)
-            
-            if not self.global_init:
-                self.initiation_classifier.fit_initiation_classifier()
+            self.update_option_after_rollout(state, info, goal, option_transitions, 
+                                             visited_states, visited_positions, reached_term)
 
         return state, done, reset, visited_positions, goal_pos, info
+
+    def update_option_after_rollout(self, state, info, goal, option_transitions,
+                                    visited_states, visited_positions, reached_term):
+        """ After rolling out an option policy, update its effect set, policy and initiation classifier. """
+
+        if reached_term:
+            self.num_goal_hits += 1
+            self.effect_set.append((state, info))
+            print(f"{self.name} reached term set {self.num_goal_hits} times.")
+
+            if self.parent is None and self.target_salient_event is not None:
+                assert isinstance(self.target_salient_event, SalientEvent)
+                self.target_salient_event.add_to_effect_set(state, (info["player_x"], info["player_y"]))
+
+        assert not self.use_oracle_rf, "Deprecated"
+        self.no_rf_update(option_transitions, goal, reached_term)
+
+        if not self.global_init and len(visited_states) > 0:
+            self.derive_training_examples(visited_states, visited_positions, reached_term)
+        
+        if not self.global_init:
+            self.initiation_classifier.fit_initiation_classifier()
 
     # ------------------------------------------------------------
     # Hindsight Experience Replay
@@ -296,6 +305,7 @@ class ModelFreeOption(object):
     # ------------------------------------------------------------
 
     def value_function(self, obs, goals):
+        """ Value function for a single observation and a set of goals. """
         augmented_states = [self.solver.get_augmented_state(obs, goal) for goal in goals]
         return self.solver.value_function(augmented_states)
 
