@@ -45,6 +45,11 @@ class EpisodicSyncVectorEnv(pfrl.envs.MultiprocessVectorEnv):
     This VectorEnv supports the different parallel envs sync at the end of an episode run
     This is used for when each of the parallel env is run by episodes, instead of total number
     of step (for running total number of step, just use pfrl.envs.MultiprocessVectorEnv)
+
+    when a certain environment has finished running the current epsiode, env.step()
+    will return a StopExecution toekn, which will be used in the training loop to
+    indicate that the environment has finished. 
+    It is up to the training loop what to do with the StopExecution token.
     """
     def __init__(self, env_fns, max_episode_len=None):
         """

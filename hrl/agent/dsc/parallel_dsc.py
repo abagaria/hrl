@@ -3,6 +3,7 @@ from collections import deque
 
 import numpy as np
 
+from hrl.utils import StopExecution
 from hrl.agent.dsc.utils import *
 from hrl.salient_event.SalientEventClass import SalientEvent
 from hrl.envs.vector_env import EpisodicSyncVectorEnv
@@ -78,17 +79,23 @@ class ParallelRobustDSC:
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
     
-    def batch_observe(self, batch_states, batch_actions, batch_rewards, batch_nest_states, batch_dones):
+    def batch_observe(self, batch_states, batch_actions, batch_rewards, batch_next_states, batch_dones):
         """
         main API for interacting with the env: observe batched transitions
+
+        all batched transitions will have length self.nenvs, although some might be
+        the stop token, and it is up to this function to ignore them. # TODO
         """
         assert len(batch_states) == self.nenvs
         for i in range(self.nenvs):
+            # ignore the envs that have finished
+            if batch_states[i] is StopExecution:
+                continue
             self.current_controlling_options[i].observe(
                 batch_states[i],
                 batch_actions[i],
                 batch_rewards[i],
-                batch_nest_states[i],
+                batch_next_states[i],
                 batch_dones[i]
             )
 
@@ -98,14 +105,21 @@ class ParallelRobustDSC:
         return batched primitive actions for the environment
 
         the batched_states should be the original state, not enhanced by the goal
+
+        the input batch_states will always to of length self.nenvs, although some
+        index of it might be the stop token, and it is up to this function to ignore
+        it. The batched_actions return should always be of length slef.nenvs
         """
         if not evaluation_mode:
             assert len(batch_states) == self.nenvs
         batch_options, batch_goals = self.batch_pick_options_and_goals(batch_states, evaluation_mode)
         batched_actions = []
         for i, (option, goal) in enumerate(zip(batch_options, batch_goals)):
-            a = option.act(batch_states[i], goal, eval_mode=evaluation_mode)
-            batched_actions.append(a)
+            if batch_states[i] is StopExecution:
+                batched_actions.append(StopExecution)
+            else:
+                a = option.act(batch_states[i], goal, eval_mode=evaluation_mode)
+                batched_actions.append(a)
         return batched_actions
         
 
@@ -114,12 +128,18 @@ class ParallelRobustDSC:
         1. picking the options and goals
         2. updating the two lists agent keeps track of
         3. updating the options themselves
+
+        note that the batch_state is always of length self.nenvs, but some of it
+        might be the StopExecution token.
         """
         if evaluation_mode:
             nenvs = len(batch_states)
         else:
             assert len(batch_states) == self.nenvs
         for i, state in enumerate(batch_states):
+            # ignore envs that have already stopped
+            if state is StopExecution:
+                continue
             # see if option rollout has terminated
             option = self.current_controlling_options[i]
             at_goal = option.is_at_local_goal(state, self.current_subgoals[i])

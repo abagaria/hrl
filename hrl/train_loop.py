@@ -206,12 +206,18 @@ def episode_rollout(
     while not env.all_envs_done:
         # a_t
         assert len(obss) == num_envs
-        filtered_obss = filter_token(obss)  # (num_running_env, state_dim)
-        if goal_conditoned and not hierarchical:
-            enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), filtered_obss))
+        if hierarchical:
+            # for hierarchical methods, need to know which environment has terminated
+            raw_actions = agent.batch_act(obss, evaluation_mode=testing)
+            actions = filter_token(raw_actions)
         else:
-            enhanced_obss = filtered_obss
-        actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
+            # for flat methods, filter the StopExecution token because the agent doesn't care
+            filtered_obss = filter_token(obss)  # (num_running_env, state_dim)
+            if goal_conditoned:
+                enhanced_obss = list(map(lambda obs: utils.augment_state(obs, goal_state), filtered_obss))
+            else:
+                enhanced_obss = filtered_obss
+            actions = agent.batch_act(enhanced_obss, evaluation_mode=testing)
         assert len(actions) == num_envs - env.n_done_envs  # assert actions.shape == (num_running_env, action_dim)
 
         # o_{t+1}, r_{t+1}
@@ -234,14 +240,20 @@ def episode_rollout(
 
         # add to experience buffer
         if not testing:
-            # make sure everything is the same size
-            filtered_next_obss = filter_token(next_obss)  # remove the None
-            filtered_actions = filter_token(actions)  # remove the None
-            filtered_rs = filter_token(rs)  # remove the None
-            filtered_dones = filter_token(dones)  # remove the None
-            
-            assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
-            trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, env.episode_dones))
+
+            # hierarchical methods do experience replay along the way
+            if hierarchical:
+                agent.batch_observe(obss, raw_actions, rs, next_obss, dones)
+            else:
+                # flat methods only do experience replay at the end
+                filtered_next_obss = filter_token(next_obss)  # remove the None
+                filtered_actions = filter_token(actions)  # remove the None
+                filtered_rs = filter_token(rs)  # remove the None
+                filtered_dones = filter_token(dones)  # remove the None
+
+                # make sure everything is the same size
+                assert len(filtered_obss) == len(filtered_actions) == len(filtered_rs) == len(filtered_next_obss) == len(filtered_dones)
+                trajectory.append((filtered_obss, filtered_actions, filtered_rs, filtered_next_obss, filtered_dones, env.episode_dones))
         
         # update obss
         obss = [StopExecution if env.episode_dones[i]==True else obs for i, obs in enumerate(next_obss)]  # mask done states
