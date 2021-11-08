@@ -11,7 +11,7 @@ class MontezumaRAMMDP:
         self.env_name = "MontezumaRevengeNoFrameskip-v4"
         self.env = wrap_deepmind(
             make_atari(env_id=self.env_name), 
-            episode_life=False, 
+            episode_life=True, 
             frame_stack=True,)
 
         self.render = render
@@ -32,8 +32,8 @@ class MontezumaRAMMDP:
         image, _, _, _ = self.env.step(action)
         ram = self.get_current_ram()
 
-        if self.render:
-            self.env.render()
+        # if self.render:
+        #     self.env.render()
 
         # reward = np.sign(reward)  # Reward clipping
         # is_dead = self.get_num_lives(ram) < self.num_lives

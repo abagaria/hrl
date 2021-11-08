@@ -14,15 +14,14 @@ class MRRAMState:
         self.ram = ram
 
     def get_player_x(self, ram):
-        return int(self.getByte(ram, 'aa')) / 150.
+        return int(self.getByte(ram, 'aa'))
 
     def get_player_y(self, ram):
-        return int(self.getByte(ram, 'ab')) / 250.
-
+        return int(self.getByte(ram, 'ab'))
     def get_position(self, ram):
         x = self.get_player_x(ram)
         y = self.get_player_y(ram)
-        return np.array((x, y))
+        return (np.array((x, y)))
 
     def get_direction(self, ram):
         # look is 1 if player is looking left else 0

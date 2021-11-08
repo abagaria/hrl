@@ -1,8 +1,18 @@
 import pfrl
 import argparse
+import cv2
+import pdb
 
 from hrl.tasks.monte.MRRAMMDPClass import MontezumaRAMMDP
 from hrl.agent.rainbow.rainbow import Rainbow
+
+def write_to_disk(traj):
+    idx = 0
+    for result in traj:
+        img = result[0]
+        idx += 1
+        cv2.imwrite(f'debug-images/{idx}.png', img[:,:,-1])
+    print(f'wrote {len(traj)} images')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -39,7 +49,7 @@ if __name__ == "__main__":
                             use_her=False,
                     )
 
-    start = (20,148)
+    start = (60,148)
     end = (99,148)
 
     mdp.set_player_position(end[0], end[1])
@@ -53,11 +63,16 @@ if __name__ == "__main__":
         mdp.reset()
         mdp.set_player_position(*start)
         
-        episodic_reward, episodic_duration, max_episodic_reward = rainbow_agent.gc_rollout(mdp,
+        episodic_reward, episodic_duration, max_episodic_reward, trajectory = rainbow_agent.gc_rollout(mdp,
                                                                                             goal_img,
                                                                                             end,
                                                                                             current_episode_number,
                                                                                             max_episodic_reward)
+        # write_to_disk(trajectory)
+        print((rainbow_agent.my_dict))
+        # pdb.set_trace()
+
+
     # mdp.saveImage("img1")
     # mdp.set_player_position(start[0], start[1])
     # mdp.saveImage("img2")
