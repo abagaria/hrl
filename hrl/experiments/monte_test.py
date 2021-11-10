@@ -2,7 +2,10 @@ import pfrl
 import argparse
 import cv2
 import pdb
+import numpy as np
+import matplotlib.pyplot as plt
 
+from tqdm import tqdm
 from hrl.tasks.monte.MRRAMMDPClass import MontezumaRAMMDP
 from hrl.agent.rainbow.rainbow import Rainbow
 
@@ -13,6 +16,42 @@ def write_to_disk(traj):
         idx += 1
         cv2.imwrite(f'debug-images/{idx}.png', img[:,:,-1])
     print(f'wrote {len(traj)} images')
+
+def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, episode, seed, experiment_name, chunk_size=1000):
+    assert isinstance(pfrl_agent, Rainbow)
+
+    def get_augmented_state(state, goal):
+        if np.shape(goal) == (84, 84):
+            goal = np.expand_dims(goal, 2)
+        res = np.concatenate((goal, state), axis=2)
+        return np.reshape(res, (5, 84, 84))
+
+    def get_chunks(x, n):
+        """ Break x into chunks of size n. """
+        for i in range(0, len(x), n):
+            yield x[i: i+n]
+
+    states = augmenent_states(states, goal)
+    state_chunks = get_chunks(states, chunk_size)
+    values = np.zeros((len(states),))
+    current_idx = 0
+
+    for state_chunk in tqdm(state_chunks, desc="Making VF plot"):
+        chunk_values = pfrl_agent.value_function(state_chunk).cpu().numpy()
+        current_chunk_size = len(state_chunk)
+        values[current_idx:current_idx + current_chunk_size] = chunk_values
+        current_idx += current_chunk_size
+
+    x = [info['player_x'] for info in infos]
+    y = [info['player_y'] for info in infos]
+
+    plt.scatter(x, y, c=values)
+    plt.colorbar()
+    file_name = f"rainbow_value_function_seed_{seed}_episode_{episode}"
+    plt.savefig(f"plots/{experiment_name}/{seed}/{file_name}.png")
+    plt.close()
+
+    return values.max()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
