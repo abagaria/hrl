@@ -15,7 +15,7 @@ def write_to_disk(traj):
     for result in traj:
         img = result[0]
         idx += 1
-        cv2.imwrite(f'debug-images/{idx}.png', img[:,:,-1])
+        cv2.imwrite(f'debug-images/{idx}.png', np.squeeze(img._frames[-1]))
     print(f'wrote {len(traj)} images')
 
 def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, episode, seed, experiment_name, chunk_size=1000):
@@ -118,7 +118,8 @@ if __name__ == "__main__":
         # print(len(buffer))
         # print((rainbow_agent.my_dict))
         # pdb.set_trace()
-        if episodic_reward >= 0:
+        if episodic_reward > 0:
+            # pass
         #     # write_to_disk(trajectory)
             pdb.set_trace()
         # write_to_disk(trajectory)

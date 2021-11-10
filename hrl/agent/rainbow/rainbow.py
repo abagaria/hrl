@@ -95,9 +95,10 @@ class Rainbow:
             self.step(*relabeled_transition)
             if done: break  # it helps to truncate the trajectory for HER strategy `future`
 
-    def get_augmented_state(s, g):
+    def get_augmented_state(self, s, g):
         assert isinstance(g, (np.ndarray, atari_wrappers.LazyFrames)), type(g)
-        return atari_wrappers.LazyFrames(s._frames+[g._frames[-1]])
+        # pdb.set_trace()
+        return atari_wrappers.LazyFrames(list(s._frames)+[g._frames[-1]], stack_axis=0)
 
     def gc_rollout(self, mdp:MontezumaRAMMDP, goal_img, goal_position: Tuple, episode, max_reward_so_far, limit=500):
         """ Single episodic rollout of the agent's policy. """
