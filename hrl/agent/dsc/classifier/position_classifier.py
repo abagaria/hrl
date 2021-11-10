@@ -6,15 +6,8 @@ from collections import deque
 from pfrl.wrappers import atari_wrappers
 from sklearn.svm import OneClassSVM, SVC
 from .init_classifier import InitiationClassifier
+from hrl.agent.dsc.datastructures import TrainingExample
 
-
-class TrainingExample:
-    def __init__(self, obs, pos):
-        assert isinstance(obs, atari_wrappers.LazyFrames)
-        assert isinstance(pos, (tuple, np.ndarray))
-
-        self.obs = obs
-        self.pos = pos
 
 
 class PositionInitiationClassifier(InitiationClassifier):

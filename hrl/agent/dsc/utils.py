@@ -6,44 +6,8 @@ import scipy
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from treelib import Tree, Node
 from pfrl.wrappers import atari_wrappers
 from hrl.agent.rainbow.rainbow import Rainbow
-
-
-class SkillTree(object):
-    def __init__(self, options):
-        self._tree = Tree()
-        self.options = options
-
-        if len(options) > 0:
-            [self.add_node(option) for option in options]
-
-    def add_node(self, option):
-        if option.name not in self._tree:
-            print(f"Adding {option} to the skill-tree")
-            self.options.append(option)
-            parent = option.parent.name if option.parent is not None else None
-            self._tree.create_node(tag=option.name, identifier=option.name, data=option, parent=parent)
-
-    def get_option(self, option_name):
-        if option_name in self._tree.nodes:
-            node = self._tree.nodes[option_name]
-            return node.data
-
-    def get_depth(self, option):
-        return self._tree.depth(option.name)
-
-    def get_children(self, option):
-        return self._tree.children(option.name)
-
-    def traverse(self):
-        """ Breadth first search traversal of the skill-tree. """
-        return list(self._tree.expand_tree(mode=self._tree.WIDTH))
-
-    def show(self):
-        """ Visualize the graph by printing it to the terminal. """
-        self._tree.show()
 
 
 def make_meshgrid(x, y, h=1.):

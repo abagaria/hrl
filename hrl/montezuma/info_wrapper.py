@@ -3,6 +3,7 @@ import gym
 
 class MontezumaInfoWrapper(gym.Wrapper):
     def __init__(self, env):
+        self.T = 0
         self.num_lives = None
         gym.Wrapper.__init__(self, env)
     
@@ -13,6 +14,7 @@ class MontezumaInfoWrapper(gym.Wrapper):
         return s0, info
 
     def step(self, action):
+        self.T += 1
         obs, reward, done, info = self.env.step(action)
         info = self.get_current_info()
         self.num_lives = info["lives"]

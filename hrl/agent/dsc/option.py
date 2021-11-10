@@ -1,3 +1,4 @@
+import ipdb
 import numpy as np
 from copy import deepcopy
 from collections import deque
@@ -7,20 +8,22 @@ from pfrl.wrappers import atari_wrappers
 from hrl.agent.rainbow.rainbow import Rainbow
 from .classifier.position_classifier import PositionInitiationClassifier
 from .classifier.image_classifier import ImageInitiationClassifier
-from ...salient_event.salient_event import SalientEvent
+from hrl.salient_event.salient_event import SalientEvent
+from .datastructures import TrainingExample
 
 
 class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
                  init_salient_event, target_salient_event, n_training_steps,
-                 gamma, use_oracle_rf, max_num_options, use_pos_for_init):
+                 gamma, use_oracle_rf, max_num_options, use_pos_for_init, chain_id):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
         self.gamma = gamma
         self.parent = parent
         self.gpu_id = gpu_id
         self.timeout = timeout
+        self.chain_id = chain_id
         self.global_solver = global_solver
         self.n_training_steps = n_training_steps
         self.use_oracle_rf = use_oracle_rf
@@ -153,7 +156,7 @@ class ModelFreeOption(object):
 
         return sampled_goal.obs, sampled_goal.pos
 
-    def rollout(self, start_state, info, eval_mode=False):
+    def rollout(self, start_state, info, dsc_goal_salient_event, eval_mode=False):
         """ Main option control loop. """
         start_position = info["player_x"], info["player_y"]
         assert self.is_init_true(start_state, info)
@@ -173,7 +176,10 @@ class ModelFreeOption(object):
         visited_positions = [pos]
         visited_states = [start_state]
 
-        goal, goal_pos = self.get_goal_for_rollout()
+        goal, goal_pos = (dsc_goal_salient_event.target_obs, dsc_goal_salient_event.target_pos) 
+        
+        if not self.global_init:
+            goal, goal_pos = self.get_goal_for_rollout()
 
         print(f"Rolling out {self.name}, from {start_position} targeting {goal_pos}")
 
@@ -212,8 +218,8 @@ class ModelFreeOption(object):
 
             state = next_state
 
-        reached_term = self.is_term_true(state, info)
-        self.success_curve.append(reached_term)            
+        reached_term = self.is_term_true(state, info) if not self.global_init else dsc_goal_salient_event(pos)
+        self.success_curve.append(reached_term)
 
         if not eval_mode:
             self.update_option_after_rollout(state, info, goal, option_transitions, 
@@ -227,12 +233,12 @@ class ModelFreeOption(object):
 
         if reached_term:
             self.num_goal_hits += 1
-            self.effect_set.append((state, info))
+            self.add_to_effect_set(state, info)
             print(f"{self.name} reached term set {self.num_goal_hits} times.")
 
             if self.parent is None and self.target_salient_event is not None:
                 assert isinstance(self.target_salient_event, SalientEvent)
-                self.target_salient_event.add_to_effect_set(state, (info["player_x"], info["player_y"]))
+                self.target_salient_event.add_to_effect_set(state, info)
 
         assert not self.use_oracle_rf, "Deprecated"
         self.no_rf_update(option_transitions, goal, reached_term)
@@ -339,6 +345,15 @@ class ModelFreeOption(object):
     # Convenience functions
     # ------------------------------------------------------------
 
+    def add_to_effect_set(self, obs, info):
+        self.effect_set.append(TrainingExample(obs, info))
+
+    def get_effective_effect_set(self):  # TODO: batched version
+        """ Return the subset of the effect set still in the termination region. """
+        if self.global_init:
+            ipdb.set_trace()
+        return [eg for eg in self.effect_set if self.is_term_true(eg.obs, eg.info)]
+
     def get_sibling_options(self):
         if self.parent is not None:
             return [option for option in self.parent.children if option != self]
@@ -364,3 +379,6 @@ class ModelFreeOption(object):
         if isinstance(other, ModelFreeOption):
             return self.name == other.name
         return False
+    
+    def __hash__(self):
+        return hash(self.name)

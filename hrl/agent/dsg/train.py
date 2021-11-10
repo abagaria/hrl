@@ -8,15 +8,17 @@ import argparse
 
 from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
+from hrl.agent.dsg.dsg import SkillGraphAgent
+from hrl.agent.dsg.trainer import DSGTrainer
 from pfrl.wrappers import atari_wrappers
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
 
 
-def make_env(env_name, seed, terminal_on_loss_of_life=False):
+def make_env(env_name, seed):
     env = atari_wrappers.wrap_deepmind(
         atari_wrappers.make_atari(env_name, max_frames=30 * 60 * 60),
-        episode_life=terminal_on_loss_of_life,
+        episode_life=False,
         clip_rewards=False
     )
 
@@ -25,11 +27,14 @@ def make_env(env_name, seed, terminal_on_loss_of_life=False):
     return MontezumaInfoWrapper(env)
 
 
-def load_goal_state(dir_path):
-    file_name = os.path.join(dir_path, "bottom_right_states.pkl")
+def load_goal_state(dir_path, file):
+    file_name = os.path.join(dir_path, file)
     with open(file_name, "rb") as f:
         goals = pickle.load(f)
-    return random.choice(goals).frame
+    goal = random.choice(goals)
+    if hasattr(goal, "frame"):
+        return goal.frame
+    return goal.obs
 
 
 if __name__ == "__main__":
@@ -41,7 +46,6 @@ if __name__ == "__main__":
     parser.add_argument("--gestation_period", type=int, default=10)
     parser.add_argument("--buffer_length", type=int, default=50)
     parser.add_argument("--num_training_steps", type=int, default=int(2e6))
-    parser.add_argument("--terminal_on_loss_of_life", action="store_true", default=False)
     parser.add_argument("--use_oracle_rf", action="store_true", default=False)
     parser.add_argument("--use_pos_for_init", action="store_true", default=False)
     parser.add_argument("--max_num_options", type=int, default=5)
@@ -60,21 +64,26 @@ if __name__ == "__main__":
     with open(f"logs/{args.experiment_name}/{args.seed}/hyperparameters.txt", "w+") as _args_file:
         json.dump(args.__dict__, _args_file, indent=2)
 
-    _log_file = f"logs/{args.experiment_name}/{args.seed}/dsc_log.pkl"
+    _log_file = f"logs/{args.experiment_name}/{args.seed}/dsg_log.pkl"
 
-    env = make_env(args.environment_name,
-                   seed=args.seed, terminal_on_loss_of_life=args.terminal_on_loss_of_life)
+    env = make_env(args.environment_name, seed=args.seed)
 
     s0, _ = env.reset()
     p0 = env.get_current_position()
 
+    goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
+    
     gpos = (123, 148)
-    g0 = load_goal_state(os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states"))
+    g0 = load_goal_state(goal_dir_path, file="bottom_right_states.pkl")
+
+    gpos1 = (132, 192)
+    g1 = load_goal_state(goal_dir_path, file="top_bottom_right_ladder_states.pkl")
 
     pfrl.utils.set_random_seed(args.seed)
 
     beta0 = SalientEvent(s0, p0, tol=2.)
     beta1 = SalientEvent(g0, gpos, tol=2.)
+    beta2 = SalientEvent(g1, gpos1, tol=2.)
 
     dsc_agent = RobustDSC(env,
                           args.gestation_period,
@@ -88,9 +97,11 @@ if __name__ == "__main__":
                           args.max_num_options,
                           args.seed,
                           _log_file)
-    
-    chain = dsc_agent.create_new_chain(init_event=beta0, target_event=beta1)
 
+    dsg_agent = SkillGraphAgent(dsc_agent)
+    
+    trainer = DSGTrainer(env, dsc_agent, dsg_agent, 1000, 100, [beta1, beta2])
+    
     t0 = time.time()
-    dsc_agent.run_loop(goal_salient_event=beta1, num_steps=args.num_training_steps)
+    trainer.run_loop(0, int(1e4))
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")
