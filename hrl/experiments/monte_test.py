@@ -2,6 +2,7 @@ import pfrl
 import argparse
 import cv2
 import pdb
+import collections
 
 from hrl.tasks.monte.MRRAMMDPClass import MontezumaRAMMDP
 from hrl.agent.rainbow.rainbow import Rainbow
@@ -61,19 +62,27 @@ if __name__ == "__main__":
     max_episodic_reward = 0
     current_episode_number = 0
     
+    buffer = collections.deque(maxlen=1000)
+    ram_buffer = collections.deque(maxlen=1000)
+
     while current_step_number < args.num_training_steps:
         mdp.reset()
         mdp.set_player_position(*start)
         
-        episodic_reward, episodic_duration, max_episodic_reward, trajectory = rainbow_agent.gc_rollout(mdp,
+        episodic_reward, episodic_duration, max_episodic_reward, trajectory, ram_trajectory = rainbow_agent.gc_rollout(mdp,
                                                                                             goal_img,
                                                                                             end,
                                                                                             current_episode_number,
                                                                                             max_episodic_reward)
+
+        buffer.append(trajectory)
+        ram_buffer.append(ram_trajectory)
+        # pdb.set_trace()
+        # print(len(buffer))
         # print((rainbow_agent.my_dict))
         # pdb.set_trace()
         if episodic_reward >= -100:
-            # write_to_disk(trajectory)
+        #     # write_to_disk(trajectory)
             pdb.set_trace()
         # write_to_disk(trajectory)
 

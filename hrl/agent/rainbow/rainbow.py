@@ -116,17 +116,8 @@ class Rainbow:
             if done: break  # it helps to truncate the trajectory for HER strategy `future`
 
     def get_augmented_state(self, state, goal):
-        # assert isinstance(state, atari_wrappers.LazyFrames), type(state)
-        # assert isinstance(goal, atari_wrappers.LazyFrames), type(goal)
-        # np.concatenate((state, goal), axis=0)
-        # print(state.shape, goal.shape)
-
         if np.shape(goal) == (84, 84):
             goal = np.expand_dims(goal, 2)
-        # goal = goal[:, :, np.newaxis]
-        # pdb.set_trace()
-        # return np.concatenate((state, goal), axis=0)
-        # pdb.set_trace()
         res = np.concatenate((goal, state), axis=2)
         return np.reshape(res, (5, 84, 84))
 
@@ -203,6 +194,7 @@ class Rainbow:
         episode_reward = 0.
         episode_positions = []
         episode_trajectory = []
+        ram_trajectory = []
 
         while not done and not reset and not reached and episode_length < limit:
             sg = self.get_augmented_state(mdp.curr_state.image, goal_img)
@@ -220,6 +212,7 @@ class Rainbow:
 
             ram = mdp.curr_state.ram
             player_pos = mdp.curr_state.get_position(ram)
+            ram_trajectory.append(ram)
             episode_positions.append(player_pos)
             episode_trajectory.append(
                                       (prev_state.image,
@@ -244,7 +237,7 @@ class Rainbow:
         max_reward_so_far = max(episode_reward, max_reward_so_far)
         print(f"Episode: {episode}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
-        return episode_reward, episode_length, max_reward_so_far, episode_trajectory
+        return episode_reward, episode_length, max_reward_so_far, episode_trajectory, ram_trajectory
     
     # def her(self, trajectory, visited_positions, pursued_goal, pursued_goal_position=(123, 148)):
     #     hindsight_goal, hindsight_goal_idx = self.pick_hindsight_goal(trajectory)
