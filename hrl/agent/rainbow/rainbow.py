@@ -82,100 +82,22 @@ class Rainbow:
         action_values = self.agent.model(batch_states).q_values
         return action_values.max(dim=1).values
 
-    # def experience_replay(self, trajectory):
-    #     """ Add trajectory to the replay buffer and perform agent learning updates. """
-
-    #     for transition in trajectory:
-    #         self.step(*transition)
-
     def gc_experience_replay(self, trajectory, goal, goal_position):
         """ Add trajectory to the replay buffer and perform agent learning updates. """
 
         def is_close(pos1, pos2, tol):
             return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
-
-        # def rf():
-        #     ram = mdp.curr_state.ram
-        #     p1 = mdp.curr_state.get_position(ram)
-        #     p2 = goal_position
-        #     d = is_close(p1, p2, 5)
-        #     # print(p1)
-        #     if d:
-        #         d = 10
-        #     else:
-        #         d = -1
-        #     return float(d), d == 10
         
         for state, action, reward, next_state, done, reset, next_pos in trajectory:
-            # pdb.set_trace()
             augmented_state = self.get_augmented_state(state, goal)
             augmented_next_state = self.get_augmented_state(next_state, goal)
-            # reward, reached = rf(next_pos, goal_position)
             relabeled_transition = augmented_state, action, reward, augmented_next_state, done, reset
             self.step(*relabeled_transition)
             if done: break  # it helps to truncate the trajectory for HER strategy `future`
 
-    def get_augmented_state(self, state, goal):
-        # assert isinstance(state, atari_wrappers.LazyFrames), type(state)
-        # assert isinstance(goal, atari_wrappers.LazyFrames), type(goal)
-        # np.concatenate((state, goal), axis=0)
-        # print(state.shape, goal.shape)
-
-        if np.shape(goal) == (84, 84):
-            goal = np.expand_dims(goal, 2)
-        # goal = goal[:, :, np.newaxis]
-        # pdb.set_trace()
-        # return np.concatenate((state, goal), axis=0)
-        # pdb.set_trace()
-        res = np.concatenate((goal, state), axis=2)
-        return np.reshape(res, (5, 84, 84))
-
-    # def rollout(self, env, state, episode, max_reward_so_far):
-    #     """ Single episodic rollout of the agent's policy. """
-
-    #     def is_close(pos1, pos2, tol):
-    #         return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
-
-    #     def rf(info_dict):
-    #         p1 = info_dict["player_x"], info_dict["player_y"]
-    #         p2 = 123, 148
-    #         d = is_close(p1, p2, 2)
-    #         return float(d), d
-
-    #     done = False
-    #     reset = False
-    #     reached = False
-
-    #     episode_length = 0
-    #     episode_reward = 0.
-    #     episode_trajectory = []
-
-    #     while not done and not reset and not reached:
-    #         action = self.act(state)
-    #         next_state, reward, done, info  = env.step(action)
-    #         reset = info.get("needs_reset", False)
-
-    #         reward, reached = rf(info)
-
-    #         episode_trajectory.append((state,
-    #                                    action,
-    #                                    np.sign(reward), 
-    #                                    next_state, 
-    #                                    done or reached, 
-    #                                    reset))
-
-    #         self.T += 1
-    #         episode_length += 1
-    #         episode_reward += reward
-
-    #         state = next_state
-
-    #     self.experience_replay(episode_trajectory)
-    #     max_reward_so_far = max(episode_reward, max_reward_so_far)
-    #     print(f"Episode: {episode}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
-
-    #     return episode_reward, episode_length, max_reward_so_far
-
+    def get_augmented_state(s, g):
+        assert isinstance(g, (np.ndarray, atari_wrappers.LazyFrames)), type(g)
+        return atari_wrappers.LazyFrames(s._frames+[g._frames[-1]])
 
     def gc_rollout(self, mdp:MontezumaRAMMDP, goal_img, goal_position: Tuple, episode, max_reward_so_far, limit=500):
         """ Single episodic rollout of the agent's policy. """
@@ -188,12 +110,7 @@ class Rainbow:
             p1 = mdp.curr_state.get_position(ram)
             p2 = goal_position
             d = is_close(p1, p2, 5)
-            # print(p1)
-            if d:
-                d = 10
-            else:
-                d = -1
-            return float(d), d == 10
+            return float(d), d
 
         done = False
         reset = False
@@ -203,6 +120,7 @@ class Rainbow:
         episode_reward = 0.
         episode_positions = []
         episode_trajectory = []
+        ram_trajectory = []
 
         while not done and not reset and not reached and episode_length < limit:
             sg = self.get_augmented_state(mdp.curr_state.image, goal_img)
@@ -212,14 +130,13 @@ class Rainbow:
                 self.my_dict[action] += 1
             else:
                 self.my_dict[action] = 1
-            # print(action)
             prev_state = mdp.curr_state
-            # next_state, reward, done, _  = mdp.env.step(action)
             mdp.execute_agent_action(action)
             reward, reached = rf()
 
             ram = mdp.curr_state.ram
             player_pos = mdp.curr_state.get_position(ram)
+            ram_trajectory.append(ram)
             episode_positions.append(player_pos)
             episode_trajectory.append(
                                       (prev_state.image,
@@ -244,7 +161,7 @@ class Rainbow:
         max_reward_so_far = max(episode_reward, max_reward_so_far)
         print(f"Episode: {episode}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
-        return episode_reward, episode_length, max_reward_so_far, episode_trajectory
+        return episode_reward, episode_length, max_reward_so_far, episode_trajectory, ram_trajectory
     
     # def her(self, trajectory, visited_positions, pursued_goal, pursued_goal_position=(123, 148)):
     #     hindsight_goal, hindsight_goal_idx = self.pick_hindsight_goal(trajectory)

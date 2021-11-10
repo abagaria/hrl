@@ -2,6 +2,7 @@ import pfrl
 import argparse
 import cv2
 import pdb
+import collections
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -88,31 +89,37 @@ if __name__ == "__main__":
                             use_her=False,
                     )
 
-    start = (77,235)
-    end = (130,192)
+    start = (38,148)
+    end = (114,148)
 
-    stend_tuple = (start, end)
-
-    mdp.set_player_position(end[0], end[1])
-    goal_img = mdp.curr_state.image[:,:,-1]
+    mdp.set_player_position(*end)
+    goal_img = mdp.curr_state.image
 
     current_step_number = 0
     max_episodic_reward = 0
     current_episode_number = 0
     
+    buffer = collections.deque(maxlen=1000)
+    ram_buffer = collections.deque(maxlen=1000)
+
     while current_step_number < args.num_training_steps:
         mdp.reset()
         mdp.set_player_position(*start)
         
-        episodic_reward, episodic_duration, max_episodic_reward, trajectory = rainbow_agent.gc_rollout(mdp,
+        episodic_reward, episodic_duration, max_episodic_reward, trajectory, ram_trajectory = rainbow_agent.gc_rollout(mdp,
                                                                                             goal_img,
                                                                                             end,
                                                                                             current_episode_number,
                                                                                             max_episodic_reward)
+
+        buffer.append(trajectory)
+        ram_buffer.append(ram_trajectory)
+        # pdb.set_trace()
+        # print(len(buffer))
         # print((rainbow_agent.my_dict))
         # pdb.set_trace()
-        if episodic_reward >= -100:
-            # write_to_disk(trajectory)
+        if episodic_reward >= 0:
+        #     # write_to_disk(trajectory)
             pdb.set_trace()
         # write_to_disk(trajectory)
 
