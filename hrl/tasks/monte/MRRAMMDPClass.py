@@ -2,17 +2,17 @@ import cv2
 import random
 import numpy as np
 from hrl.tasks.monte.MRRAMStateClass import MRRAMState
-from hrl.wrappers.gym_wrappers import make_atari, wrap_deepmind
+from pfrl.wrappers import atari_wrappers
 
 # TODO support mdp.sample_goal()
 #              mdp.reward_function(state, goal)
 class MontezumaRAMMDP:
     def __init__(self, render, seed):
         self.env_name = "MontezumaRevengeNoFrameskip-v4"
-        self.env = wrap_deepmind(
-            make_atari(env_id=self.env_name), 
-            episode_life=True, 
-            frame_stack=True,)
+        self.env = atari_wrappers.wrap_deepmind(
+            atari_wrappers.make_atari(env_id=self.env_name), 
+            episode_life=False,
+            clip_rewards=False)
 
         self.render = render
         self.seed = seed

@@ -52,7 +52,7 @@ class Rainbow:
             update_interval=4,
             batch_accumulator="mean",
             phi=self.phi
-        )
+        ) # 84, 84, 4, 4,84,84
 
         self.T = 0
         self.device = torch.device(f"cuda:{gpu}" if gpu > -1 else "cpu")
