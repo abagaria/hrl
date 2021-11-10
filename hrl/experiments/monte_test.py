@@ -6,7 +6,7 @@ import collections
 import numpy as np
 import matplotlib.pyplot as plt
 from pfrl.wrappers import atari_wrappers
-
+import hrl.utils
 
 from tqdm import tqdm
 from hrl.tasks.monte.MRRAMMDPClass import MontezumaRAMMDP
@@ -26,7 +26,7 @@ def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, episode, seed,
     def get_augmented_states(s, g):
         assert isinstance(g, (np.ndarray, atari_wrappers.LazyFrames)), type(g)
         g = g._frames[-1] if isinstance(g, atari_wrappers.LazyFrames) else g
-        augmented_states = [atari_wrappers.LazyFrames(ss._frames+[g], stack_axis=0) for ss in s]
+        augmented_states = [atari_wrappers.LazyFrames(ss.image._frames+[g], stack_axis=0) for ss in s]
         return augmented_states
 
     def get_chunks(x, n):
@@ -50,12 +50,27 @@ def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, episode, seed,
 
     plt.scatter(x, y, c=values)
     plt.colorbar()
+    hrl.utils.create_log_dir(f'plots/{experiment_name}')
+    hrl.utils.create_log_dir(f'plots/{experiment_name}/{seed}')
     file_name = f"rainbow_value_function_seed_{seed}_episode_{episode}"
     plt.savefig(f"plots/{experiment_name}/{seed}/{file_name}.png")
     plt.close()
 
     return values.max()
 
+def test(starts, goals, agent, goal_img, episode):
+    for start, goal in zip(starts, goals):
+        mdp.reset()
+        mdp.set_player_position(*goal)
+        goal_img = mdp.curr_state.image
+        mdp.reset()
+        mdp.set_player_position(*start)
+        
+        agent.gc_rollout(mdp,
+                        goal_img,
+                        end,
+                        current_episode_number,
+                        max_episodic_reward)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int)
@@ -104,6 +119,8 @@ if __name__ == "__main__":
     buffer = collections.deque(maxlen=1000)
     ram_buffer = collections.deque(maxlen=1000)
 
+    ctr = 0
+
     while current_step_number < args.num_training_steps:
         mdp.reset()
         mdp.set_player_position(*start)
@@ -115,15 +132,17 @@ if __name__ == "__main__":
                                                                                             max_episodic_reward)
 
         buffer.append(trajectory)
-        ram_buffer.append(ram_trajectory)
+        ram_buffer.extend(ram_trajectory)
         # pdb.set_trace()
         # print(len(buffer))
         # print((rainbow_agent.my_dict))
-        # pdb.set_trace()
         if episodic_reward > 0:
-            # pass
-        #     # write_to_disk(trajectory)
-            pdb.set_trace()
+            ctr += 1
+        else:
+            ctr = 0
+        # pdb.set_trace()
+        if episodic_reward >= -200 and ctr >= 5:
+            make_chunked_gc_value_function_plot(rainbow_agent, list(ram_buffer), goal_img, current_episode_number, args.seed, "test")
         # write_to_disk(trajectory)
 
 

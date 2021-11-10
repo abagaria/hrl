@@ -136,7 +136,7 @@ class Rainbow:
 
             ram = mdp.curr_state.ram
             player_pos = mdp.curr_state.get_position(ram)
-            ram_trajectory.append(ram)
+            ram_trajectory.append(mdp.curr_state)
             episode_positions.append(player_pos)
             episode_trajectory.append(
                                       (prev_state.image,
