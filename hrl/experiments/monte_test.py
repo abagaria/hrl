@@ -5,6 +5,8 @@ import pdb
 import collections
 import numpy as np
 import matplotlib.pyplot as plt
+from pfrl.wrappers import atari_wrappers
+
 
 from tqdm import tqdm
 from hrl.tasks.monte.MRRAMMDPClass import MontezumaRAMMDP
@@ -21,30 +23,30 @@ def write_to_disk(traj):
 def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, episode, seed, experiment_name, chunk_size=1000):
     assert isinstance(pfrl_agent, Rainbow)
 
-    def get_augmented_state(state, goal):
-        if np.shape(goal) == (84, 84):
-            goal = np.expand_dims(goal, 2)
-        res = np.concatenate((goal, state), axis=2)
-        return np.reshape(res, (5, 84, 84))
+    def get_augmented_states(s, g):
+        assert isinstance(g, (np.ndarray, atari_wrappers.LazyFrames)), type(g)
+        g = g._frames[-1] if isinstance(g, atari_wrappers.LazyFrames) else g
+        augmented_states = [atari_wrappers.LazyFrames(ss._frames+[g], stack_axis=0) for ss in s]
+        return augmented_states
 
     def get_chunks(x, n):
         """ Break x into chunks of size n. """
         for i in range(0, len(x), n):
             yield x[i: i+n]
 
-    states = augmenent_states(states, goal)
-    state_chunks = get_chunks(states, chunk_size)
-    values = np.zeros((len(states),))
+    augmented_states = get_augmented_states(states, goal)
+    augmented_state_chunks = get_chunks(augmented_states, chunk_size)
+    values = np.zeros((len(augmented_states),))
     current_idx = 0
 
-    for state_chunk in tqdm(state_chunks, desc="Making VF plot"):
+    for state_chunk in tqdm(augmented_state_chunks, desc="Making VF plot"):
         chunk_values = pfrl_agent.value_function(state_chunk).cpu().numpy()
         current_chunk_size = len(state_chunk)
         values[current_idx:current_idx + current_chunk_size] = chunk_values
         current_idx += current_chunk_size
 
-    x = [info['player_x'] for info in infos]
-    y = [info['player_y'] for info in infos]
+    x = [state.get_player_x(state.ram) for state in states]
+    y = [state.get_player_y(state.ram) for state in states]
 
     plt.scatter(x, y, c=values)
     plt.colorbar()
