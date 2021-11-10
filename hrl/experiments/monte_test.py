@@ -49,8 +49,10 @@ if __name__ == "__main__":
                             use_her=False,
                     )
 
-    start = (60,148)
-    end = (99,148)
+    start = (77,235)
+    end = (130,192)
+
+    stend_tuple = (start, end)
 
     mdp.set_player_position(end[0], end[1])
     goal_img = mdp.curr_state.image[:,:,-1]
@@ -68,9 +70,12 @@ if __name__ == "__main__":
                                                                                             end,
                                                                                             current_episode_number,
                                                                                             max_episodic_reward)
-        # write_to_disk(trajectory)
-        print((rainbow_agent.my_dict))
+        # print((rainbow_agent.my_dict))
         # pdb.set_trace()
+        if episodic_reward >= -100:
+            # write_to_disk(trajectory)
+            pdb.set_trace()
+        # write_to_disk(trajectory)
 
 
     # mdp.saveImage("img1")

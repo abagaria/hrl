@@ -76,11 +76,11 @@ class Rainbow:
         self.agent.batch_last_obs = [state]
         self.agent.batch_last_action = [action]
 
-    # @torch.no_grad()
-    # def value_function(self, states):
-    #     batch_states = self.agent.batch_states(states, self.device, self.phi)
-    #     action_values = self.agent.model(batch_states).q_values
-    #     return action_values.max(dim=1).values
+    @torch.no_grad()
+    def value_function(self, states):
+        batch_states = self.agent.batch_states(states, self.device, self.phi)
+        action_values = self.agent.model(batch_states).q_values
+        return action_values.max(dim=1).values
 
     # def experience_replay(self, trajectory):
     #     """ Add trajectory to the replay buffer and perform agent learning updates. """
