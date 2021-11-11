@@ -82,12 +82,8 @@ class Rainbow:
         action_values = self.agent.model(batch_states).q_values
         return action_values.max(dim=1).values
 
-    def gc_experience_replay(self, trajectory, goal, goal_position):
+    def gc_experience_replay(self, trajectory, goal):
         """ Add trajectory to the replay buffer and perform agent learning updates. """
-
-        def is_close(pos1, pos2, tol):
-            return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
-        
         for state, action, reward, next_state, done, reset, next_pos in trajectory:
             augmented_state = self.get_augmented_state(state, goal)
             augmented_next_state = self.get_augmented_state(next_state, goal)
@@ -99,7 +95,7 @@ class Rainbow:
         assert isinstance(g, (np.ndarray, atari_wrappers.LazyFrames)), type(g)
         return atari_wrappers.LazyFrames(s._frames+[g._frames[-1]], stack_axis=0)
 
-    def gc_rollout(self, mdp:MontezumaRAMMDP, goal_img, goal_position: Tuple, episode, max_reward_so_far, limit=500):
+    def gc_rollout(self, mdp:MontezumaRAMMDP, goal_img, goal_position: Tuple, episode, max_reward_so_far, limit=500, test=False):
         """ Single episodic rollout of the agent's policy. """
 
         def is_close(pos1, pos2, tol):
@@ -109,7 +105,7 @@ class Rainbow:
             ram = mdp.curr_state.ram
             p1 = mdp.curr_state.get_position(ram)
             p2 = goal_position
-            d = is_close(p1, p2, 5)
+            d = is_close(p1, p2, 1)
             return float(d), d
 
         done = False
@@ -153,8 +149,8 @@ class Rainbow:
             episode_length += 1
             episode_reward += reward
 
-        if self.goal_conditioned:
-            self.gc_experience_replay(episode_trajectory, goal_img, goal_position)
+        if self.goal_conditioned and not test:
+            self.gc_experience_replay(episode_trajectory, goal_img)
         else:
             pass
 

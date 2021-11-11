@@ -1,4 +1,5 @@
 import pfrl
+import random
 import argparse
 import cv2
 import pdb
@@ -20,7 +21,7 @@ def write_to_disk(traj):
         cv2.imwrite(f'debug-images/{idx}.png', np.squeeze(img._frames[-1]))
     print(f'wrote {len(traj)} images')
 
-def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, episode, seed, experiment_name, chunk_size=1000):
+def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, goal_pos, episode, seed, experiment_name, chunk_size=1000):
     assert isinstance(pfrl_agent, Rainbow)
 
     def get_augmented_states(s, g):
@@ -53,7 +54,7 @@ def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, episode, seed,
     hrl.utils.create_log_dir(f'plots/{experiment_name}')
     hrl.utils.create_log_dir(f'plots/{experiment_name}/{seed}')
     file_name = f"rainbow_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"plots/{experiment_name}/{seed}/{file_name}.png")
+    plt.savefig(f"plots/{experiment_name}/{seed}/{file_name}-{goal_pos}.png")
     plt.close()
 
     return values.max()
@@ -70,7 +71,9 @@ def test(starts, goals, agent, goal_img, episode):
                         goal_img,
                         end,
                         current_episode_number,
-                        max_episodic_reward)
+                        max_episodic_reward,
+                        test=True)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int)
@@ -81,7 +84,7 @@ if __name__ == "__main__":
     parser.add_argument("--noisy_net_sigma", type=float, default=0.5)
     parser.add_argument("--lr", type=float, default=6.25e-5)
     parser.add_argument("--n_steps", type=int, default=3)
-    parser.add_argument("--replay_start_size", type=int, default=80_000)
+    parser.add_argument("--replay_start_size", type=int, default=500)
     parser.add_argument("--replay_buffer_size", type=int, default=10**6)
     parser.add_argument("--num_training_steps", type=int, default=int(13e6))
 
@@ -106,43 +109,46 @@ if __name__ == "__main__":
                             use_her=False,
                     )
 
-    start = (38,148)
-    end = (114,148)
+    starts = [(38,148), (114,148)]
+    goals = [(114,148), (38,148)]
 
-    mdp.set_player_position(*end)
-    goal_img = mdp.curr_state.image
+
 
     current_step_number = 0
     max_episodic_reward = 0
     current_episode_number = 0
     
-    buffer = collections.deque(maxlen=1000)
-    ram_buffer = collections.deque(maxlen=1000)
+    ram_buffer = collections.deque(maxlen=1500)
 
     ctr = 0
 
     while current_step_number < args.num_training_steps:
+        # sample start,goal pair
+        idx = random.randint(0,1)
+        start = starts[idx]
+        goal = goals[idx]
+
+        mdp.reset()
+        mdp.set_player_position(*goal)
+        goal_img = mdp.curr_state.image
+
         mdp.reset()
         mdp.set_player_position(*start)
+        # end sampling procedure
         
         episodic_reward, episodic_duration, max_episodic_reward, trajectory, ram_trajectory = rainbow_agent.gc_rollout(mdp,
                                                                                             goal_img,
-                                                                                            end,
+                                                                                            goal,
                                                                                             current_episode_number,
                                                                                             max_episodic_reward)
 
-        buffer.append(trajectory)
         ram_buffer.extend(ram_trajectory)
-        # pdb.set_trace()
-        # print(len(buffer))
-        # print((rainbow_agent.my_dict))
         if episodic_reward > 0:
             ctr += 1
-        else:
-            ctr = 0
-        # pdb.set_trace()
-        if episodic_reward >= -200 and ctr >= 5:
-            make_chunked_gc_value_function_plot(rainbow_agent, list(ram_buffer), goal_img, current_episode_number, args.seed, "test")
+
+        if episodic_reward > 0 and ctr >= 100:
+            pdb.set_trace()
+            make_chunked_gc_value_function_plot(rainbow_agent, list(ram_buffer), goal_img, goal, current_episode_number, args.seed, "test")
         # write_to_disk(trajectory)
 
 
