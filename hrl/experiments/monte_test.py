@@ -8,10 +8,39 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pfrl.wrappers import atari_wrappers
 import hrl.utils
+from hrl.experiments.graph import Graph
+# from torch._C import Graph
 
 from tqdm import tqdm
 from hrl.tasks.monte.MRRAMMDPClass import MontezumaRAMMDP
 from hrl.agent.rainbow.rainbow import Rainbow
+import os
+
+room_one = Graph()
+
+def build_room_one_graph():
+    edges = [
+        # does not include ladder walk from 77, 235 to 77, x.
+        # does not include position at rope
+        # does not include key 
+        # does not include door left or door right
+
+        ((20, 148), (21, 192)),
+        ((20, 148), (25, 148)),
+        ((25, 148), (38, 148)),
+        ((38, 148), (50, 148)),
+        ((50, 148), (62, 148)),
+        ((62, 148), (75, 148)),
+        ((75, 148), (99, 148)),
+        ((99, 148), (114, 148)),
+        ((114, 148), (123, 148)),
+        ((123, 148), (130, 192)),
+        ((77, 235), (130, 192))
+    ]
+
+    for start, end in edges:
+        room_one.addEdge(start, end)
+        room_one.addEdge(end, start)
 
 def write_to_disk(traj):
     idx = 0
@@ -90,6 +119,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    build_room_one_graph()
+
     """ After arg parsing """
 
     pfrl.utils.set_random_seed(args.seed)
@@ -109,10 +140,14 @@ if __name__ == "__main__":
                             use_her=False,
                     )
 
-    starts = [(38,148), (114,148)]
-    goals = [(114,148), (38,148)]
+    # starts = [(38,148), (114,148)]
+    # goals = [(114,148), (38,148)]
 
+    starts = [(38, 148)]
+    goals = [(114, 148)]
 
+    # room_one.BFS(starts[0])
+    print(room_one.getPath(starts[0], goals[0]))
 
     current_step_number = 0
     max_episodic_reward = 0
@@ -124,7 +159,7 @@ if __name__ == "__main__":
 
     while current_step_number < args.num_training_steps:
         # sample start,goal pair
-        idx = random.randint(0,1)
+        idx = random.randint(0,len(starts) - 1)
         start = starts[idx]
         goal = goals[idx]
 
