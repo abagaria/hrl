@@ -140,6 +140,7 @@ class SkillChain:
 
         for option in completed_options:
             if self.should_complete_chain(option):
+                option.is_last_option = True
                 self._is_deemed_completed = True
                 return True
 
