@@ -150,7 +150,7 @@ class Rainbow:
 
         return episode_reward, episode_length, max_reward_so_far
 
-    def gc_rollout(self, env, state, goal, goal_pos, rf, episode, max_reward_so_far):
+    def gc_rollout(self, env, state, goal, goal_pos, rf, episode, max_reward_so_far, test=False):
         """ Single episodic rollout of the agent's policy. """
 
         info = {}
@@ -162,6 +162,7 @@ class Rainbow:
         episode_reward = 0.
         episode_positions = []
         episode_trajectory = []
+        state_trajectory = []
 
         while not done and not reset and not reached:
             sg = self.get_augmented_state(state, goal)
@@ -173,6 +174,7 @@ class Rainbow:
 
             player_pos = info["player_x"], info["player_y"]
             episode_positions.append(player_pos)
+            state_trajectory.append(state)
             episode_trajectory.append(
                                       (state,
                                        action,
@@ -190,12 +192,13 @@ class Rainbow:
 
             state = next_state
 
-        self.her(episode_trajectory, episode_positions, goal, pursued_goal_position=goal_pos)
+        if not test:
+            self.her(episode_trajectory, episode_positions, goal, pursued_goal_position=goal_pos)
 
         max_reward_so_far = max(episode_reward, max_reward_so_far)
         print(f"G: {goal_pos}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
-        return episode_reward, episode_length, max_reward_so_far, done or reset
+        return episode_reward, episode_length, max_reward_so_far, done or reset, state_trajectory # <----
     
     def her(self, trajectory, visited_positions, pursued_goal, pursued_goal_position):
         hindsight_goal, hindsight_goal_idx = self.pick_hindsight_goal(trajectory)

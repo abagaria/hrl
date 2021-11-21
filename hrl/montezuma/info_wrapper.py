@@ -8,7 +8,10 @@ class MontezumaInfoWrapper(gym.Wrapper):
         gym.Wrapper.__init__(self, env)
     
     def reset(self, **kwargs):
-        s0 = self.env.reset(**kwargs)
+        # s0 = self.env.reset(**kwargs)
+        self.env.reset(**kwargs)
+        self.remove_skull()
+        s0, _, _, _ = self.env.step(0)
         self.num_lives = self.get_num_lives(self.get_current_ram())
         info = self.get_current_info(info={})
         return s0, info
@@ -52,6 +55,33 @@ class MontezumaInfoWrapper(gym.Wrapper):
 
     def get_current_ram(self):
         return self.get_current_ale().getRAM()
+
+    def set_player_position(self, x, y):
+        state_ref = self.env.env.ale.cloneState()
+        state = self.env.env.ale.encodeState(state_ref)
+        self.env.env.ale.deleteState(state_ref)
+        
+        state[331] = x
+        state[335] = y
+        
+        new_state_ref = self.env.env.ale.decodeState(state)
+        self.env.env.ale.restoreState(new_state_ref)
+        self.env.env.ale.deleteState(new_state_ref)
+        self.env.step(0) # NO-OP action to update the RAM state
+
+    def remove_skull(self):
+        print("Setting skull position")
+        state_ref = self.get_current_ale().cloneState()
+        state = self.get_current_ale().encodeState(state_ref)
+        self.get_current_ale().deleteState(state_ref)
+
+        state[431] = 1
+        state[351] = 390  # 40
+
+        new_state_ref = self.get_current_ale().decodeState(state)
+        self.get_current_ale().restoreState(new_state_ref)
+        self.get_current_ale().deleteState(new_state_ref)
+        self.env.step(0)  # NO-OP action to update the RAM state
 
     @staticmethod
     def _getIndex(address):

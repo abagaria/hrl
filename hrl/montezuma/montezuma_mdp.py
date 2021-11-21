@@ -117,6 +117,19 @@ class MontezumaMDP:
 
         return next_state, reward, done, info
 
+    def set_player_position(self, x, y):
+        state_ref = self.env.env.ale.cloneState()
+        state = self.env.env.ale.encodeState(state_ref)
+        self.env.env.ale.deleteState(state_ref)
+        
+        state[331] = x
+        state[335] = y
+        
+        new_state_ref = self.env.env.ale.decodeState(state)
+        self.env.env.ale.restoreState(new_state_ref)
+        self.env.env.ale.deleteState(new_state_ref)
+        self.execute_agent_action(0) # NO-OP action to update the RAM state
+
     def remove_skull(self):
         print("Setting skull position")
         state_ref = self.get_current_ale().cloneState()
