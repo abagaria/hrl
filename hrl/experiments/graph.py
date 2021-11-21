@@ -27,12 +27,12 @@ class Graph:
 
     def getPath(self, start, goal):
         self.BFS(start)
-        pdb.set_trace()
+        # pdb.set_trace()
         li = []
         curr = goal
         while curr != start:
             li.append(curr)
             curr = self.fromnode[curr]
-        # li.append(curr)
+        li.append(curr)
         li.reverse()
         return li

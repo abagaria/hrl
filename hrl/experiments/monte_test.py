@@ -79,6 +79,7 @@ def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, goal_pos, epis
     y = [state.get_player_y(state.ram) for state in states]
 
     plt.scatter(x, y, c=values)
+    plt.xlabel(f'goal: {goal_pos}')
     plt.colorbar()
     hrl.utils.create_log_dir(f'plots/{experiment_name}')
     hrl.utils.create_log_dir(f'plots/{experiment_name}/{seed}')
@@ -88,20 +89,41 @@ def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, goal_pos, epis
 
     return values.max()
 
-def test(starts, goals, agent, goal_img, episode):
-    for start, goal in zip(starts, goals):
+def make_generalized_value_function_plot(pfrl_agent, start, goal, ram_buffer, episode, seed, experiment_name):
+    path = room_one.getPath(start, goal)
+    pairs = []
+    
+    max_episodic_reward = 0
+
+    # [(50, 148), (62, 148), (75, 148), (99, 148), (114, 148)]
+
+    # exclude start and end from pairs
+    it1 = 0
+    it2 = len(path) - 1
+    while it2 >= 0:
+        pairs.append((path[0], path[it2]))
+        # it1 += 1
+        it2 -= 1
+
+    print(pairs) # len(path) / 2
+
+    for start, goal in pairs:
         mdp.reset()
         mdp.set_player_position(*goal)
         goal_img = mdp.curr_state.image
         mdp.reset()
         mdp.set_player_position(*start)
         
-        agent.gc_rollout(mdp,
+        episodic_reward, episodic_duration, max_episodic_reward, trajectory, ram_trajectory = pfrl_agent.gc_rollout(mdp,
                         goal_img,
-                        end,
-                        current_episode_number,
+                        goal,
+                        episode,
                         max_episodic_reward,
                         test=True)
+
+        make_chunked_gc_value_function_plot(pfrl_agent, ram_buffer, goal_img, goal, episode, seed, "test")
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -153,7 +175,7 @@ if __name__ == "__main__":
     max_episodic_reward = 0
     current_episode_number = 0
     
-    ram_buffer = collections.deque(maxlen=1500)
+    ram_buffer = collections.deque(maxlen=5000)
 
     ctr = 0
 
@@ -183,7 +205,7 @@ if __name__ == "__main__":
 
         if episodic_reward > 0 and ctr >= 100:
             pdb.set_trace()
-            make_chunked_gc_value_function_plot(rainbow_agent, list(ram_buffer), goal_img, goal, current_episode_number, args.seed, "test")
+            make_generalized_value_function_plot(rainbow_agent, start, goal, list(ram_buffer), current_episode_number, args.seed, "test")
         # write_to_disk(trajectory)
 
 
