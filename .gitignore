@@ -1,3 +1,7 @@
+# results
+logs/
+plots
+
 # VS Code
 .vscode/
 setup.cfg
@@ -112,6 +116,7 @@ celerybeat.pid
 .env
 .venv
 env/
+38env/
 venv/
 ENV/
 env.bak/

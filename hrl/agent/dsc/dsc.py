@@ -12,7 +12,8 @@ class RobustDSC(object):
                  experiment_name, gpu_id,
                  init_event,
                  use_oracle_rf, use_pos_for_init, gamma,
-                 max_num_options, seed, log_filename):
+                 max_num_options, seed, log_filename,
+                 num_kmeans_clusters, num_sift_keypoints,):
 
         self.mdp = mdp
         self.seed = seed
@@ -36,6 +37,8 @@ class RobustDSC(object):
         self.current_option_idx = 1
 
         self.log_file = log_filename
+        self.num_kmeans_clusters = num_kmeans_clusters
+        self.num_sift_keypoints = num_sift_keypoints
 
     # ------------------------------------------------------------
     # Action selection methods
@@ -73,7 +76,7 @@ class RobustDSC(object):
     # ------------------------------------------------------------
 
     def dsc_rollout(self, state, info, goal_salient_event, episode,
-                    eval_mode=False, interrupt_handle=lambda x: False):
+                    eval_mode=False, interrupt_handle=lambda state, info: False):
         assert isinstance(goal_salient_event, SalientEvent)
         assert len(self.chains) > 0, "Create skill chains b/w constructor and rollout"
 
@@ -110,7 +113,7 @@ class RobustDSC(object):
 
         # Was returning `rollout_trajectory, episode_reward, episode_length` as well
 
-        return state, info, done, reset, learned_options
+        return state, info, done, reset, learned_options, episode_reward, episode_length
 
     def run_loop(self, goal_salient_event, num_steps):
         step = 0

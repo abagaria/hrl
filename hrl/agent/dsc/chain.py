@@ -49,7 +49,7 @@ class SkillChain:
         assert SkillChain.is_option_type(option)
         assert isinstance(option, ModelFreeOption)
 
-        if option.get_training_phase() == "initiation_done":
+        if option.get_training_phase() == "initiation_done" and option.initiation_classifier.is_initialized():
             if len(event.effect_set) > 0:  # Be careful: all([]) = True
                 inits = [option.pessimistic_is_init_true(eg.obs, eg.info) for eg in event.effect_set]
                 is_intersecting = SkillChain.edge_condition(inits)
@@ -79,14 +79,15 @@ class SkillChain:
         assert isinstance(option, ModelFreeOption), f"{type(option)}"
         assert isinstance(self.init_salient_event, SalientEvent)
 
-        if len(self.init_salient_event.effect_set) > 0:
-            return any([option.pessimistic_is_init_true(eg.obs, eg.info) for eg
-                         in self.init_salient_event.effect_set])
-        if self.init_salient_event.get_target_position() is not None:
-            obs = self.init_salient_event.get_target_obs()
-            info = {"player_x": self.init_salient_event.get_target_position()[0],
-                    "player_y": self.init_salient_event.get_target_position()[1]}
-            return option.pessimistic_is_init_true(obs, info)
+        if option.initiation_classifier.is_initialized():
+            if len(self.init_salient_event.effect_set) > 0:
+                return any([option.pessimistic_is_init_true(eg.obs, eg.info) for eg
+                            in self.init_salient_event.effect_set])
+            if self.init_salient_event.get_target_position() is not None:
+                obs = self.init_salient_event.get_target_obs()
+                info = {"player_x": self.init_salient_event.get_target_position()[0],
+                        "player_y": self.init_salient_event.get_target_position()[1]}
+                return option.pessimistic_is_init_true(obs, info)
         return False
 
     def should_complete_chain(self, option):

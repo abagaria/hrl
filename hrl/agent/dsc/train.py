@@ -29,7 +29,12 @@ def load_goal_state(dir_path):
     file_name = os.path.join(dir_path, "bottom_right_states.pkl")
     with open(file_name, "rb") as f:
         goals = pickle.load(f)
-    return random.choice(goals).frame
+    goal = random.choice(goals)
+    if hasattr(goal, "frame"):
+        return goal.frame
+    if isinstance(goal, atari_wrappers.LazyFrames):
+        return goal
+    return goal.obs
 
 
 if __name__ == "__main__":
@@ -45,6 +50,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_oracle_rf", action="store_true", default=False)
     parser.add_argument("--use_pos_for_init", action="store_true", default=False)
     parser.add_argument("--max_num_options", type=int, default=5)
+    parser.add_argument("--num_kmeans_clusters", type=int, default=50)
+    parser.add_argument("--num_sift_keypoints", type=int, default=None)
     parser.add_argument("--gamma", type=float)
     args = parser.parse_args()
 
@@ -69,7 +76,7 @@ if __name__ == "__main__":
     p0 = env.get_current_position()
 
     gpos = (123, 148)
-    g0 = load_goal_state(os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states"))
+    g0 = load_goal_state(os.path.join(os.path.expanduser("~"), "hrl/logs/goal_states"))
 
     pfrl.utils.set_random_seed(args.seed)
 
@@ -87,7 +94,9 @@ if __name__ == "__main__":
                           args.gamma,
                           args.max_num_options,
                           args.seed,
-                          _log_file)
+                          _log_file,
+                          args.num_kmeans_clusters,
+                          args.num_sift_keypoints)
     
     chain = dsc_agent.create_new_chain(init_event=beta0, target_event=beta1)
 
