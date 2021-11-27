@@ -246,8 +246,8 @@ class SiftInitiationClassifier(InitiationClassifier):
         training_predictions = self.optimistic_classifier.predict(X)
         positive_training_examples = X[training_predictions == 1]
         if len(positive_training_examples) > 0:
-            self.pessimistic_classifier.fit(positive_training_examples + nagaive_examples, list(Y[training_predictions == 1]) + negative_labels, svm_type='svc', nu=0.1)
-            # self.pessimistic_classifier.fit(positive_training_examples, Y[training_predictions == 1], svm_type='one_class_svm', nu=0.1)
+            # self.pessimistic_classifier.fit(positive_training_examples + nagaive_examples, list(Y[training_predictions == 1]) + negative_labels, svm_type='svc', nu=0.1)
+            self.pessimistic_classifier.fit(positive_training_examples, Y[training_predictions == 1], svm_type='one_class_svm', nu=0.1)
 
     def sample(self):
         """ Sample from the pessimistic initiation classifier. """
