@@ -28,6 +28,8 @@ class RobustDSC(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
         self.init_salient_event = init_event
+        self.num_kmeans_clusters = num_kmeans_clusters
+        self.num_sift_keypoints = num_sift_keypoints
 
         self.global_option = self.create_global_option()
 
@@ -37,8 +39,6 @@ class RobustDSC(object):
         self.current_option_idx = 1
 
         self.log_file = log_filename
-        self.num_kmeans_clusters = num_kmeans_clusters
-        self.num_sift_keypoints = num_sift_keypoints
 
     # ------------------------------------------------------------
     # Action selection methods
@@ -244,7 +244,9 @@ class RobustDSC(object):
                                  use_oracle_rf=self.use_oracle_rf,
                                  max_num_options=self.max_num_options,
                                  use_pos_for_init=self.use_pos_for_init,
-                                 chain_id=chain_idx)
+                                 chain_id=chain_idx,
+                                 num_kmeans_clusters=self.num_kmeans_clusters,
+                                 num_sift_keypoints=self.num_sift_keypoints,)
         self.current_option_idx += 1
         return option
 
@@ -266,7 +268,9 @@ class RobustDSC(object):
                                  use_oracle_rf=self.use_oracle_rf,
                                  max_num_options=self.max_num_options,
                                  use_pos_for_init=self.use_pos_for_init,
-                                 chain_id=0)
+                                 chain_id=0,
+                                 num_kmeans_clusters=self.num_kmeans_clusters,
+                                 num_sift_keypoints=self.num_sift_keypoints,)
         return option
 
     def create_child_option(self, parent):
