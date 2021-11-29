@@ -1,3 +1,4 @@
+import ipdb
 import torch
 import random
 import numpy as np
@@ -87,6 +88,7 @@ class Rainbow:
             return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
 
         def rf(pos, goal_pos):
+            pos = np.array([pos['player_x'], pos['player_y']]) if isinstance(pos, dict) else pos
             d = is_close(pos, goal_pos, tol=2)
             return float(d), d
         
