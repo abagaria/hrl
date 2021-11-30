@@ -170,6 +170,7 @@ class SiftInitiationClassifier(InitiationClassifier):
     def __init__(self, num_clusters=50, num_sift_keypoints=None, buffer_size=100):
         optimistic_classifier = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
         pessimistic_classifier = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
+        self.extra_pessimistic_classifier = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
 
         self.positive_examples = deque([], maxlen=buffer_size)
         self.negative_examples = deque([], maxlen=buffer_size)
@@ -177,7 +178,8 @@ class SiftInitiationClassifier(InitiationClassifier):
         super().__init__(optimistic_classifier, pessimistic_classifier)
     
     def is_initialized(self):
-        return self.optimistic_classifier.is_initialized() and self.pessimistic_classifier.is_initialized()
+        return self.optimistic_classifier.is_initialized() and self.pessimistic_classifier.is_initialized() \
+            and self.extra_pessimistic_classifier.is_initialized()
 
     def optimistic_predict(self, state):
         assert isinstance(state, np.ndarray)
@@ -186,7 +188,7 @@ class SiftInitiationClassifier(InitiationClassifier):
     def pessimistic_predict(self, state):
         assert isinstance(state, np.ndarray)
         assert state.shape == (84, 84)
-        return self.pessimistic_classifier.predict([state])[0] == 1
+        return self.pessimistic_classifier.predict([state])[0] == 1 and self.extra_pessimistic_classifier.predict([state])[0] == -1
 
     def add_positive_examples(self, images, positions):
         assert len(images) == len(positions)
@@ -236,18 +238,31 @@ class SiftInitiationClassifier(InitiationClassifier):
         # data
         positive_examples = self.construct_image_list(self.positive_examples)
         positive_labels = [1 for _ in positive_examples]
-        nagaive_examples = self.construct_image_list(self.negative_examples)
-        negative_labels = [0 for _ in nagaive_examples]
-        X = np.array(positive_examples + nagaive_examples)
+        nagative_examples = self.construct_image_list(self.negative_examples)
+        negative_labels = [0 for _ in nagative_examples]
+        X = np.array(positive_examples + nagative_examples)
         Y = np.array(positive_labels + negative_labels)
         # optimistic
         self.optimistic_classifier.fit(X, Y, svm_type='svc')
         # pessimistic
         training_predictions = self.optimistic_classifier.predict(X)
         positive_training_examples = X[training_predictions == 1]
+        negative_training_examples = X[training_predictions == 0]
         if len(positive_training_examples) > 0:
-            # self.pessimistic_classifier.fit(positive_training_examples + nagaive_examples, list(Y[training_predictions == 1]) + negative_labels, svm_type='svc', nu=0.1)
+            # one-class-svm pessimistic
+            # self.pessimistic_classifier.fit(positive_training_examples, Y[training_predictions == 1], svm_type='one_class_svm', nu=0.1)
+
+            # two-class-svm pessimistic
+            # self.pessimistic_classifier.fit(
+            #     X=np.concatenate((positive_training_examples, negative_training_examples, nagative_examples), axis=0),
+            #     Y=[1 for _ in positive_training_examples] + [0 for _ in negative_training_examples] + negative_labels, 
+            #     svm_type='svc',
+            # )
+
+            # 2 one-class-svm pessimistic
             self.pessimistic_classifier.fit(positive_training_examples, Y[training_predictions == 1], svm_type='one_class_svm', nu=0.1)
+            self.extra_pessimistic_classifier.fit(negative_training_examples, [1 for _ in negative_training_examples], svm_type='one_class_svm', nu=0.1)
+
 
     def sample(self):
         """ Sample from the pessimistic initiation classifier. """
@@ -258,12 +273,6 @@ class SiftInitiationClassifier(InitiationClassifier):
             sampled_trajectory_idx = random.choice(range(len(self.positive_examples)))
             sampled_trajectory = self.positive_examples[sampled_trajectory_idx]
             sampled_state = self.get_first_state_in_classifier(sampled_trajectory)
-        # make state into LazyFrame
-        # features = np.stack((sampled_state.obs.reshape(1, 84, 84), ) * 4)
-        # sampled_goal = deepcopy(sampled_state)
-        # sampled_goal.obs = atari_wrappers.LazyFrames(features, stack_axis=0)
-        # assert isinstance(sampled_goal, TrainingExample)
-        # return sampled_goal
         return sampled_state
 
     def get_first_state_in_classifier(self, trajectory):
@@ -284,9 +293,11 @@ class SiftInitiationClassifier(InitiationClassifier):
 
         optimistic_positive_predictions = self.optimistic_classifier.predict(x_positive) == 1
         pessimistic_positive_predictions = self.pessimistic_classifier.predict(x_positive) == 1
+        pessimistic_positive_predictions = [self.pessimistic_predict(x) for x in x_positive]
 
         optimistic_negative_predictions = self.optimistic_classifier.predict(x_negative) == 1
         pessimistic_negative_predictions = self.pessimistic_classifier.predict(x_negative) == 1
+        pessimistic_negative_predictions = [self.pessimistic_predict(x) for x in x_negative]
 
         positive_positions = self.extract_positions(self.positive_examples)
         negative_positions = self.extract_positions(self.negative_examples)
@@ -314,4 +325,42 @@ class SiftInitiationClassifier(InitiationClassifier):
         plt.title("Pessimistic classifier")
 
         plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option_name}_init_clf_episode_{episode}.png")
+        plt.close()
+
+        # visualize histogram as well
+        positive_sift_features = self.optimistic_classifier.get_sift_features(images=x_positive)
+        positive_histogram = self.optimistic_classifier.histogram_from_sift(sift_features=positive_sift_features)
+
+        negative_sift_features = self.optimistic_classifier.get_sift_features(images=x_negative)
+        negative_histogram = self.optimistic_classifier.histogram_from_sift(sift_features=negative_sift_features)
+
+        from sklearn import manifold
+        tsne = manifold.TSNE(n_components=2, init='pca', random_state=0)  # project into 2 dimensions
+        positive_embedded = tsne.fit_transform(positive_histogram)
+        negative_embedded = tsne.fit_transform(negative_histogram)
+        assert len(positive_embedded[0]) == 2
+
+        plt.subplot(1, 2, 1)
+        plt.scatter(positive_embedded[:, 0], positive_embedded[:, 1], 
+                    c=optimistic_positive_predictions, marker="+", label="positive data")
+        plt.clim(0, 1)
+        plt.scatter(negative_embedded[:, 0], negative_embedded[:, 1], 
+                    c=optimistic_negative_predictions, marker="o", label="negative data")
+        plt.clim(0, 1)
+        plt.colorbar()
+        plt.legend()
+        plt.title(f"Optimistic ({len(positive_embedded)} pos. {len(negative_embedded)} neg.)")
+
+        plt.subplot(1, 2, 2)
+        plt.scatter(positive_embedded[:, 0], positive_embedded[:, 1], 
+                    c=pessimistic_positive_predictions, marker="+", label="positive data")
+        plt.clim(0, 1)
+        plt.scatter(negative_embedded[:, 0], negative_embedded[:, 1], 
+                    c=pessimistic_negative_predictions, marker="o", label="negative data")
+        plt.clim(0, 1)
+        plt.colorbar()
+        plt.legend()
+        plt.title(f"Pessimistic")
+
+        plt.savefig(f"plots/{experiment_name}/{seed}/initiation_histogram_feature_plots/{option_name}_init_clf_episode_{episode}_histogram.png")
         plt.close()

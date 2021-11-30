@@ -142,7 +142,7 @@ class RobustDSC(object):
 
             print(f"Episode: {episode}, T: {step}, Reward: {reward}")
 
-            if episode > 0 and episode % 100 == 0:
+            if episode > 0 and episode % 50 == 0:
                 for option in self.mature_options:
                     if self.use_pos_for_init:
                         plot_two_class_classifier(option, episode, self.experiment_name, seed=self.seed)
