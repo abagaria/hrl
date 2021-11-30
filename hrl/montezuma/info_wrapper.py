@@ -67,10 +67,11 @@ class MontezumaInfoWrapper(gym.Wrapper):
         new_state_ref = self.env.env.ale.decodeState(state)
         self.env.env.ale.restoreState(new_state_ref)
         self.env.env.ale.deleteState(new_state_ref)
-        self.env.step(0) # NO-OP action to update the RAM state
+        s0, _, _, _ = self.env.step(0) # NO-OP action to update the RAM state
+        return s0
 
     def remove_skull(self):
-        print("Setting skull position")
+        # print("Setting skull position")
         state_ref = self.get_current_ale().cloneState()
         state = self.get_current_ale().encodeState(state_ref)
         self.get_current_ale().deleteState(state_ref)

@@ -25,9 +25,13 @@ class Graph:
                     self.fromnode[i] = s
                     visited[i] = True
 
+    def getAllNodes(self):
+        return list(self.graph.keys())
+
     def getPath(self, start, goal):
         self.BFS(start)
         # pdb.set_trace()
+
         li = []
         curr = goal
         while curr != start:

@@ -198,7 +198,7 @@ class Rainbow:
         max_reward_so_far = max(episode_reward, max_reward_so_far)
         print(f"G: {goal_pos}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
-        return episode_reward, episode_length, max_reward_so_far, done or reset, state_trajectory # <----
+        return episode_reward, episode_length, max_reward_so_far, done or reset, state_trajectory, episode_positions # <----
     
     def her(self, trajectory, visited_positions, pursued_goal, pursued_goal_position):
         hindsight_goal, hindsight_goal_idx = self.pick_hindsight_goal(trajectory)

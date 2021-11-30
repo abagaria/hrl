@@ -8,9 +8,10 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import collections
+import pdb
 
 from tqdm import tqdm
-from graph import Graph
+from hrl.agent.rainbow.graph import Graph
 from pfrl.wrappers import atari_wrappers
 from hrl.utils import create_log_dir
 from hrl.agent.rainbow.rainbow import Rainbow
@@ -43,7 +44,8 @@ def build_room_one_graph():
     nodes = []
 
     for edge in edges:
-        nodes.append(edge[0], edge[1])
+        nodes.append(edge[0])
+        nodes.append(edge[1])
 
     nodes = list(set(nodes))
     for node in nodes:
@@ -106,21 +108,25 @@ def reward_func(info, goal_pos):
 #     return ALL_GOAL_POSITIONS[sampled_idx], goal_observations[sampled_idx]
 
 def select_start():
-    return random.choice(location_to_lf.keys())
+    return random.choice(list(location_to_lf.keys()))
 
 def select_goal(start):
-    path = room_one.getPath(start)
+    non_start_goals = [node for node in room_one.getAllNodes() if node != start]
+    goal = random.choice(non_start_goals)
+
+    path = room_one.getPath(start, goal)
     gloc = random.choice(path)
     gobs = location_to_lf[gloc]
     return gloc, gobs
 
-def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, goal_pos, episode, seed, experiment_name, chunk_size=1000):
+def make_chunked_gc_value_function_plot(pfrl_agent, states, pos_buffer, goal, goal_pos, episode, seed, experiment_name, chunk_size=1000):
     assert isinstance(pfrl_agent, Rainbow)
 
     def get_augmented_states(s, g):
         assert isinstance(g, (np.ndarray, atari_wrappers.LazyFrames)), type(g)
         g = g._frames[-1] if isinstance(g, atari_wrappers.LazyFrames) else g
-        augmented_states = [atari_wrappers.LazyFrames(ss.image._frames+[g], stack_axis=0) for ss in s]
+        
+        augmented_states = [atari_wrappers.LazyFrames(ss._frames+[g], stack_axis=0) for ss in s]
         return augmented_states
 
     def get_chunks(x, n):
@@ -139,8 +145,8 @@ def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, goal_pos, epis
         values[current_idx:current_idx + current_chunk_size] = chunk_values
         current_idx += current_chunk_size
 
-    x = [state.get_player_x(state.ram) for state in states]
-    y = [state.get_player_y(state.ram) for state in states]
+    x = [state[0] for state in pos_buffer]
+    y = [state[1] for state in pos_buffer]
 
     plt.scatter(x, y, c=values)
     plt.xlabel(f'goal: {goal_pos}')
@@ -154,7 +160,7 @@ def make_chunked_gc_value_function_plot(pfrl_agent, states, goal, goal_pos, epis
     return values.max()
 
 
-def make_generalized_value_function_plot(pfrl_agent, start, goal, ram_buffer, episode, seed, experiment_name):
+def make_generalized_value_function_plot(pfrl_agent, start, goal, ram_buffer, pos_buffer, episode, seed, experiment_name):
     path = room_one.getPath(start, goal)
     pairs = []
     
@@ -170,19 +176,7 @@ def make_generalized_value_function_plot(pfrl_agent, start, goal, ram_buffer, ep
 
     print(pairs) # len(path) / 2
 
-    for start, goal in pairs: 
-        env.reset()
-        env.set_player_position(*start)       
-        episodic_reward, episodic_duration, max_episodic_reward, trajectory, ram_trajectory = pfrl_agent.gc_rollout(
-                        env,
-                        location_to_lf[goal],
-                        goal,
-                        episode,
-                        max_episodic_reward,
-                        test=True
-                    )
-
-        make_chunked_gc_value_function_plot(pfrl_agent, ram_buffer, goal_img, goal, episode, seed, "test")
+    make_chunked_gc_value_function_plot(pfrl_agent, ram_buffer, pos_buffer, location_to_lf[goal], goal, episode, seed, "test")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -198,8 +192,8 @@ if __name__ == "__main__":
     parser.add_argument("--n_steps", type=int, default=3)
     parser.add_argument("--replay_start_size", type=int, default=1000) # TODO maybe change
     parser.add_argument("--replay_buffer_size", type=int, default=int(3e5))
-    parser.add_argument("--num_training_steps", type=int, default=int(2e6))
-    parser.add_argument("--max_frames_per_episode", type=int, default=30*60*60)  # 30 mins
+    parser.add_argument("--num_training_steps", type=int, default=int(1e6))
+    parser.add_argument("--max_frames_per_episode", type=int, default=1000)  # 30 mins
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -232,6 +226,7 @@ if __name__ == "__main__":
                     )
 
     # goal_observations = load_all_goal_states(_path_to_goals)
+    build_room_one_graph()
 
     t0 = time.time()
     needs_reset = True
@@ -245,6 +240,7 @@ if __name__ == "__main__":
     _log_pursued_goals = []
 
     state_buffer = collections.deque(maxlen=10000)
+    pos_buffer = collections.deque(maxlen=10000)
 
     while current_step_number < args.num_training_steps:
         
@@ -255,11 +251,10 @@ if __name__ == "__main__":
 
         # TODO select start
         spos = select_start()
-        env.set_player_position(*spos)
-        s0 = env.env.step(0) # NO-OP
+        s0 = env.set_player_position(*spos)
         gpos, gobs = select_goal(spos)
 
-        episodic_reward, episodic_duration, max_episodic_reward, needs_reset, state_trajectory = \
+        episodic_reward, episodic_duration, max_episodic_reward, needs_reset, state_trajectory, pos_trajectory = \
         \
         rainbow_agent.gc_rollout(
             env,
@@ -272,6 +267,7 @@ if __name__ == "__main__":
         )
 
         state_buffer.extend(state_trajectory)
+        pos_buffer.extend(pos_trajectory)
 
         current_step_number += episodic_duration
 
@@ -289,5 +285,5 @@ if __name__ == "__main__":
             }
             pickle.dump(episode_metrics, f)
 
-    make_generalized_value_function_plot(rainbow_agent, spos, gpos, state_buffer, current_episode_number, args.seed, "gcrl")
+    make_generalized_value_function_plot(rainbow_agent, spos, gpos, state_buffer, pos_buffer, current_episode_number, args.seed, "gcrl")
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")
