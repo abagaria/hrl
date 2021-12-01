@@ -28,8 +28,8 @@ class DSGTrainer:
         self.init_salient_event = dsc.init_salient_event
         
         self.predefined_events = predefined_events
-        self.generated_salient_events = [predefined_events[0]]
-        self.salient_events = [predefined_events[0]] #+ [self.init_salient_event]  # TODO: figure out strategy for init event
+        self.generated_salient_events = predefined_events
+        self.salient_events = predefined_events + [self.init_salient_event]
 
         for event in self.salient_events:
             self.dsg_agent.add_salient_event(event)
@@ -46,14 +46,6 @@ class DSGTrainer:
             else:
                 self.graph_consolidation_run_loop(episode)
 
-            # TODO: Delete
-            if len(self.salient_events[0].effect_set) == 20:
-                new_event = self.predefined_events[1]
-                print('*' * 80); print(f"Adding new event {new_event}"); print('*' * 80)
-                self.generated_salient_events.append(new_event)
-                self.salient_events.append(new_event)
-                self.dsg_agent.add_salient_event(new_event)
-
     def graph_expansion_run_loop(self, start_episode, num_episodes):
         for episode in range(start_episode, start_episode + num_episodes):
             pass
@@ -67,10 +59,6 @@ class DSGTrainer:
             pos = info['player_x'], info['player_y']
             event = self.select_goal_salient_event(state, info)
 
-            # TODO: Delete
-            if event is None:
-                break
-
             self.create_skill_chains_if_needed(state, info, event)
             print(f"[Graph Consolidation] From {pos} to {event.target_pos}")
             state, info, done, reset, reached = self.dsg_agent.run_loop(state=state,
@@ -80,8 +68,7 @@ class DSGTrainer:
                                                                         eval_mode=False)
             if reached: print(f"DSG successfully reached {event}")
 
-        #TODO: Uncomment
-        # assert done or reset, f"{done, reset}"      
+        assert done or reset, f"{done, reset}"
 
         if episode > 0 and episode % 10 == 0:
             self.add_potential_edges_to_graph()
@@ -96,9 +83,12 @@ class DSGTrainer:
         selected_event = self._select_closest_unconnected_salient_event(state, info)
 
         if selected_event is not None:
+            print(f"[Closest] DSG selected event {selected_event}")
             return selected_event
         
-        return self._randomly_select_salient_event(state, info)
+        selected_event = self._randomly_select_salient_event(state, info)
+        print(f"[Random] DSG selected event {selected_event}")
+        return selected_event
 
     def _randomly_select_salient_event(self, state, info):
         num_tries = 0
@@ -119,10 +109,22 @@ class DSGTrainer:
         return target_event
 
     def _select_closest_unconnected_salient_event(self, state, info):
+        # unconnected_events = self._get_unconnected_events(state, info)
+        # current_events = self.get_corresponding_salient_events(state, info)
+        
+        # closest_pair = self.dsg_agent.get_closest_pair_of_vertices(
+        #     current_events,
+        #     unconnected_events
+        # )
+
+        # if closest_pair is not None:
+        #     return closest_pair[1]
         pass
 
     def _get_unconnected_events(self, state, info):
-        pass
+        candidate_events = [event for event in self.salient_events if not event(info)]
+        unconnected_events = self.dsg_agent.planner.get_unconnected_nodes(state, info, candidate_events)
+        return unconnected_events
 
     # ---------------------------------------------------
     # Manage skill chains
@@ -141,8 +143,8 @@ class DSGTrainer:
 
                 init, target = init_event, goal_salient_event
                 
-                # if closest_event_pair is not None:  # TODO: Uncomment
-                #     init, target = closest_event_pair[0], closest_event_pair[1]
+                if closest_event_pair is not None:
+                    init, target = closest_event_pair[0], closest_event_pair[1]
 
                 if not self.is_path_under_construction(state, info, init, target):
                     print(f"[DeepSkillGraphsAgent] Creating chain from {init} -> {target}")
@@ -192,8 +194,9 @@ class DSGTrainer:
         self.dsg_agent.add_salient_event(salient_event)
 
     def get_corresponding_salient_events(self, state, info):
-        salient_events = [self.init_salient_event] + self.salient_events
-        return [event for event in salient_events if event(info)]
+        # TODO: Need this if we remove init_event from salient_events
+        # salient_events = [self.init_salient_event] + self.salient_events
+        return [event for event in self.salient_events if event(info)]
 
     # ---------------------------------------------------
     # Manage skill graph
