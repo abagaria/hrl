@@ -53,6 +53,12 @@ if __name__ == "__main__":
     parser.add_argument("--max_num_options", type=int, default=5)
     parser.add_argument("--gamma", type=float)
     parser.add_argument("--max_frames_per_episode", type=int, default=30*60*60)  # 30 mins
+    parser.add_argument("--p_her", type=float, default=1.)
+
+    parser.add_argument("--use_rf_on_pos_traj", action="store_true", default=False)
+    parser.add_argument("--use_rf_on_neg_traj", action="store_true", default=False)
+    parser.add_argument("--replay_original_goal_on_pos", action="store_true", default=False)
+
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -106,8 +112,12 @@ if __name__ == "__main__":
                           args.gpu_id,
                           beta0,
                           args.use_oracle_rf,
+                          args.use_rf_on_pos_traj,
+                          args.use_rf_on_neg_traj,
+                          args.replay_original_goal_on_pos,
                           args.use_pos_for_init,
                           args.gamma,
+                          args.p_her,
                           args.max_num_options,
                           args.seed,
                           _log_file)

@@ -1,11 +1,11 @@
-from math import e
-from operator import pos
 import gym
 import time
 import random
+import pickle
 import networkx as nx
 import networkx.algorithms.shortest_paths as shortest_paths
 
+from collections import defaultdict
 from pfrl.wrappers import atari_wrappers
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
@@ -34,6 +34,9 @@ class DSGTrainer:
         for event in self.salient_events:
             self.dsg_agent.add_salient_event(event)
 
+        # Map goal to success curve
+        self.gc_successes = defaultdict(list)
+
     # ---------------------------------------------------
     # Run loops 
     # ---------------------------------------------------
@@ -45,6 +48,9 @@ class DSGTrainer:
                 self.graph_expansion_run_loop(episode, self.expansion_duration)
             else:
                 self.graph_consolidation_run_loop(episode)
+            
+            with open(self.dsc_agent.log_file, "wb+") as f:
+                pickle.dump(self.gc_successes, f)
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
         for episode in range(start_episode, start_episode + num_episodes):
@@ -66,7 +72,12 @@ class DSGTrainer:
                                                                         goal_salient_event=event,
                                                                         episode=episode,
                                                                         eval_mode=False)
-            if reached: print(f"DSG successfully reached {event}")
+            
+            # Log success or failure for the pursued goal
+            self.gc_successes[tuple(event.target_pos)].append(reached)
+
+            if reached:
+                print(f"DSG successfully reached {event}")
 
         assert done or reset, f"{done, reset}"
 

@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from collections import deque
 from pfrl.wrappers import atari_wrappers
@@ -23,6 +24,13 @@ class SalientEvent:
 
     def get_target_obs(self):
         return self.target_obs
+
+    def sample(self):
+        """ Sample a state from the effect set. """ 
+        if len(self.effect_set) > 0:
+            sampled_point = random.choice(self.effect_set)
+            return sampled_point.obs, sampled_point.pos
+        return self.target_obs, self.target_pos
 
     def __call__(self, pos):
         if isinstance(pos, dict):

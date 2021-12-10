@@ -10,6 +10,12 @@ from pfrl.wrappers import atari_wrappers
 from hrl.agent.rainbow.rainbow import Rainbow
 
 
+def info_to_pos(info):
+    if isinstance(info, np.ndarray):
+        return info
+    pos = info['player_x'], info['player_y']
+    return np.array(pos)
+
 def make_meshgrid(x, y, h=1.):
     x_min, x_max = x.min() - 1, x.max() + 1
     y_min, y_max = y.min() - 1, y.max() + 1
