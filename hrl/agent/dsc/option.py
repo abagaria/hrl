@@ -69,7 +69,6 @@ class ModelFreeOption(object):
                             replay_start_size=80_000,
                             replay_buffer_size=(10**6) // 2,
                             gpu=self.gpu_id,
-                            use_her=True,
                             goal_conditioned=True,
                     )
 
@@ -129,6 +128,12 @@ class ModelFreeOption(object):
         
         if isinstance(state, atari_wrappers.LazyFrames):
             return state._frames[-1].squeeze()
+    
+    def failure_condition(self, info, check_falling=False):
+        targets_start_state = self.target_salient_event.target_pos[0] == 77.\
+                          and self.target_salient_event.target_pos[1] == 235.
+        death_cond = (info['falling'] or info['dead']) if check_falling else info['dead']
+        return death_cond and not targets_start_state 
 
     # ------------------------------------------------------------
     # Control Loop Methods
@@ -141,7 +146,7 @@ class ModelFreeOption(object):
         
         reached = is_close(pos, goal_pos, tol=2.)
         reward = float(reached)
-
+        
         return reward, reached
 
     def act(self, state, goal):
@@ -158,9 +163,15 @@ class ModelFreeOption(object):
 
         sampled_goal = self.parent.initiation_classifier.sample()
 
-        # TODO: Deal with the case where sampled_goal is None
+        if sampled_goal is not None:
+            return sampled_goal.obs, sampled_goal.pos
 
-        return sampled_goal.obs, sampled_goal.pos
+        if self.parent.parent is not None:
+            sampled_goal = self.parent.parent.initiation_classifier.sample()
+            return sampled_goal.obs, sampled_goal.pos
+        
+        return self.target_salient_event.target_obs, self.target_salient_event.target_pos
+        
 
     def rollout(self, start_state, info, dsc_goal_salient_event, eval_mode=False):
         """ Main option control loop. """
@@ -176,7 +187,7 @@ class ModelFreeOption(object):
         option_transitions = []
         self.num_executions += 1
 
-        state = deepcopy(start_state)  # TODO: Do we need to deepcopy?
+        state = start_state
         pos = deepcopy(start_position)
 
         visited_positions = [pos]
@@ -195,8 +206,13 @@ class ModelFreeOption(object):
             next_state, reward, done, info = self.env.step(action)
 
             reset = info.get("needs_reset", False)
-            pos = info["player_x"], info["player_y"]
-            reward, reached = self.rf(pos, goal_pos)
+            
+            if self.use_oracle_rf:
+                pos = info["player_x"], info["player_y"]
+                reward, reached = self.rf(pos, goal_pos)
+            else:
+                reached = self.is_term_true(next_state, info)
+                reward = float(reward)
 
             num_steps += 1
             total_reward += reward
@@ -209,12 +225,12 @@ class ModelFreeOption(object):
                                       np.sign(reward), 
                                       next_state, 
                                       done or reached, 
-                                      reset,   # TODO: Think about done and reset for options
+                                      reset,
                                       info)
             )
 
             # Truncate initiation trajectories around death transitions
-            if info["dead"] and not self.global_init:
+            if (not self.global_init) and self.failure_condition(info, check_falling=False):
                 self.derive_training_examples(visited_states,
                                               visited_positions,
                                               reached_term=False)
@@ -228,14 +244,18 @@ class ModelFreeOption(object):
         self.success_curve.append(reached_term)
 
         if not eval_mode:
-            self.update_option_after_rollout(state, info, goal, option_transitions, 
+            self.update_option_after_rollout(state, info, goal, goal_pos, option_transitions, 
                                              visited_states, visited_positions, reached_term)
+            print(f"Updated {self.name} on {len(visited_positions)} transitions")
 
         return state, done, reset, visited_positions, goal_pos, info
 
-    def update_option_after_rollout(self, state, info, goal, option_transitions,
+    def update_option_after_rollout(self, state, info, goal, goal_pos, option_transitions,
                                     visited_states, visited_positions, reached_term):
         """ After rolling out an option policy, update its effect set, policy and initiation classifier. """
+
+        def info_to_pos(info_dict):
+            return np.array([info_dict['player_x'], info_dict['player_y']])
 
         if reached_term:
             self.num_goal_hits += 1
@@ -246,8 +266,11 @@ class ModelFreeOption(object):
                 assert isinstance(self.target_salient_event, SalientEvent)
                 self.target_salient_event.add_to_effect_set(state, info)
 
-        assert not self.use_oracle_rf, "Deprecated"
-        self.no_rf_update(option_transitions, goal, reached_term)
+        if self.use_oracle_rf:
+            option_positions = [info_to_pos(trans[-1]) for trans in option_transitions]
+            self.solver.her(option_transitions, option_positions, goal, goal_pos)
+        else:
+            self.no_rf_update(option_transitions, goal, reached_term)
 
         if not self.global_init and len(visited_states) > 0:
             self.derive_training_examples(visited_states, visited_positions, reached_term)
@@ -273,7 +296,7 @@ class ModelFreeOption(object):
             hindsight_goal, hindsight_goal_idx = self.solver.pick_hindsight_goal(transitions)
             hindsight_trajectory = transitions[:hindsight_goal_idx]
 
-            if len(hindsight_trajectory) > 0:  # TODO: Remove cause its ugly
+            if len(hindsight_trajectory) > 0:
                 relabeled_trajectory = self.positive_relabel(hindsight_trajectory)
                 self.experience_replay(relabeled_trajectory, hindsight_goal)
 

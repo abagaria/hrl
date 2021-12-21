@@ -1,5 +1,6 @@
 import ipdb
 import pickle
+import numpy as np
 
 from hrl.agent.dsc.utils import *
 from hrl.agent.dsc.chain import SkillChain
@@ -229,7 +230,7 @@ class RobustDSC(object):
         option = ModelFreeOption(name=name,
                                  option_idx=self.current_option_idx,
                                  parent=parent, 
-                                 timeout=200, 
+                                 timeout=np.inf, 
                                  env=self.mdp,
                                  global_init=False,
                                  global_solver=self.global_option.solver,
@@ -252,7 +253,7 @@ class RobustDSC(object):
         option = ModelFreeOption(name="global-option",
                                  option_idx=0,
                                  parent=None,
-                                 timeout=100,
+                                 timeout=np.inf,
                                  env=self.mdp,
                                  global_init=True,
                                  global_solver=None,

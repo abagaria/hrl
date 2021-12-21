@@ -1,5 +1,6 @@
 import ipdb
 import torch
+import scipy
 import random
 import numpy as np
 from pfrl.wrappers import atari_wrappers
@@ -251,7 +252,7 @@ class SkillGraphAgent:
             return A[np.random.randint(A.shape[0], size=num_rows), :].squeeze()
 
         if len(src_vertices) > 0 and len(dest_vertices) > 0:
-            distance_matrix = self.single_sample_vf_based_distances(src_vertices, dest_vertices)
+            distance_matrix = self.get_distance_matrix(src_vertices, dest_vertices)
             min_array = np.argwhere(distance_matrix == np.min(distance_matrix)).squeeze()
 
             if len(min_array.shape) > 1 and min_array.shape[0] > 1:
@@ -259,9 +260,13 @@ class SkillGraphAgent:
 
             return src_vertices[min_array[0]], dest_vertices[min_array[1]]
 
-    def single_sample_vf_based_distances(self, src_vertices, dest_vertices):
-        def sample(vertex):
-            return random.choice(vertex.effect_set).obs
+    def get_distance_matrix(self, src_vertices, dest_vertices, metric="euclidean"):
+        assert metric in ("euclidean", "vf"), metric
+
+        def sample(vertex, key):
+            assert key in ('obs', 'pos')
+            x = random.choice(vertex.effect_set)
+            return x.obs if key == 'obs' else x.pos
 
         def batched_pairwise_distances(observationsA, observationsB, vf):
             distance_matrix = torch.zeros((len(observationsA), len(observationsB)))
@@ -274,13 +279,19 @@ class SkillGraphAgent:
 
             return distance_matrix.cpu().numpy()
 
-        src_observations = [sample(v) for v in src_vertices]
-        dst_observations = [sample(v) for v in dest_vertices]
+        def euclidean_distances(positionsA, positionsB):
+            return scipy.spatial.distance.cdist(positionsA, positionsB)
 
-        per_point_distance_matrix = batched_pairwise_distances(src_observations,
-                                                               dst_observations,
-                                                               self.dsc_agent.global_option.value_function)
-        return per_point_distance_matrix
+        attribute = 'pos' if metric == "euclidean" else 'obs'
+        src_observations = [sample(v, attribute) for v in src_vertices]
+        dst_observations = [sample(v, attribute) for v in dest_vertices]
+
+        if metric == "euclidean":
+            return euclidean_distances(src_observations, dst_observations)
+
+        return batched_pairwise_distances(src_observations,
+                                          dst_observations,
+                                          self.dsc_agent.global_option.value_function)
 
     # -----------------------------–––––––--------------
     # Maintaining the graph
