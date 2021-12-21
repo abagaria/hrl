@@ -4,6 +4,7 @@ plots
 
 # VS Code
 .vscode/
+.onager/
 setup.cfg
 
 # Byte-compiled / optimized / DLL files

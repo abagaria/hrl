@@ -16,11 +16,10 @@ class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
                  init_salient_event, target_salient_event, n_training_steps,
-                 gamma, use_oracle_rf, max_num_options, use_pos_for_init, chain_id,
+                 use_oracle_rf, max_num_options, use_pos_for_init, chain_id,
                  num_kmeans_clusters, num_sift_keypoints,):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
-        self.gamma = gamma
         self.parent = parent
         self.gpu_id = gpu_id
         self.timeout = timeout

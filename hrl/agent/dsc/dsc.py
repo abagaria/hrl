@@ -11,13 +11,12 @@ class RobustDSC(object):
     def __init__(self, mdp, gestation_period, buffer_length,
                  experiment_name, gpu_id,
                  init_event,
-                 use_oracle_rf, use_pos_for_init, gamma,
+                 use_oracle_rf, use_pos_for_init,
                  max_num_options, seed, log_filename,
                  num_kmeans_clusters, num_sift_keypoints,):
 
         self.mdp = mdp
         self.seed = seed
-        self.gamma = gamma
         self.gpu_id = gpu_id
         self.experiment_name = experiment_name
 
@@ -240,7 +239,6 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=init_event,
                                  target_salient_event=target_event,
-                                 gamma=self.gamma,
                                  use_oracle_rf=self.use_oracle_rf,
                                  max_num_options=self.max_num_options,
                                  use_pos_for_init=self.use_pos_for_init,
@@ -264,7 +262,6 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
                                  target_salient_event=None,
-                                 gamma=self.gamma,
                                  use_oracle_rf=self.use_oracle_rf,
                                  max_num_options=self.max_num_options,
                                  use_pos_for_init=self.use_pos_for_init,

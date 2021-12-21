@@ -50,9 +50,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_oracle_rf", action="store_true", default=False)
     parser.add_argument("--use_pos_for_init", action="store_true", default=False)
     parser.add_argument("--max_num_options", type=int, default=5)
-    parser.add_argument("--num_kmeans_clusters", type=int, default=50)
-    parser.add_argument("--num_sift_keypoints", type=int, default=None)
-    parser.add_argument("--gamma", type=float)
+    parser.add_argument("--num_kmeans_clusters", type=int, default=99)
+    parser.add_argument("--num_sift_keypoints", type=int, default=30)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -91,7 +90,6 @@ if __name__ == "__main__":
                           beta0,
                           args.use_oracle_rf,
                           args.use_pos_for_init,
-                          args.gamma,
                           args.max_num_options,
                           args.seed,
                           _log_file,
