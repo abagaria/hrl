@@ -7,7 +7,7 @@ from pfrl.wrappers import atari_wrappers
 
 from hrl.agent.rainbow.rainbow import Rainbow
 from .classifier.position_classifier import PositionInitiationClassifier
-from .classifier.image_classifier import ImageInitiationClassifier
+from .classifier.sift_classifier import SiftInitiationClassifier
 from hrl.salient_event.salient_event import SalientEvent
 from .datastructures import TrainingExample
 
@@ -16,10 +16,10 @@ class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
                  init_salient_event, target_salient_event, n_training_steps,
-                 gamma, use_oracle_rf, max_num_options, use_pos_for_init, chain_id):
+                 use_oracle_rf, max_num_options, use_pos_for_init, chain_id,
+                 num_kmeans_clusters, num_sift_keypoints,):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
-        self.gamma = gamma
         self.parent = parent
         self.gpu_id = gpu_id
         self.timeout = timeout
@@ -41,6 +41,9 @@ class ModelFreeOption(object):
         self.num_goal_hits = 0
         self.num_executions = 0
         self.gestation_period = gestation_period
+
+        self.num_kmeans_clusters = num_kmeans_clusters
+        self.num_sift_keypoints = num_sift_keypoints
 
         self.initiation_classifier = self._get_initiation_classifier()
         self.solver = self._get_model_free_solver()
@@ -74,7 +77,10 @@ class ModelFreeOption(object):
     def _get_initiation_classifier(self):
         if self.use_pos_for_init:
             return PositionInitiationClassifier()
-        return ImageInitiationClassifier(gamma=self.gamma)
+        return SiftInitiationClassifier(
+            num_clusters=self.num_kmeans_clusters,
+            num_sift_keypoints=self.num_sift_keypoints,
+        )
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -121,7 +127,7 @@ class ModelFreeOption(object):
             return np.array([info["player_x"], info["player_y"]])
         
         if isinstance(state, atari_wrappers.LazyFrames):
-            return state._frames[-1]
+            return state._frames[-1].squeeze()
     
     def failure_condition(self, info, check_falling=False):
         targets_start_state = self.target_salient_event.target_pos[0] == 77.\

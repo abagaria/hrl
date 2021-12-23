@@ -1,5 +1,10 @@
+# results
+logs/
+plots
+
 # VS Code
 .vscode/
+.onager/
 setup.cfg
 
 # Byte-compiled / optimized / DLL files
@@ -112,6 +117,7 @@ celerybeat.pid
 .env
 .venv
 env/
+38env/
 venv/
 ENV/
 env.bak/
