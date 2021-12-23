@@ -13,9 +13,13 @@ from ..dsc.chain import SkillChain
 
 
 class SkillGraphAgent:
-    def __init__(self, dsc_agent):
+    def __init__(self, dsc_agent, distance_metric):
         assert isinstance(dsc_agent, RobustDSC)
+        assert distance_metric in ("euclidean", "vf"), distance_metric
+
         self.dsc_agent = dsc_agent
+        self.distance_metric = distance_metric
+        
         self.planner = PlanGraph()
         self.exploration_agent = self._get_exploration_agent()
 
@@ -252,7 +256,9 @@ class SkillGraphAgent:
             return A[np.random.randint(A.shape[0], size=num_rows), :].squeeze()
 
         if len(src_vertices) > 0 and len(dest_vertices) > 0:
-            distance_matrix = self.get_distance_matrix(src_vertices, dest_vertices)
+            distance_matrix = self.get_distance_matrix(src_vertices,
+                                                       dest_vertices,
+                                                       metric=self.distance_metric)
             min_array = np.argwhere(distance_matrix == np.min(distance_matrix)).squeeze()
 
             if len(min_array.shape) > 1 and min_array.shape[0] > 1:

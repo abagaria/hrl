@@ -59,6 +59,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_rf_on_neg_traj", action="store_true", default=False)
     parser.add_argument("--replay_original_goal_on_pos", action="store_true", default=False)
 
+    parser.add_argument("--distance_metric", type=str, default="euclidean")
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -122,11 +123,11 @@ if __name__ == "__main__":
                           args.seed,
                           _log_file)
 
-    dsg_agent = SkillGraphAgent(dsc_agent)
+    dsg_agent = SkillGraphAgent(dsc_agent, args.distance_metric)
     
     trainer = DSGTrainer(env, dsc_agent, dsg_agent, 1000, 100,
                          [beta1, beta2, beta3, beta4, beta5])
     
     t0 = time.time()
-    trainer.run_loop(0, int(1e4))
+    trainer.run_loop(0, int(1e5))
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")

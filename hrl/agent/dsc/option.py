@@ -189,6 +189,7 @@ class ModelFreeOption(object):
         if sampled_goal is not None:
             return sampled_goal.obs, sampled_goal.pos
 
+        # TODO: Recursively sample from initiation classifiers up the chain
         if self.parent.parent is not None:
             sampled_goal = self.parent.parent.initiation_classifier.sample()
             if sampled_goal is not None:
@@ -321,10 +322,12 @@ class ModelFreeOption(object):
             assert np.isclose(sum(relabeled_rewards), 1.), relabeled_rewards
 
             if self.replay_original_goal_on_pos:
-                relabeled_transitions = self.oracle_relabel_pos_trajectory_original_goal(
+                relabeled_transitions = self.relabel_pos_trajectory_original_goal(
                     transitions, pursued_goal_pos, reached_goal_pos
                 )
-                self.experience_replay(relabeled_transitions, pursued_goal)
+
+                if relabeled_transitions is not None:
+                    self.experience_replay(relabeled_transitions, pursued_goal)
         else:
             # Sanity check rewards along negative trajectory
             assert np.isclose(sum(original_rewards), 0.), f"{self, original_rewards}"
@@ -395,6 +398,22 @@ class ModelFreeOption(object):
         relabeled_transitions = self.negative_relabel(trajectory)
         assert np.isclose(sum([x[2] for x in relabeled_transitions]), 0.)
         return relabeled_transitions
+
+    def relabel_pos_trajectory_original_goal(self, 
+                                             trajectory, 
+                                             pursued_goal_pos,
+                                             reached_goal_pos):
+        """ If the pursued goal was from a salient event and we reached that salient event, 
+            we can assume that we were epsilon-close to the pursued goal. """
+        final_transition = trajectory[-1]
+        final_pos = utils.info_to_pos(final_transition[-1])
+        assert np.isclose(final_pos, reached_goal_pos).all(), f"{final_pos, reached_goal_pos}"
+        
+        if self.target_salient_event is not None and self.target_salient_event(pursued_goal_pos):
+            print("[+SalientEventTrajReplay] Replaying positive trajectory with *positive* original goal")
+            relabeled_transitions = self.positive_relabel(trajectory)
+            assert np.isclose(sum([x[2] for x in relabeled_transitions]), 1.)
+            return relabeled_transitions
 
     def negative_oracle_relabel(self, trajectory, goal_pos):
         relabeled_trajectory = []
