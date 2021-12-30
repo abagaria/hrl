@@ -14,13 +14,16 @@ class RobustDSC(object):
                  init_event,
                  use_oracle_rf, use_rf_on_pos_traj,
                  use_rf_on_neg_traj, replay_original_goal_on_pos,
-                 use_pos_for_init, gamma,
-                 p_her, max_num_options, seed, log_filename):
+                 use_pos_for_init,
+                 p_her, max_num_options, seed, log_filename,
+                 num_kmeans_clusters, num_sift_keypoints):
 
         self.mdp = mdp
         self.seed = seed
-        self.gamma = gamma
         self.p_her = p_her
+
+        self.mdp = mdp
+        self.seed = seed
         self.gpu_id = gpu_id
         self.experiment_name = experiment_name
 
@@ -35,6 +38,8 @@ class RobustDSC(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
         self.init_salient_event = init_event
+        self.num_kmeans_clusters = num_kmeans_clusters
+        self.num_sift_keypoints = num_sift_keypoints
 
         self.global_option = self.create_global_option()
 
@@ -81,7 +86,7 @@ class RobustDSC(object):
     # ------------------------------------------------------------
 
     def dsc_rollout(self, state, info, goal_salient_event, episode,
-                    eval_mode=False, interrupt_handle=lambda x: False):
+                    eval_mode=False, interrupt_handle=lambda state, info: False):
         assert isinstance(goal_salient_event, SalientEvent)
         assert len(self.chains) > 0, "Create skill chains b/w constructor and rollout"
 
@@ -245,7 +250,6 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=init_event,
                                  target_salient_event=target_event,
-                                 gamma=self.gamma,
                                  
                                  use_oracle_rf=self.use_oracle_rf,
                                  use_rf_on_pos_traj=self.use_rf_on_pos_traj,
@@ -255,7 +259,9 @@ class RobustDSC(object):
                                  max_num_options=self.max_num_options,
                                  use_pos_for_init=self.use_pos_for_init,
                                  chain_id=chain_idx,
-                                 p_her=self.p_her)
+                                 p_her=self.p_her,
+                                 num_kmeans_clusters=self.num_kmeans_clusters,
+                                 num_sift_keypoints=self.num_sift_keypoints)
         self.current_option_idx += 1
         return option
 
@@ -273,7 +279,6 @@ class RobustDSC(object):
                                  n_training_steps=int(2e6),  # TODO
                                  init_salient_event=self.init_salient_event,
                                  target_salient_event=None,
-                                 gamma=self.gamma,
                                  
                                  use_oracle_rf=self.use_oracle_rf,
                                  use_rf_on_pos_traj=self.use_rf_on_pos_traj,
@@ -283,7 +288,9 @@ class RobustDSC(object):
                                  max_num_options=self.max_num_options,
                                  use_pos_for_init=self.use_pos_for_init,
                                  chain_id=0,
-                                 p_her=self.p_her)
+                                 p_her=self.p_her,
+                                 num_kmeans_clusters=self.num_kmeans_clusters,
+                                 num_sift_keypoints=self.num_sift_keypoints)
         return option
 
     def create_child_option(self, parent):

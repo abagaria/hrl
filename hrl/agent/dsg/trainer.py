@@ -120,16 +120,17 @@ class DSGTrainer:
         return target_event
 
     def _select_closest_unconnected_salient_event(self, state, info):
-        unconnected_events = self._get_unconnected_events(state, info)
-        current_events = self.get_corresponding_salient_events(state, info)
+        # unconnected_events = self._get_unconnected_events(state, info)
+        # current_events = self.get_corresponding_salient_events(state, info)
         
-        closest_pair = self.dsg_agent.get_closest_pair_of_vertices(
-            current_events,
-            unconnected_events
-        )
+        # closest_pair = self.dsg_agent.get_closest_pair_of_vertices(
+        #     current_events,
+        #     unconnected_events
+        # )
 
-        if closest_pair is not None:
-            return closest_pair[1]
+        # if closest_pair is not None:
+        #     return closest_pair[1]
+        pass
 
     def _get_unconnected_events(self, state, info):
         candidate_events = [event for event in self.salient_events if not event(info)]

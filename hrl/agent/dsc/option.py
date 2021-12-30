@@ -9,7 +9,7 @@ from pfrl.wrappers import atari_wrappers
 from . import utils
 from hrl.agent.rainbow.rainbow import Rainbow
 from .classifier.position_classifier import PositionInitiationClassifier
-from .classifier.image_classifier import ImageInitiationClassifier
+from .classifier.sift_classifier import SiftInitiationClassifier
 from hrl.salient_event.salient_event import SalientEvent
 from .datastructures import TrainingExample
 
@@ -17,14 +17,13 @@ from .datastructures import TrainingExample
 class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
-                 init_salient_event, target_salient_event, n_training_steps, gamma,
+                 init_salient_event, target_salient_event, n_training_steps,
                  use_oracle_rf, use_rf_on_pos_traj, use_rf_on_neg_traj,
                  replay_original_goal_on_pos,
                  max_num_options, use_pos_for_init, chain_id,
-                 p_her):
+                 p_her, num_kmeans_clusters, num_sift_keypoints):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
-        self.gamma = gamma
         self.parent = parent
         self.gpu_id = gpu_id
         self.timeout = timeout
@@ -51,6 +50,9 @@ class ModelFreeOption(object):
         self.num_goal_hits = 0
         self.num_executions = 0
         self.gestation_period = gestation_period
+
+        self.num_kmeans_clusters = num_kmeans_clusters
+        self.num_sift_keypoints = num_sift_keypoints
 
         self.initiation_classifier = self._get_initiation_classifier()
         self.solver = self._get_model_free_solver()
@@ -84,7 +86,10 @@ class ModelFreeOption(object):
     def _get_initiation_classifier(self):
         if self.use_pos_for_init:
             return PositionInitiationClassifier()
-        return ImageInitiationClassifier(gamma=self.gamma)
+        return SiftInitiationClassifier(
+            num_clusters=self.num_kmeans_clusters,
+            num_sift_keypoints=self.num_sift_keypoints,
+        )
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -104,6 +109,9 @@ class ModelFreeOption(object):
         if self.is_last_option and self.init_salient_event(pos):
             return True
 
+        if not self.initiation_classifier.is_initialized():
+            return True
+
         x = self.extract_init_features(state, info)
         
         return self.initiation_classifier.optimistic_predict(x) \
@@ -112,6 +120,9 @@ class ModelFreeOption(object):
     def pessimistic_is_init_true(self, state, info):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
+
+        if not self.initiation_classifier.is_initialized():
+            return False
 
         x = self.extract_init_features(state, info)
         return self.initiation_classifier.pessimistic_predict(x)
@@ -131,7 +142,7 @@ class ModelFreeOption(object):
             return np.array([info["player_x"], info["player_y"]])
         
         if isinstance(state, atari_wrappers.LazyFrames):
-            return state._frames[-1]
+            return state._frames[-1].squeeze()
     
     def failure_condition(self, info, check_falling=False):
         targets_start_state = self.target_salient_event.target_pos[0] == 77.\

@@ -225,7 +225,38 @@ class SkillGraphAgent:
     # Distance functions
     # -----------------------------–––––––--------------
 
+    def closest_node_lut(self, target_event):
+        spos  = (77, 235)
+        gpos0 = (123, 148)
+        gpos1 = (132, 192)
+        gpos2 = (24, 235)
+        gpos3 = (130, 235)
+        gpos4 = (77, 192)
+        gpos5 = (23, 148)
+
+        # maps destination -> source
+        lut = {
+            spos : gpos4,
+            gpos0: gpos1,
+            gpos1: random.choice([spos, gpos4]),
+            gpos2: spos,
+            gpos3: spos,
+            gpos4: spos,
+            gpos5: gpos0,
+        }
+
+        target_pos = lut[tuple(target_event.target_pos)]
+
+        for beta in self.salient_events:
+            if tuple(beta.target_pos) == target_pos:
+                return beta
+        
+        ipdb.set_trace()
+
+    # TODO: Hack
     def choose_closest_source_target_vertex_pair(self, state, info, goal_salient_event, choose_among_events):
+        return self.closest_node_lut(goal_salient_event), goal_salient_event
+
         candidate_vertices_to_fall_from = self.planner.get_reachable_nodes_from_source_state(state, info)
         candidate_vertices_to_fall_from = list(candidate_vertices_to_fall_from) + self.get_corresponding_events(state, info)
 
@@ -238,6 +269,12 @@ class SkillGraphAgent:
 
         candidate_vertices_to_fall_from = list(set(candidate_vertices_to_fall_from))
         candidate_vertices_to_jump_to = list(set(candidate_vertices_to_jump_to))
+
+        # TODO: hack
+        if tuple(goal_salient_event.target_pos) == (23, 148):
+            for beta in self.salient_events:
+                if tuple(beta.target_pos) == (123, 148):
+                    return beta, goal_salient_event
 
         return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from, candidate_vertices_to_jump_to)
 
