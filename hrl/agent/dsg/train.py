@@ -56,6 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_num_options", type=int, default=5)
     parser.add_argument("--max_frames_per_episode", type=int, default=30*60*60)  # 30 mins
     parser.add_argument("--p_her", type=float, default=1.)
+    parser.add_argument("--goal_selection_criterion", type=str, default="random")
 
     parser.add_argument("--use_rf_on_pos_traj", action="store_true", default=False)
     parser.add_argument("--use_rf_on_neg_traj", action="store_true", default=False)
@@ -64,6 +65,7 @@ if __name__ == "__main__":
     parser.add_argument("--distance_metric", type=str, default="euclidean")
     parser.add_argument("--n_kmeans_clusters", type=int, default=99)
     parser.add_argument("--n_sift_keypoints", type=int, default=30)
+
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -133,7 +135,8 @@ if __name__ == "__main__":
 
     dsg_agent = SkillGraphAgent(dsc_agent, args.distance_metric)
     
-    trainer = DSGTrainer(env, dsc_agent, dsg_agent, 1000, 100,
+    trainer = DSGTrainer(env, dsc_agent, dsg_agent, 1000, 100, 
+                         args.goal_selection_criterion,
                          [beta1, beta2, beta3, beta4, beta5, beta6])
     
     t0 = time.time()
