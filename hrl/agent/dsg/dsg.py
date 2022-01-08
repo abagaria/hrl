@@ -15,7 +15,7 @@ from ..dsc.chain import SkillChain
 class SkillGraphAgent:
     def __init__(self, dsc_agent, distance_metric):
         assert isinstance(dsc_agent, RobustDSC)
-        assert distance_metric in ("euclidean", "vf"), distance_metric
+        assert distance_metric in ("euclidean", "vf", "ucb"), distance_metric
 
         self.dsc_agent = dsc_agent
         self.distance_metric = distance_metric
@@ -253,10 +253,7 @@ class SkillGraphAgent:
         
         ipdb.set_trace()
 
-    # TODO: Hack
     def choose_closest_source_target_vertex_pair(self, state, info, goal_salient_event, choose_among_events):
-        return self.closest_node_lut(goal_salient_event), goal_salient_event
-
         candidate_vertices_to_fall_from = self.planner.get_reachable_nodes_from_source_state(state, info)
         candidate_vertices_to_fall_from = list(candidate_vertices_to_fall_from) + self.get_corresponding_events(state, info)
 
@@ -270,13 +267,9 @@ class SkillGraphAgent:
         candidate_vertices_to_fall_from = list(set(candidate_vertices_to_fall_from))
         candidate_vertices_to_jump_to = list(set(candidate_vertices_to_jump_to))
 
-        # TODO: hack
-        if tuple(goal_salient_event.target_pos) == (23, 148):
-            for beta in self.salient_events:
-                if tuple(beta.target_pos) == (123, 148):
-                    return beta, goal_salient_event
-
-        return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from, candidate_vertices_to_jump_to)
+        return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from,
+                                                 candidate_vertices_to_jump_to,
+                                                 metric=self.distance_metric)
 
     def get_goal_vertices_for_rollout(self, state, info, goal_salient_event):
         # Revise the goal_salient_event if it cannot be reached from the current state
@@ -288,14 +281,14 @@ class SkillGraphAgent:
                 return planner_goal_vertex, dsc_goal_vertex
         return goal_salient_event, goal_salient_event
 
-    def get_closest_pair_of_vertices(self, src_vertices, dest_vertices):
+    def get_closest_pair_of_vertices(self, src_vertices, dest_vertices, metric):
         def sample(A, num_rows):
             return A[np.random.randint(A.shape[0], size=num_rows), :].squeeze()
 
         if len(src_vertices) > 0 and len(dest_vertices) > 0:
             distance_matrix = self.get_distance_matrix(src_vertices,
                                                        dest_vertices,
-                                                       metric=self.distance_metric)
+                                                       metric=metric)
             min_array = np.argwhere(distance_matrix == np.min(distance_matrix)).squeeze()
 
             if len(min_array.shape) > 1 and min_array.shape[0] > 1:
@@ -304,21 +297,31 @@ class SkillGraphAgent:
             return src_vertices[min_array[0]], dest_vertices[min_array[1]]
 
     def get_distance_matrix(self, src_vertices, dest_vertices, metric="euclidean"):
-        assert metric in ("euclidean", "vf"), metric
+        assert metric in ("euclidean", "vf", "ucb"), metric
 
         def sample(vertex, key):
             assert key in ('obs', 'pos')
             x = random.choice(vertex.effect_set)
             return x.obs if key == 'obs' else x.pos
 
-        def batched_pairwise_distances(observationsA, observationsB, vf):
+        def value_to_distance(v, n):
+            pos_value = v.squeeze().abs()
+            if metric == "ucb":
+                _n = torch.as_tensor(n).float().to(
+                    self.dsc_agent.global_option.solver.device
+                )
+                pos_value = pos_value + (1. / torch.sqrt(_n))
+            return 1. / pos_value
+
+        def batched_pairwise_distances(observationsA, observationsB, vf, n_points):
             distance_matrix = torch.zeros((len(observationsA), len(observationsB)))
             distance_matrix = distance_matrix.to(self.dsc_agent.global_option.solver.device)
 
             for i, obsA in enumerate(observationsA):
                 assert isinstance(obsA, atari_wrappers.LazyFrames), type(obsA)
                 with torch.no_grad():
-                    distance_matrix[i, :] = -vf(obsA, observationsB).squeeze()
+                    value = vf(obsA, observationsB)
+                    distance_matrix[i, :] = value_to_distance(value, n_points)
 
             return distance_matrix.cpu().numpy()
 
@@ -328,13 +331,15 @@ class SkillGraphAgent:
         attribute = 'pos' if metric == "euclidean" else 'obs'
         src_observations = [sample(v, attribute) for v in src_vertices]
         dst_observations = [sample(v, attribute) for v in dest_vertices]
+        n_dst_observations = [len(v.effect_set) for v in dest_vertices]
 
         if metric == "euclidean":
             return euclidean_distances(src_observations, dst_observations)
 
         return batched_pairwise_distances(src_observations,
                                           dst_observations,
-                                          self.dsc_agent.global_option.value_function)
+                                          self.dsc_agent.global_option.value_function,
+                                          n_dst_observations)
 
     # -----------------------------–––––––--------------
     # Maintaining the graph

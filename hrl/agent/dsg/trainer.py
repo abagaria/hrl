@@ -15,10 +15,12 @@ from hrl.salient_event.salient_event import SalientEvent
 class DSGTrainer:
     def __init__(self, env, dsc, dsg, 
                  expansion_freq, expansion_duration,
+                 goal_selection_criterion="random",
                  predefined_events=[]):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
+        assert goal_selection_criterion in ("random", "closest")
 
         self.env = env
         self.dsc_agent = dsc
@@ -26,6 +28,7 @@ class DSGTrainer:
         self.expansion_freq = expansion_freq
         self.expansion_duration = expansion_duration
         self.init_salient_event = dsc.init_salient_event
+        self.goal_selection_criterion = goal_selection_criterion
         
         self.predefined_events = predefined_events
         self.generated_salient_events = predefined_events
@@ -91,11 +94,14 @@ class DSGTrainer:
     # ---------------------------------------------------
 
     def select_goal_salient_event(self, state, info):
-        selected_event = self._select_closest_unconnected_salient_event(state, info)
+        """ Select goal node to target during graph consolidation. """
 
-        if selected_event is not None:
-            print(f"[Closest] DSG selected event {selected_event}")
-            return selected_event
+        if self.goal_selection_criterion == "closest":
+            selected_event = self._select_closest_unconnected_salient_event(state, info)
+
+            if selected_event is not None:
+                print(f"[Closest] DSG selected event {selected_event}")
+                return selected_event
         
         selected_event = self._randomly_select_salient_event(state, info)
         print(f"[Random] DSG selected event {selected_event}")
@@ -120,17 +126,17 @@ class DSGTrainer:
         return target_event
 
     def _select_closest_unconnected_salient_event(self, state, info):
-        # unconnected_events = self._get_unconnected_events(state, info)
-        # current_events = self.get_corresponding_salient_events(state, info)
+        unconnected_events = self._get_unconnected_events(state, info)
+        current_events = self.get_corresponding_salient_events(state, info)
         
-        # closest_pair = self.dsg_agent.get_closest_pair_of_vertices(
-        #     current_events,
-        #     unconnected_events
-        # )
+        closest_pair = self.dsg_agent.get_closest_pair_of_vertices(
+            current_events,
+            unconnected_events,
+            metric="vf"
+        )
 
-        # if closest_pair is not None:
-        #     return closest_pair[1]
-        pass
+        if closest_pair is not None:
+            return closest_pair[1]
 
     def _get_unconnected_events(self, state, info):
         candidate_events = [event for event in self.salient_events if not event(info)]
