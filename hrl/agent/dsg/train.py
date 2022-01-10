@@ -42,6 +42,21 @@ def load_goal_state(dir_path, file):
     return goal.obs
 
 
+def get_exploration_agent():
+    """ Return the exploration runner from BBE. """ 
+    from dopamine.discrete_domains import run_experiment
+    from hrl.agent.bonus_based_exploration.run_experiment import create_exploration_runner as create_runner
+    from hrl.agent.bonus_based_exploration.run_experiment import create_exploration_agent as create_agent
+
+    _rnd_base_dir = "logs"
+    _gin_files = [
+        os.path.expanduser("~/git-repos/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
+    ]
+
+    run_experiment.load_gin_configs(_gin_files, [])
+    return create_runner(_rnd_base_dir, create_agent, schedule='episode_wise')
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int)
@@ -81,6 +96,7 @@ if __name__ == "__main__":
         json.dump(args.__dict__, _args_file, indent=2)
 
     _log_file = f"logs/{args.experiment_name}/{args.seed}/dsg_log.pkl"
+    _rnd_log_file = f"logs/{args.experiment_name}/{args.seed}/rnd_log.pkl"
 
     env = make_env(args.environment_name,
                    seed=args.seed,
@@ -134,8 +150,13 @@ if __name__ == "__main__":
                           args.n_sift_keypoints)
 
     dsg_agent = SkillGraphAgent(dsc_agent, args.distance_metric)
+
+    exploration_agent = get_exploration_agent()
+    exploration_agent.set_env(env.env.env)
     
-    trainer = DSGTrainer(env, dsc_agent, dsg_agent, 1000, 100, 
+    trainer = DSGTrainer(env, dsc_agent, dsg_agent, exploration_agent,
+                         1000, 100, 
+                         _rnd_log_file,
                          args.goal_selection_criterion,
                          [beta1, beta2, beta3, beta4, beta5, beta6])
     

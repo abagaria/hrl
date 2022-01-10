@@ -10,21 +10,25 @@ from pfrl.wrappers import atari_wrappers
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
+from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 
 
 class DSGTrainer:
-    def __init__(self, env, dsc, dsg, 
+    def __init__(self, env, dsc, dsg, rnd,
                  expansion_freq, expansion_duration,
+                 rnd_log_filename,
                  goal_selection_criterion="random",
                  predefined_events=[]):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
+        assert isinstance(rnd, RNDAgent)
         assert goal_selection_criterion in ("random", "closest")
 
         self.env = env
         self.dsc_agent = dsc
         self.dsg_agent = dsg
+        self.rnd_agent = rnd
         self.expansion_freq = expansion_freq
         self.expansion_duration = expansion_duration
         self.init_salient_event = dsc.init_salient_event
@@ -39,6 +43,11 @@ class DSGTrainer:
 
         # Map goal to success curve
         self.gc_successes = defaultdict(list)
+
+        # Logging for exploration rollouts
+        self.rnd_extrinsic_rewards = [] 
+        self.rnd_intrinsic_rewards = []
+        self.rnd_log_filename = rnd_log_filename
 
     # ---------------------------------------------------
     # Run loops 
@@ -57,7 +66,17 @@ class DSGTrainer:
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
         for episode in range(start_episode, start_episode + num_episodes):
-            pass
+            observations, rewards, intrinsic_rewards = self.rnd_agent.rollout()
+            print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
+
+            self.rnd_extrinsic_rewards.append(rewards)
+            self.rnd_intrinsic_rewards.append(intrinsic_rewards)
+        
+        with open(self.rnd_log_filename, "wb+") as f:
+            pickle.dump({
+                "rint": self.rnd_intrinsic_rewards,
+                "rext": self.rnd_extrinsic_rewards
+            }, f)
 
     def graph_consolidation_run_loop(self, episode):
         done = False
@@ -223,4 +242,25 @@ class DSGTrainer:
         t0 = time.time()
         [self.dsg_agent.add_potential_edges(o) for o in self.dsg_agent.planner.option_nodes]
         print(f"Took {time.time() - t0}s to add potential edges.")
+
+    # ---------------------------------------------------
+    # Skill graph expansion
+    # ---------------------------------------------------
+
+    def extract_subgoals(self, observations, extrinsic_rewards, intrinsic_rewards):
+        def extract_subgoals_from_ext_rewards(obs, rewards):
+            sgs = []
+            for x, r in zip(obs, rewards):
+                if r > 0:
+                    sgs.append(x)
+            return sgs
+        
+        def extract_subgoals_from_int_rewards(obs, rewards):
+            i = rewards.argmax()
+            return obs[i]
+        
+        subgoals1 = extract_subgoals_from_ext_rewards(observations, extrinsic_rewards)
+        subgoals2 = extract_subgoals_from_int_rewards(observations, intrinsic_rewards)
+
+        return subgoals1, subgoals2
 
