@@ -2,6 +2,8 @@ import gym
 import time
 import random
 import pickle
+import ipdb
+import numpy as np
 import networkx as nx
 import networkx.algorithms.shortest_paths as shortest_paths
 
@@ -45,6 +47,8 @@ class DSGTrainer:
         self.gc_successes = defaultdict(list)
 
         # Logging for exploration rollouts
+        self.n_extrinsic_subgoals = 0
+        self.n_intrinsic_subgoals = 0
         self.rnd_extrinsic_rewards = [] 
         self.rnd_intrinsic_rewards = []
         self.rnd_log_filename = rnd_log_filename
@@ -65,18 +69,55 @@ class DSGTrainer:
                 pickle.dump(self.gc_successes, f)
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
+        intrinsic_subgoals = []
+        extrinsic_subgoals = []
+
         for episode in range(start_episode, start_episode + num_episodes):
             observations, rewards, intrinsic_rewards = self.rnd_agent.rollout()
             print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
 
+
+            extrinsic_subgoal_proposals, intrinsic_subgoal_proposals = self.extract_subgoals(
+                                                                            observations,
+                                                                            rewards, 
+                                                                            intrinsic_rewards
+                                                                        )
+            if len(extrinsic_subgoal_proposals) > 0:
+                ipdb.set_trace()
+                extrinsic_subgoals.extend(extrinsic_subgoal_proposals)
+            
+            if len(intrinsic_subgoal_proposals) > 0:
+                intrinsic_subgoals.extend(intrinsic_subgoal_proposals)
+
             self.rnd_extrinsic_rewards.append(rewards)
             self.rnd_intrinsic_rewards.append(intrinsic_rewards)
+
+        ipdb.set_trace()
+        best_intrinsic_s_r_pair = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
         
         with open(self.rnd_log_filename, "wb+") as f:
             pickle.dump({
                 "rint": self.rnd_intrinsic_rewards,
                 "rext": self.rnd_extrinsic_rewards
             }, f)
+
+        base_str = self.rnd_log_filename.split(".")[0]
+
+        if len(extrinsic_subgoals) > 0:
+            extrinsic_subgoal_filename = f"{base_str}_extrinsic_{self.n_extrinsic_subgoals}.pkl"
+
+            with open(extrinsic_subgoal_filename, "wb+") as f:
+                pickle.dump(extrinsic_subgoals, f)
+
+            self.n_extrinsic_subgoals += 1
+
+        if len(intrinsic_subgoals) > 0:
+            intrinsic_subgoal_filename = f"{base_str}_intrinsic_{self.n_intrinsic_subgoals}.pkl"
+
+            with open(intrinsic_subgoal_filename, "wb+") as f:
+                pickle.dump(best_intrinsic_s_r_pair, f)
+            
+            self.n_intrinsic_subgoals += 1
 
     def graph_consolidation_run_loop(self, episode):
         done = False
@@ -252,15 +293,27 @@ class DSGTrainer:
             sgs = []
             for x, r in zip(obs, rewards):
                 if r > 0:
-                    sgs.append(x)
+                    sgs.append((x, r))
             return sgs
         
         def extract_subgoals_from_int_rewards(obs, rewards):
             i = rewards.argmax()
-            return obs[i]
+            return [(obs[i], rewards[i])]
         
         subgoals1 = extract_subgoals_from_ext_rewards(observations, extrinsic_rewards)
         subgoals2 = extract_subgoals_from_int_rewards(observations, intrinsic_rewards)
 
         return subgoals1, subgoals2
 
+    @staticmethod
+    def extract_best_intrinsic_subgoal(s_r_pairs):
+        best_obs = None
+        max_intrinsic_reward = -np.inf
+
+        for obs, reward in s_r_pairs:
+            
+            if reward > max_intrinsic_reward:
+                best_obs = obs
+                max_intrinsic_reward = reward
+        
+        return best_obs, max_intrinsic_reward

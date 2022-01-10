@@ -1,4 +1,5 @@
 import os
+import ipdb
 import numpy as np
 
 from dopamine.discrete_domains.run_experiment import Runner
@@ -64,6 +65,9 @@ class RNDAgent(Runner):
             observation, reward, is_terminal = self._run_one_step(action)
 
             intrinsic_reward = self.get_intrinsic_reward(observation)
+
+            if reward > 0:
+                ipdb.set_trace()
 
             rewards.append(reward)
             intrinsic_rewards.append(intrinsic_reward)
