@@ -2,9 +2,9 @@ import os
 import ipdb
 import numpy as np
 
+from tqdm import tqdm
 from dopamine.discrete_domains.run_experiment import Runner
 from dopamine.discrete_domains import atari_lib
-
 from absl import logging
 import tensorflow.compat.v1 as tf
 
@@ -23,7 +23,7 @@ class RNDAgent(Runner):
             create_environment_fn=create_environment_fn
         )
 
-        self.env_wrapper = env_wrapper.MontezumaInfoWrapper(self._environment.environment)
+        self.env_wrapper = env_wrapper.MontezumaInfoWrapper(self._environment)
         self.info_buffer = ram_data_replay_buffer.MontezumaRevengeReplayBuffer(self._agent._replay.memory._replay_capacity)
 
         self.info_buffer.load(self._base_dir)
@@ -47,6 +47,7 @@ class RNDAgent(Runner):
         rewards = []
         observations = []
         intrinsic_rewards = []
+        visited_positions = []
 
         step_number = 0
 
@@ -60,14 +61,12 @@ class RNDAgent(Runner):
             player_x = self.env_wrapper.get_player_x()
             player_y = self.env_wrapper.get_player_y()
             room_num = self.env_wrapper.get_room_number()
+            visited_positions.append((player_x, player_y, room_num))
 
             self.info_buffer.add(player_x, player_y, room_num, self._agent._replay.memory.cursor())
             observation, reward, is_terminal = self._run_one_step(action)
 
             intrinsic_reward = self.get_intrinsic_reward(observation)
-
-            if reward > 0:
-                ipdb.set_trace()
 
             rewards.append(reward)
             intrinsic_rewards.append(intrinsic_reward)
@@ -102,7 +101,7 @@ class RNDAgent(Runner):
         logging.info('Completed episode %d', iteration)
         logging.info('Steps taken: %d Total reward: %d', step_number, sum(rewards))
 
-        return np.array(observations), np.array(rewards), np.array(intrinsic_rewards)
+        return np.array(observations), np.array(rewards), np.array(intrinsic_rewards), np.array(visited_positions)
 
     def get_intrinsic_reward(self, obs):
         rf = self._agent.intrinsic_model.compute_intrinsic_reward
@@ -122,11 +121,7 @@ class RNDAgent(Runner):
         return self._agent._get_value_function(stacks)
 
     def reward_function(self, observations):
-        rewards = []
-        for obs in observations:
-            rewards.append(self._agent._get_intrinsic_reward(np.array(obs).reshape((84,84))))
-
-        return rewards
+        return np.array([self.get_intrinsic_reward(obs) for obs in observations])
 
     def plot(self, episode=0, steps=0):
         self._agent.eval_mode = True

@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import ipdb
 import pfrl
 import pickle
 import random
@@ -12,7 +13,7 @@ from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.dsg.dsg import SkillGraphAgent
 from hrl.agent.dsg.trainer import DSGTrainer
 from hrl.salient_event.salient_event import SalientEvent
-from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
+from hrl.montezuma.info_wrapper import MontezumaInfoWrapper, Reshape
 
 
 def make_env(env_name, seed, max_frames):
@@ -99,9 +100,19 @@ if __name__ == "__main__":
     _rnd_base_dir = f"logs/{args.experiment_name}/{args.seed}/"
     _rnd_log_file = os.path.join(_rnd_base_dir, "rnd_log.pkl")
 
-    env = make_env(args.environment_name,
-                   seed=args.seed,
-                   max_frames=args.max_frames_per_episode)
+    exploration_agent = get_exploration_agent(_rnd_base_dir)
+    
+    env = MontezumaInfoWrapper(
+        atari_wrappers.FrameStack(
+            Reshape(
+                pfrl.wrappers.ContinuingTimeLimit(
+                    exploration_agent._environment, args.max_frames_per_episode
+                ),
+                channel_order="chw"
+            ),
+            k=4, channel_order="chw"   
+        )
+    )
 
     s0, _ = env.reset()
     p0 = env.get_current_position()
@@ -151,12 +162,9 @@ if __name__ == "__main__":
                           args.n_sift_keypoints)
 
     dsg_agent = SkillGraphAgent(dsc_agent, args.distance_metric)
-
-    exploration_agent = get_exploration_agent(_rnd_base_dir)
-    exploration_agent.set_env(env.env.env)
     
     trainer = DSGTrainer(env, dsc_agent, dsg_agent, exploration_agent,
-                         1000, 100, 
+                         1000, 10, 
                          _rnd_log_file,
                          args.goal_selection_criterion,
                          [beta1, beta2, beta3, beta4, beta5, beta6])

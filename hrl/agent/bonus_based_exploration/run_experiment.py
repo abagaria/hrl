@@ -27,6 +27,21 @@ from hrl.agent.bonus_based_exploration.noisy_networks import noisy_rainbow_agent
 from dopamine.discrete_domains import run_experiment
 import gin
 
+from pfrl.wrappers import atari_wrappers
+
+
+def make_env():
+    env = atari_wrappers.wrap_deepmind(
+        atari_wrappers.make_atari("MontezumaRevengeNoFrameskip-v4", max_frames=8000),
+        episode_life=False,
+        clip_rewards=False,
+        frame_stack=False
+    )
+
+    env.seed(0)
+
+    return env
+
 
 @gin.configurable
 def create_exploration_agent(sess, environment, agent_name=None,

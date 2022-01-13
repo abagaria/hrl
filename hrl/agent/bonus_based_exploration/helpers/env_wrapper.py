@@ -26,7 +26,7 @@ class MontezumaInfoWrapper(gym.Wrapper):
         return int(self.getByte(self.get_current_ram(), '83'))
 
     def get_current_ale(self):
-        return self.env.unwrapped.ale
+        return self.env.environment.ale
 
     def get_current_ram(self):
         return self.get_current_ale().getRAM()
