@@ -33,7 +33,10 @@ class RNDAgent(Runner):
         self._environment = env
         self.env_wrapper = env_wrapper.MontezumaInfoWrapper(env)
 
-    def rollout(self, iteration=0, steps=0):
+    def _initialize_episode_from_point(self, starting_state):
+        return self._agent.begin_episode_from_point(starting_state)
+
+    def rollout(self, initial_state=None, iteration=0, steps=0):
         """
             Execute a full trajectory of the agent interacting with the environment.
 
@@ -50,7 +53,11 @@ class RNDAgent(Runner):
 
         step_number = 0
 
-        action = self._initialize_episode()
+        if initial_state is None:
+            action = self._initialize_episode()
+        else:
+            action = self._initialize_episode_from_point(initial_state)
+
         is_terminal = False
 
         # Keep interacting until we reach a terminal state

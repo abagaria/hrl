@@ -248,3 +248,12 @@ class RNDRainbowAgent(
 
   def _get_value_function(self, stacks):
     return self._sess.run(self.value_function, {self.batch_ph: stacks})
+
+  def begin_episode_from_point(self, starting_state):
+    self.state = starting_state
+
+    if not self.eval_mode:
+      self._train_step()
+
+    self.action = self._select_action()
+    return self.action
