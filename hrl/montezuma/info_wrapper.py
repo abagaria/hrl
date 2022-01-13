@@ -1,4 +1,8 @@
 import gym
+import ipdb
+import numpy as np
+from gym import spaces
+from collections import deque
 
 
 class MontezumaInfoWrapper(gym.Wrapper):
@@ -48,7 +52,8 @@ class MontezumaInfoWrapper(gym.Wrapper):
         return int(int(self.getByte(ram, 'd8')) != 0)
 
     def get_current_ale(self):
-        return self.env.unwrapped.ale
+        # return self.env.unwrapped.ale
+        return self.env.environment.ale
 
     def get_current_ram(self):
         return self.get_current_ale().getRAM()
@@ -66,3 +71,19 @@ class MontezumaInfoWrapper(gym.Wrapper):
         # Return the byte at the specified emulator RAM location
         idx = MontezumaInfoWrapper._getIndex(address)
         return ram[idx]
+
+class Reshape(gym.ObservationWrapper):
+    def __init__(self, env, channel_order="hwc"):
+        gym.ObservationWrapper.__init__(self, env)
+        self.width = 84
+        self.height = 84
+        shape = {
+            "hwc": (self.height, self.width, 1),
+            "chw": (1, self.height, self.width),
+        }
+        self.observation_space = spaces.Box(
+            low=0, high=255, shape=shape[channel_order], dtype=np.uint8
+        )
+
+    def observation(self, frame):
+        return frame.reshape(self.observation_space.low.shape)

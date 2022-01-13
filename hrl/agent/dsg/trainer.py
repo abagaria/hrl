@@ -73,17 +73,16 @@ class DSGTrainer:
         extrinsic_subgoals = []
 
         for episode in range(start_episode, start_episode + num_episodes):
-            observations, rewards, intrinsic_rewards = self.rnd_agent.rollout()
+            observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout()
             print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
 
 
             extrinsic_subgoal_proposals, intrinsic_subgoal_proposals = self.extract_subgoals(
                                                                             observations,
+                                                                            visited_positions,
                                                                             rewards, 
-                                                                            intrinsic_rewards
                                                                         )
             if len(extrinsic_subgoal_proposals) > 0:
-                ipdb.set_trace()
                 extrinsic_subgoals.extend(extrinsic_subgoal_proposals)
             
             if len(intrinsic_subgoal_proposals) > 0:
@@ -92,8 +91,7 @@ class DSGTrainer:
             self.rnd_extrinsic_rewards.append(rewards)
             self.rnd_intrinsic_rewards.append(intrinsic_rewards)
 
-        ipdb.set_trace()
-        best_intrinsic_s_r_pair = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
+        best_spr_triple = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
         
         with open(self.rnd_log_filename, "wb+") as f:
             pickle.dump({
@@ -115,7 +113,7 @@ class DSGTrainer:
             intrinsic_subgoal_filename = f"{base_str}_intrinsic_{self.n_intrinsic_subgoals}.pkl"
 
             with open(intrinsic_subgoal_filename, "wb+") as f:
-                pickle.dump(best_intrinsic_s_r_pair, f)
+                pickle.dump(best_spr_triple, f)
             
             self.n_intrinsic_subgoals += 1
 
@@ -288,32 +286,39 @@ class DSGTrainer:
     # Skill graph expansion
     # ---------------------------------------------------
 
-    def extract_subgoals(self, observations, extrinsic_rewards, intrinsic_rewards):
-        def extract_subgoals_from_ext_rewards(obs, rewards):
+    def extract_subgoals(self, observations, positions, extrinsic_rewards):
+        def extract_subgoals_from_ext_rewards(obs, pos, rewards):
             sgs = []
-            for x, r in zip(obs, rewards):
+            for x, p, r in zip(obs, pos, rewards):
                 if r > 0:
-                    sgs.append((x, r))
+                    sgs.append((x, p, r))
             return sgs
         
-        def extract_subgoals_from_int_rewards(obs, rewards):
-            i = rewards.argmax()
-            return [(obs[i], rewards[i])]
+        def extract_subgoals_from_int_rewards(obs, pos):
+            r_int = self.rnd_agent.reward_function(obs)
+            i = r_int.argmax()
+            return [(obs[i], pos[i], r_int[i])]
         
-        subgoals1 = extract_subgoals_from_ext_rewards(observations, extrinsic_rewards)
-        subgoals2 = extract_subgoals_from_int_rewards(observations, intrinsic_rewards)
+        subgoals1 = extract_subgoals_from_ext_rewards(observations, positions, extrinsic_rewards)
+        subgoals2 = extract_subgoals_from_int_rewards(observations, positions)
 
         return subgoals1, subgoals2
+
+    def get_intrinsic_values(self, observations):
+        assert isinstance(observations, np.ndarray)
+        return self.rnd_agent.value_function(observations)
 
     @staticmethod
     def extract_best_intrinsic_subgoal(s_r_pairs):
         best_obs = None
+        best_pos = None
         max_intrinsic_reward = -np.inf
 
-        for obs, reward in s_r_pairs:
+        for obs, position, reward in s_r_pairs:
             
             if reward > max_intrinsic_reward:
                 best_obs = obs
+                best_pos = position
                 max_intrinsic_reward = reward
         
-        return best_obs, max_intrinsic_reward
+        return best_obs, best_pos, max_intrinsic_reward
