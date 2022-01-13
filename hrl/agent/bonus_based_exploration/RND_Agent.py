@@ -176,7 +176,7 @@ class RNDAgent(Runner):
     def _get_plot_name(self, base_dir, type, room, episode, steps):
         plot_dir = os.path.join(base_dir, 'plots', episode)
         if not os.path.isdir(plot_dir):
-            os.makedirs(plot_dir)
+            os.makedirs(plot_dir, exist_ok=True)
         return os.path.join(plot_dir, '{}_room_{}_steps_{}.png'.format(type, room, steps))
 
 
