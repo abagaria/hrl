@@ -126,14 +126,61 @@ class RNDAgent(Runner):
     def reward_function(self, observations):
         return np.array([self.get_intrinsic_reward(obs) for obs in observations])
 
-    def plot(self, episode=0, steps=0):
+    def plot_value(self, episode=0, steps=0, chunk_size=1000):
+
+        def get_chunks(x, n):
+            for i in range(0, len(x), n):
+                yield x[i:i+n]
+
         self._agent.eval_mode = True
 
-        # logging.info(max_range)
-            # logging.info(self._agent._replay.memory.cursor())
-            # logging.info(self.info_buffer.is_full())
+        max_range = self._agent._replay.memory.cursor()
 
-        values = {}
+        if self._agent._replay.memory.is_full():
+            max_range = self.info_buffer.replay_capacity
+
+        valid_indices = np.zeros([], dtype=np.int32)
+        for index in range(max_range):
+            if self._agent._replay.memory.is_valid_transition(index):
+                valid_indices = np.append(valid_indices, index)
+
+
+        values = np.zeros(len(valid_indices))
+        rooms = np.zeros(len(valid_indices), dtype=np.int8)
+        player_x = np.zeros(len(valid_indices), dtype=np.int8)
+        player_y = np.zeros(len(valid_indices), dtype=np.int8)
+
+        index_chunks = get_chunks(valid_indices, chunk_size)
+        current_idx = 0
+
+        for index_chunk in index_chunks:
+            current_chunk_size = len(index_chunk)
+            transition_chunk = self._agent._replay.memory.sample_transition_batch(current_chunk_size, index_chunk)
+            # first tuple element of transition is current state
+            values[current_idx:current_idx+current_chunk_size] = self.value_function(transition_chunk[0])
+            rooms[current_idx:current_idx+current_chunk_size] = self.info_buffer.get_indices('room_number', index_chunk)
+            player_x[current_idx:current_idx+current_chunk_size] = self.info_buffer.get_indices('player_x', index_chunk)
+            player_y[current_idx:current_idx+current_chunk_size] = self.info_buffer.get_indices('player_y', index_chunk)
+
+            current_idx += current_chunk_size
+
+
+
+        unique_rooms = np.unique(rooms)
+
+        for room in unique_rooms:
+            room_mask = (rooms == room)
+            plt.scatter(player_x[room_mask], player_y[room_mask], c=values[room_mask], cmap='viridis')
+            plt.colorbar()
+            figname = self._get_plot_name(self._base_dir, 'value', str(room), str(episode), str(steps))
+            plt.savefig(figname)
+            plt.clf()
+
+        
+
+    def plot_reward(self, episode=0, steps=0):
+        self._agent.eval_mode = True
+
         rewards = {}
         player_x = {}
         player_y = {}
@@ -148,33 +195,23 @@ class RNDAgent(Runner):
                 stack = self._agent._replay.memory.get_observation_stack(index)
                 room_number = self.info_buffer.get_index('room_number', index)
 
-                if not room_number in values:
-                    values[room_number] = []
+                if not room_number in rewards:
                     rewards[room_number] = []
                     player_x[room_number] = []
                     player_y[room_number] = []
 
-                stack = stack[np.newaxis, :]
                 observation = stack[:,:,:,-1]
 
-                values[room_number].append(self.value_function(stack)[0])
                 rewards[room_number].append(self.reward_function(observation)[0])
                 player_x[room_number].append(self.info_buffer.get_index('player_x', index))
                 player_y[room_number].append(self.info_buffer.get_index('player_y', index))
 
-        for key in values:
-            plt.scatter(player_x[key], player_y[key], c=values[key], cmap='viridis')
-            plt.colorbar()
-            figname = self._get_plot_name(self._base_dir, 'value', str(key), str(episode), str(steps))
-            plt.savefig(figname)
-            plt.clf()
-
+        for key in rewards:
             plt.scatter(player_x[key], player_y[key], c=rewards[key],cmap='viridis')
             plt.colorbar()
             figname = self._get_plot_name(self._base_dir, 'reward', str(key), str(episode), str(steps))
             plt.savefig(figname)
             plt.clf()
-
 
     def _get_plot_name(self, base_dir, type, room, episode, steps):
         plot_dir = os.path.join(base_dir, 'plots', episode)
