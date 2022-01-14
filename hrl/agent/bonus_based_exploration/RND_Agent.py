@@ -97,18 +97,14 @@ class RNDAgent(Runner):
 
         steps += step_number
 
-        if (iteration % 100 == 0 and iteration != 0):
-            logging.info('Saving model...')
-            self._checkpoint_experiment(iteration)
-            self.info_buffer.save(self._base_dir)
-        if (iteration % 1000 == 0 and iteration != 0):
-            logging.info('Plotting')
-            self.plot(iteration, steps)
-
         logging.info('Completed episode %d', iteration)
         logging.info('Steps taken: %d Total reward: %d', step_number, sum(rewards))
 
         return np.array(observations), np.array(rewards), np.array(intrinsic_rewards), np.array(visited_positions)
+
+    def save(self, iteration=0):
+        self._checkpoint_experiment(iteration)
+        self.info_buffer.save(self._base_dir)
 
     def get_intrinsic_reward(self, obs):
         rf = self._agent.intrinsic_model.compute_intrinsic_reward
