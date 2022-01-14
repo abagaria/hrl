@@ -21,7 +21,7 @@ class DSGTrainer:
                  expansion_freq, expansion_duration,
                  rnd_log_filename,
                  goal_selection_criterion="random",
-                 predefined_events=[]):
+                 predefined_events=[], enable_rnd_logging=False):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
@@ -53,6 +53,7 @@ class DSGTrainer:
         self.rnd_extrinsic_rewards = [] 
         self.rnd_intrinsic_rewards = []
         self.rnd_log_filename = rnd_log_filename
+        self.enable_rnd_logging = enable_rnd_logging
 
     # ---------------------------------------------------
     # Run loops 
@@ -66,8 +67,10 @@ class DSGTrainer:
             else:
                 self.graph_consolidation_run_loop(episode)
             
+            t0 = time.time()
             with open(self.dsc_agent.log_file, "wb+") as f:
                 pickle.dump(self.gc_successes, f)
+            print(f"[Episode={episode}, Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
         intrinsic_subgoals = []
@@ -92,6 +95,10 @@ class DSGTrainer:
             self.rnd_extrinsic_rewards.append(rewards)
             self.rnd_intrinsic_rewards.append(intrinsic_rewards)
 
+        if self.enable_rnd_logging:
+            self.log_rnd_progress(intrinsic_subgoals, extrinsic_subgoals, episode)
+
+    def log_rnd_progress(self, intrinsic_subgoals, extrinsic_subgoals, episode):
         best_spr_triple = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
         
         with open(self.rnd_log_filename, "wb+") as f:
