@@ -322,3 +322,17 @@ class DSGTrainer:
                 max_intrinsic_reward = reward
         
         return best_obs, best_pos, max_intrinsic_reward
+
+    def exploration_rollout(self, state):
+        assert isinstance(state, atari_wrappers.LazyFrames)
+
+        # convert LazyFrame to numpy array
+        initial_state = np.asarray(state)
+        # reshape state for rnd agent
+        initial_state = np.reshape(state, self.rnd_agent._agent.state.shape)
+
+        observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout(initial_state=initial_state)
+
+        return observations, rewards, intrinsic_rewards, visited_positions
+
+

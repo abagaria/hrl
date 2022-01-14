@@ -270,8 +270,8 @@ class RNDRainbowAgent(
     assert (starting_state.shape == self.state.shape)
 
     self.state = starting_state
-    self._observation = starting_state[:,:,:,-1]
-    self._last_observation = starting_state[:,:,:,-2]
+    self._observation = np.reshape(starting_state[:,:,:,-1], self.observation_shape)
+    self._last_observation = np.reshape(starting_state[:,:,:,-2], self.observation_shape)
 
     if not self.eval_mode:
       self._train_step()
