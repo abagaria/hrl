@@ -80,16 +80,14 @@ class RNDAgent(Runner):
             observations.append(observation)
             reward = max(min(reward, 1),-1)
 
-            # if self._environment.game_over or (step_number == self._max_steps_per_episode):
-            #     # Stop the run loop once we reach the true end of episode
-            #     break
-
-            # elif is_terminal:
-            if is_terminal:
-                # If we lose a life but the episode is not over, signal artificial end of episode to agent
-                # self._end_episode(reward)
-                # action = self._agent.begin_episode(observation)
+            if self._environment.game_over or (step_number == self._max_steps_per_episode):
+                # Stop the run loop once we reach the true end of episode
                 break
+
+            elif is_terminal:
+                # If we lose a life but the episode is not over, signal artificial end of episode to agent
+                self._end_episode(reward)
+                action = self._agent.begin_episode(observation)
             else:
                 action = self._agent.step(reward, observation)
 
