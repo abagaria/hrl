@@ -3,6 +3,7 @@ import json
 import time
 import ipdb
 import pfrl
+import torch
 import pickle
 import random
 import argparse
@@ -168,6 +169,8 @@ if __name__ == "__main__":
                          _rnd_log_file,
                          args.goal_selection_criterion,
                          [beta1, beta2, beta3, beta4, beta5, beta6])
+
+    print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
     t0 = time.time()
     trainer.run_loop(0, int(1e5))
