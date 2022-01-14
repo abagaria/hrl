@@ -13,6 +13,7 @@ from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
+from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
 
 
 class DSGTrainer:
@@ -116,6 +117,11 @@ class DSGTrainer:
                 pickle.dump(best_spr_triple, f)
             
             self.n_intrinsic_subgoals += 1
+
+        visualize_graph_nodes_with_expansion_probabilities(self.dsg_agent,
+                                                           episode,
+                                                           self.dsc_agent.experiment_name,
+                                                           self.dsc_agent.seed)
 
     def graph_consolidation_run_loop(self, episode):
         done = False
