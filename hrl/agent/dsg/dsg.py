@@ -3,17 +3,17 @@ import torch
 import scipy
 import random
 import numpy as np
+from scipy.special import softmax
 from pfrl.wrappers import atari_wrappers
 from hrl.agent.dsc.option import ModelFreeOption
 from .graph import PlanGraph
-from ..rainbow.rainbow import Rainbow
 from ...salient_event.salient_event import SalientEvent
 from ..dsc.dsc import RobustDSC
 from ..dsc.chain import SkillChain
 
 
 class SkillGraphAgent:
-    def __init__(self, dsc_agent, distance_metric):
+    def __init__(self, dsc_agent, exploration_agent, distance_metric):
         assert isinstance(dsc_agent, RobustDSC)
         assert distance_metric in ("euclidean", "vf", "ucb"), distance_metric
 
@@ -21,14 +21,10 @@ class SkillGraphAgent:
         self.distance_metric = distance_metric
         
         self.planner = PlanGraph()
-        self.exploration_agent = self._get_exploration_agent()
+        self.exploration_agent = exploration_agent
 
         self.salient_events = []
         self.max_reward_so_far = -np.inf
-
-    def _get_exploration_agent(self):
-        # return Rainbow()
-        return None
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -180,21 +176,98 @@ class SkillGraphAgent:
 
         return self.create_target_state(state_reward_pairs)
 
-    def create_target_state(self, state_reward_pairs, recompute=False):
+    def create_target_state(self, state_reward_pairs):
 
         best_state = None
         max_intrinsic_reward = -np.inf
 
         for state, intrinsic_reward in state_reward_pairs:
-
-            if recompute:
-                intrinsic_reward = self.exploration_agent.get_intrinsic_reward(state)
             
             if intrinsic_reward > max_intrinsic_reward:
                 best_state = state
                 max_intrinsic_reward = intrinsic_reward
 
         return best_state, max_intrinsic_reward
+
+    def get_node_to_expand(self):
+        """ Use the RND agent to find the graph node to expand. """
+        
+        nodes = self.get_candidate_nodes_for_expansion()
+
+        if len(nodes) > 0:
+            scores = [self.get_rnd_score(node) for node in nodes]
+            sampled_node = self.pick_expansion_node(nodes, scores)
+            return sampled_node
+        
+        assert len(nodes) == 0, nodes
+        return self.dsc_agent.init_salient_event
+
+    def pick_expansion_node(self, nodes, scores, choice_type="deterministic"):
+        assert choice_type in ("deterministic", "stochastic"), choice_type
+
+        def _deterministic_pick_node(nodes, scores):
+            idx = np.argmax(scores)
+            node = nodes[random.choice(idx) if isinstance(idx, np.ndarray) else idx]
+            return node
+
+        def _stochastic_pick_node(nodes, scores, temperature=1.):
+            probabilities = softmax(scores / temperature)
+
+            assert all(probabilities.tolist()) <= 1., probabilities
+            np.testing.assert_almost_equal(probabilities.sum(), 1., err_msg=f"{probabilities}", decimal=3)
+
+            sampled_node = np.random.choice(nodes, size=1, p=probabilities)[0]
+            print(f"[Temp={temperature}] | Descendants: {nodes} | Probs: {probabilities} | Chose: {sampled_node}")
+            return sampled_node
+
+        if choice_type == "deterministic":
+            return _deterministic_pick_node(nodes, scores)
+        
+        return _stochastic_pick_node(nodes, scores)
+
+    def get_candidate_nodes_for_expansion(self, min_number_of_points=3):
+        """ There are two possibilities: First, we only consider nodes to which there is a path, but that is too
+         conservative. Second, we consider all the events ever discovered, but that could be too aggressive since
+         we may not have enough data to correctly estimate its closest node in the graph. Therefore, we try to be
+         aggressive, but temper it with the requirement that we have seen that event a small number of times. """
+        nodes_with_enough_data = [node for node in self.salient_events if len(node.effect_set) >= min_number_of_points]
+        return nodes_with_enough_data
+
+    def get_rnd_score(self, node, method="vf", accumulator="mean"):
+        assert method in ("vf", "rf"), method
+        assert accumulator in ("mean", "sample"), accumulator
+        
+        def lz_to_np(lz):
+            return np.array(lz).squeeze().transpose(1, 2, 0)
+
+        def sample_vf_score(n):
+            s = lz_to_np(random.choice(n.effect_set))
+            return self.exploration_agent.value_function(s)[0]
+
+        def average_vf_score(n):
+            states = [lz_to_np(eg.obs) for eg in n.effect_set]
+            return self.exploration_agent.value_function(states).mean()
+
+        def sample_rint_score(n):
+            s = lz_to_np(random.choice(n.effect_set).obs)
+            s = s[:, :, -1]  # Extract last frame of LazyFrames
+            return self.exploration_agent.reward_function([s])[0]
+
+        def average_rint_score(n):
+            states = [lz_to_np(eg.obs)[:, :, -1] for eg in n.effect_set]
+            return np.array(
+                [self.exploration_agent.reward_function(state) for state in states]
+            ).mean()
+
+        if method == "vf":
+            if accumulator == "mean":
+                return average_vf_score(node)
+            return sample_vf_score(node)
+        
+        if accumulator == "mean":
+            return average_rint_score(node)
+
+        return sample_rint_score(node)
 
     # -----------------------------–––––––--------------
     # Graph Consolidation
