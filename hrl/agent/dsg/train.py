@@ -161,10 +161,10 @@ if __name__ == "__main__":
                           args.n_kmeans_clusters,
                           args.n_sift_keypoints)
 
-    dsg_agent = SkillGraphAgent(dsc_agent, args.distance_metric)
+    dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric)
     
     trainer = DSGTrainer(env, dsc_agent, dsg_agent, exploration_agent,
-                         1000, 10, 
+                         50, 10, 
                          _rnd_log_file,
                          args.goal_selection_criterion,
                          [beta1, beta2, beta3, beta4, beta5, beta6])
