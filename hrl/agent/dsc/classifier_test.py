@@ -124,7 +124,7 @@ class BOVWClassifier:
         # each image has a different number of descriptors, we should gather 
         # them together to train the clustering
         sift_features=np.array(sift_features, dtype=object)
-        sift_features=np.concatenate(sift_features, axis=0)
+        sift_features=np.concatenate(sift_features, axis=0).astype(np.float32)
 
         # train the kmeans classifier
         if self.kmeans_cluster is None:
@@ -159,7 +159,7 @@ class BOVWClassifier:
 
         n_descriptors_per_image = [len(sift) for sift in sift_features]
         idx_num_descriptors = list(itertools.accumulate(n_descriptors_per_image))
-        sift_features_of_all_images = np.concatenate(sift_features, axis=0)
+        sift_features_of_all_images = np.concatenate(sift_features, axis=0).astype(np.float32)
 
         predicted_cluster_of_all_images = self.kmeans_cluster.predict(sift_features_of_all_images)  # (num_examples,)
         predicted_clusters = np.split(predicted_cluster_of_all_images, indices_or_sections=idx_num_descriptors)
