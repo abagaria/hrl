@@ -1,10 +1,10 @@
-import cv2
 import math
 import random
 import pickle
 import itertools
 from collections import deque
 
+import cudasift
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import cluster, svm
@@ -29,14 +29,12 @@ class BOVWClassifier:
     args:
         num_clusters: number of clusters to use for kmeans clustering
     """
-    def __init__(self, num_clusters=99, num_sift_keypoints=30):
+    def __init__(self, num_clusters=55, sift_threshold=7):
         self.num_clusters = num_clusters
         self.kmeans_cluster = None
         self.svm_classifier = None
-        if num_sift_keypoints is not None:
-            self.sift_detector = cv2.SIFT_create(nfeatures=num_sift_keypoints)
-        else:
-            self.sift_detector = cv2.SIFT_create()
+        self.sift_data = cudasift.PySiftData(100)
+        self.sift_threshold = sift_threshold
     
     def is_initialized(self):
         return self.kmeans_cluster is not None and self.svm_classifier is not None
@@ -107,9 +105,12 @@ class BOVWClassifier:
         return:
             a list of SIFT features
         """
-        keypoints = self.sift_detector.detect(images)
-        keypoints, descriptors = self.sift_detector.compute(images, keypoints)
-        return descriptors  # type: tuple
+        descriptors = []
+        for image in images:   
+            cudasift.ExtractKeypoints(image, self.sift_data, thresh=7)
+            df, descriptor = self.sift_data.to_data_frame()
+            descriptors.append(descriptor[:len(df), :])
+        return descriptors
     
     def train_kmeans(self, sift_features):
         """
@@ -172,10 +173,10 @@ class BOVWClassifier:
 
 
 class SiftInitiationClassifier(InitiationClassifier):
-    def __init__(self, num_clusters=50, num_sift_keypoints=None, gamma='scale', nu=0.1, buffer_size=100):
-        optimistic_classifier = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
-        self.pessimistic_classifier_for_pos_data = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
-        self.pessimistic_classifier_for_neg_data = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
+    def __init__(self, num_clusters=55, sift_threshold=7, gamma=0.15, nu=0.05, buffer_size=100):
+        optimistic_classifier = BOVWClassifier(num_clusters=num_clusters, sift_threshold=sift_threshold)
+        self.pessimistic_classifier_for_pos_data = BOVWClassifier(num_clusters=num_clusters, sift_threshold=sift_threshold)
+        self.pessimistic_classifier_for_neg_data = BOVWClassifier(num_clusters=num_clusters, sift_threshold=sift_threshold)
 
         self.gamma = gamma
         self.nu = nu
@@ -267,10 +268,10 @@ class SiftInitiationClassifier(InitiationClassifier):
         
         if len(positive_training_examples) > 0:
             self.pessimistic_classifier_for_pos_data.fit(positive_training_examples, Y[training_predictions == 1], 
-                                    svm_type='one_class_svm', gamma=0.075, nu=0.005)
+                                    svm_type='one_class_svm', gamma=self.gamma, nu=self.nu)
         if len(negative_training_examples) > 0:
             self.pessimistic_classifier_for_neg_data.fit(negative_training_examples, [1 for _ in negative_training_examples],
-                                    svm_type='one_class_svm', gamma=0.075, nu=0.005)
+                                    svm_type='one_class_svm', gamma=self.gamma, nu=self.nu)
 
     def sample(self):
         """ Sample from the pessimistic initiation classifier. """

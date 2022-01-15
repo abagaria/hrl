@@ -63,8 +63,8 @@ if __name__ == "__main__":
     parser.add_argument("--replay_original_goal_on_pos", action="store_true", default=False)
 
     parser.add_argument("--distance_metric", type=str, default="euclidean")
-    parser.add_argument("--n_kmeans_clusters", type=int, default=99)
-    parser.add_argument("--n_sift_keypoints", type=int, default=30)
+    parser.add_argument("--n_kmeans_clusters", type=int, default=55)
+    parser.add_argument("--sift_threshold", type=float, default=7)
 
     args = parser.parse_args()
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     s0, _ = env.reset()
     p0 = env.get_current_position()
 
-    goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
+    goal_dir_path = os.path.join(os.path.expanduser("~"), "hrl/logs/goal_states")
     
     gpos = (123, 148)
     gpos1 = (132, 192)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
                           args.seed,
                           _log_file,
                           args.n_kmeans_clusters,
-                          args.n_sift_keypoints)
+                          args.sift_threshold)
 
     dsg_agent = SkillGraphAgent(dsc_agent, args.distance_metric)
     
