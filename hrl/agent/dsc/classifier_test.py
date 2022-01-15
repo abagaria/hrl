@@ -8,6 +8,7 @@ import itertools
 from collections import deque
 
 import numpy as np
+import cudasift
 import matplotlib.pyplot as plt
 from sklearn import cluster, svm
 
@@ -35,6 +36,7 @@ class BOVWClassifier:
         self.num_clusters = num_clusters
         self.kmeans_cluster = None
         self.svm_classifier = None
+        self.data = cudasift.PySiftData(1000)
         if num_sift_keypoints is not None:
             self.sift_detector = cv2.SIFT_create(nfeatures=num_sift_keypoints)
         else:
@@ -110,8 +112,15 @@ class BOVWClassifier:
             a list of SIFT features
         """
         images = [cv2.normalize(img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U) for img in images]
-        keypoints = self.sift_detector.detect(images)
-        keypoints, descriptors = self.sift_detector.compute(images, keypoints)
+        # keypoints = self.sift_detector.detect(images)
+        # keypoints, descriptors = self.sift_detector.compute(images, keypoints)
+
+        descriptors = []
+        for image in images:   
+            cudasift.ExtractKeypoints(image, self.data, thresh=7)
+            df, descriptor = self.data.to_data_frame()
+            descriptors.append(descriptor[:len(df), :])
+
         return descriptors  # type: tuple
     
     def train_kmeans(self, sift_features):
@@ -555,7 +564,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_cluster", type=int, default=99)
     args = parser.parse_args()
 
-    plot_dir = f"plots/gamma_{args.gamma}_nu_{args.nu}_num_kp_{args.num_kp}_num_cluster_{args.num_cluster}"
+    plot_dir = f"plots/gamma_{args.gamma}_nu_{args.nu}_num_cluster_{args.num_cluster}_thresh_7"
     create_log_dir("plots")
     create_log_dir(plot_dir)
 
