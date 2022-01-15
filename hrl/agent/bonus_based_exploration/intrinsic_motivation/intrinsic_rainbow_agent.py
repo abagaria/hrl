@@ -18,7 +18,6 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from threading import stack_size
 from hrl.agent.bonus_based_exploration import intrinsic_motivation
 
 from hrl.agent.bonus_based_exploration.intrinsic_motivation import intrinsic_dqn_agent
@@ -28,7 +27,7 @@ from dopamine.agents.rainbow import rainbow_agent as base_rainbow_agent
 from dopamine.discrete_domains import atari_lib
 import gin
 import tensorflow.compat.v1 as tf
-
+import numpy as np
 
 
 
@@ -229,9 +228,6 @@ class RNDRainbowAgent(
         summary_writer=summary_writer,
         summary_writing_frequency=summary_writing_frequency)
 
-
-      
-
   def _build_networks(self):
     super()._build_networks()
 
@@ -246,5 +242,36 @@ class RNDRainbowAgent(
   def _get_intrinsic_reward(self, observation):
     return self.intrinsic_model.compute_intrinsic_reward(observation,0,True)
 
-  def _get_value_function(self, stacks):
-    return self._sess.run(self.value_function, {self.batch_ph: stacks})
+  def _get_value_function(self, stacks, chunk_size=1000):
+
+    values = np.empty(len(stacks))
+    
+    def get_chunks(x, n):
+      # Break x into chunks of n
+      for i in range(0, len(x), n):
+        yield x[i: i+n]
+
+    state_chunks = get_chunks(stacks, chunk_size)
+    current_idx = 0
+
+    for state_chunk in state_chunks:
+      chunk_values = self._sess.run(self.value_function, {self.batch_ph: state_chunk})
+      current_chunk_size = len(state_chunk)
+      values[current_idx:current_idx + current_chunk_size] = chunk_values
+      current_idx += current_chunk_size
+
+    return values
+
+  def begin_episode_from_point(self, starting_state):
+    assert isinstance(starting_state, np.ndarray)
+    assert (starting_state.shape == self.state.shape)
+
+    self.state = starting_state
+    self._observation = np.reshape(starting_state[:,:,:,-1], self.observation_shape)
+    self._last_observation = np.reshape(starting_state[:,:,:,-2], self.observation_shape)
+
+    if not self.eval_mode:
+      self._train_step()
+
+    self.action = self._select_action()
+    return self.action

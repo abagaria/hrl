@@ -77,26 +77,47 @@ class DSGTrainer:
         extrinsic_subgoals = []
 
         for episode in range(start_episode, start_episode + num_episodes):
-            observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout()
-            print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
+            state, info = self.env.reset()
+            expansion_node = self.dsg_agent.get_node_to_expand()
+            print(f"[Episode={episode}] Attempting to expand {expansion_node}")
 
+            state, info, done, reset, reached = self.dsg_agent.run_loop(state=state,
+                                                                        info=info,
+                                                                        goal_salient_event=expansion_node,
+                                                                        episode=episode,
+                                                                        eval_mode=False)
 
-            extrinsic_subgoal_proposals, intrinsic_subgoal_proposals = self.extract_subgoals(
-                                                                            observations,
-                                                                            visited_positions,
-                                                                            rewards, 
-                                                                        )
-            if len(extrinsic_subgoal_proposals) > 0:
-                extrinsic_subgoals.extend(extrinsic_subgoal_proposals)
-            
-            if len(intrinsic_subgoal_proposals) > 0:
-                intrinsic_subgoals.extend(intrinsic_subgoal_proposals)
+            if reached and not done and not reset:
+                observations, rewards, intrinsic_rewards, visited_positions = self.exploration_rollout(state)
+                print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
 
-            self.rnd_extrinsic_rewards.append(rewards)
-            self.rnd_intrinsic_rewards.append(intrinsic_rewards)
+                extrinsic_subgoal_proposals, intrinsic_subgoal_proposals = self.extract_subgoals(
+                                                                                observations,
+                                                                                visited_positions,
+                                                                                rewards, 
+                                                                            )
+                if len(extrinsic_subgoal_proposals) > 0:
+                    extrinsic_subgoals.extend(extrinsic_subgoal_proposals)
+                
+                if len(intrinsic_subgoal_proposals) > 0:
+                    intrinsic_subgoals.extend(intrinsic_subgoal_proposals)
+
+                self.rnd_extrinsic_rewards.append(rewards)
+                self.rnd_intrinsic_rewards.append(intrinsic_rewards)
 
         if self.enable_rnd_logging:
             self.log_rnd_progress(intrinsic_subgoals, extrinsic_subgoals, episode)
+    
+    def exploration_rollout(self, state):
+        assert isinstance(state, atari_wrappers.LazyFrames)
+
+        # convert LazyFrame to np array for dopamine
+        initial_state = np.asarray(state)
+        initial_state = np.reshape(state, self.rnd_agent._agent.state.shape)
+
+        observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout(initial_state=initial_state)
+
+        return observations, rewards, intrinsic_rewards, visited_positions
 
     def log_rnd_progress(self, intrinsic_subgoals, extrinsic_subgoals, episode):
         best_spr_triple = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)

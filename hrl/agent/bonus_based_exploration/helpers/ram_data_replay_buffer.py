@@ -32,6 +32,9 @@ class MontezumaRevengeReplayBuffer():
 
     def get_index(self, memory_type, index):
         return self.memory[memory_type][index]
+
+    def get_indices(self, memory_type, indices):
+        return self.memory[memory_type][indices]
     
     def save(self, checkpoint_dir):
         if not os.path.isdir(checkpoint_dir):

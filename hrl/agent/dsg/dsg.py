@@ -59,6 +59,9 @@ class SkillGraphAgent:
         assert isinstance(episode, int)
         assert isinstance(eval_mode, bool)
 
+        if self.is_state_inside_vertex(state, info, goal_salient_event):
+            return state, info, False, False, True
+
         planner_goal_vertex, dsc_goal_vertex = self.get_goal_vertices_for_rollout(state, info, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 
@@ -189,13 +192,13 @@ class SkillGraphAgent:
 
         return best_state, max_intrinsic_reward
 
-    def get_node_to_expand(self):
+    def get_node_to_expand(self, method="rf", accumulator="sample"):
         """ Use the RND agent to find the graph node to expand. """
         
         nodes = self.get_candidate_nodes_for_expansion()
 
         if len(nodes) > 0:
-            scores = [self.get_rnd_score(node) for node in nodes]
+            scores = [self.get_rnd_score(node, method, accumulator) for node in nodes]
             sampled_node = self.pick_expansion_node(nodes, scores)
             return sampled_node
         
