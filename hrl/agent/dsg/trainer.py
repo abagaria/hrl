@@ -151,6 +151,8 @@ class DSGTrainer:
                                                            self.dsc_agent.experiment_name,
                                                            self.dsc_agent.seed)
 
+        self.rnd_agent.plot_value(episode=episode)
+
     def graph_consolidation_run_loop(self, episode):
         done = False
         reset = False
