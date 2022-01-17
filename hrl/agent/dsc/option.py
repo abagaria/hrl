@@ -1,10 +1,12 @@
 import ipdb
+import random
 import numpy as np
 from copy import deepcopy
 from collections import deque
 from scipy.spatial import distance
 from pfrl.wrappers import atari_wrappers
 
+from . import utils
 from hrl.agent.rainbow.rainbow import Rainbow
 from .classifier.position_classifier import PositionInitiationClassifier
 from .classifier.sift_classifier import SiftInitiationClassifier
@@ -16,19 +18,25 @@ class ModelFreeOption(object):
     def __init__(self, *, name, option_idx, parent, env, global_solver, global_init,
                  buffer_length, gestation_period, timeout, gpu_id,
                  init_salient_event, target_salient_event, n_training_steps,
-                 gamma, use_oracle_rf, max_num_options, use_pos_for_init, chain_id,
-                 num_kmeans_clusters, num_sift_keypoints,):
+                 use_oracle_rf, use_rf_on_pos_traj, use_rf_on_neg_traj,
+                 replay_original_goal_on_pos,
+                 max_num_options, use_pos_for_init, chain_id,
+                 p_her, num_kmeans_clusters, sift_threshold,):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
-        self.gamma = gamma
         self.parent = parent
         self.gpu_id = gpu_id
         self.timeout = timeout
         self.chain_id = chain_id
         self.global_solver = global_solver
         self.n_training_steps = n_training_steps
-        self.use_oracle_rf = use_oracle_rf
         self.use_pos_for_init = use_pos_for_init
+        self.p_her = p_her
+        
+        self.use_oracle_rf = use_oracle_rf
+        self.use_rf_on_pos_traj = use_rf_on_pos_traj
+        self.use_rf_on_neg_traj = use_rf_on_neg_traj
+        self.replay_original_goal_on_pos = replay_original_goal_on_pos
         
         self.global_init = global_init
         self.buffer_length = buffer_length
@@ -44,7 +52,7 @@ class ModelFreeOption(object):
         self.gestation_period = gestation_period
 
         self.num_kmeans_clusters = num_kmeans_clusters
-        self.num_sift_keypoints = num_sift_keypoints
+        self.sift_threshold = sift_threshold
 
         self.initiation_classifier = self._get_initiation_classifier()
         self.solver = self._get_model_free_solver()
@@ -70,7 +78,6 @@ class ModelFreeOption(object):
                             replay_start_size=80_000,
                             replay_buffer_size=(10**6) // 2,
                             gpu=self.gpu_id,
-                            use_her=True,
                             goal_conditioned=True,
                     )
 
@@ -81,7 +88,7 @@ class ModelFreeOption(object):
             return PositionInitiationClassifier()
         return SiftInitiationClassifier(
             num_clusters=self.num_kmeans_clusters,
-            num_sift_keypoints=self.num_sift_keypoints,
+            sift_threshold=self.sift_threshold,
         )
 
     # ------------------------------------------------------------
@@ -102,6 +109,9 @@ class ModelFreeOption(object):
         if self.is_last_option and self.init_salient_event(pos):
             return True
 
+        if not self.initiation_classifier.is_initialized():
+            return True
+
         x = self.extract_init_features(state, info)
         
         return self.initiation_classifier.optimistic_predict(x) \
@@ -110,6 +120,9 @@ class ModelFreeOption(object):
     def pessimistic_is_init_true(self, state, info):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
+
+        if not self.initiation_classifier.is_initialized():
+            return False
 
         x = self.extract_init_features(state, info)
         return self.initiation_classifier.pessimistic_predict(x)
@@ -130,19 +143,39 @@ class ModelFreeOption(object):
         
         if isinstance(state, atari_wrappers.LazyFrames):
             return state._frames[-1].squeeze()
+    
+    def failure_condition(self, info, check_falling=False):
+        targets_start_state = self.target_salient_event.target_pos[0] == 77.\
+                          and self.target_salient_event.target_pos[1] == 235.
+        death_cond = (info['falling'] or info['dead']) if check_falling else info['dead']
+        return death_cond and not targets_start_state 
 
     # ------------------------------------------------------------
     # Control Loop Methods
     # ------------------------------------------------------------
 
+    def local_rf(self, state, info, goal_pos, salient_event=None):
+        if self.use_oracle_rf or self.use_rf_on_pos_traj:
+            pos = utils.info_to_pos(info)
+            return self.rf(pos, goal_pos)
+
+        if self.global_init:
+            reached = salient_event(info)
+        else:
+            reached = self.is_term_true(state, info)
+
+        reward = float(reached)
+        return reward, reached
+
     def rf(self, pos, goal_pos):
+        """ Oracle position based reward function. """
         def is_close(pos1, pos2, tol):
             return abs(pos1[0] - pos2[0]) <= tol and \
                    abs(pos1[1] - pos2[1]) <= tol
         
         reached = is_close(pos, goal_pos, tol=2.)
         reward = float(reached)
-
+        
         return reward, reached
 
     def act(self, state, goal):
@@ -154,14 +187,27 @@ class ModelFreeOption(object):
         """ Sample goal to pursue for option rollout. """
 
         if self.parent is None and self.target_salient_event is not None:
-            return self.target_salient_event.get_target_obs(), \
-                   self.target_salient_event.get_target_position()
+            assert isinstance(self.target_salient_event, SalientEvent)
+            
+            if self.use_oracle_rf or self.use_rf_on_pos_traj:
+                return self.target_salient_event.target_obs, \
+                       self.target_salient_event.target_pos
+
+            return self.target_salient_event.sample()
 
         sampled_goal = self.parent.initiation_classifier.sample()
 
-        # TODO: Deal with the case where sampled_goal is None
+        if sampled_goal is not None:
+            return sampled_goal.obs, sampled_goal.pos
 
-        return sampled_goal.obs, sampled_goal.pos
+        # TODO: Recursively sample from initiation classifiers up the chain
+        if self.parent.parent is not None:
+            sampled_goal = self.parent.parent.initiation_classifier.sample()
+            if sampled_goal is not None:
+                return sampled_goal.obs, sampled_goal.pos
+        
+        return self.target_salient_event.target_obs, self.target_salient_event.target_pos
+        
 
     def rollout(self, start_state, info, dsc_goal_salient_event, eval_mode=False):
         """ Main option control loop. """
@@ -177,7 +223,7 @@ class ModelFreeOption(object):
         option_transitions = []
         self.num_executions += 1
 
-        state = deepcopy(start_state)  # TODO: Do we need to deepcopy?
+        state = start_state
         pos = deepcopy(start_position)
 
         visited_positions = [pos]
@@ -194,14 +240,15 @@ class ModelFreeOption(object):
 
             action = self.act(state, goal)
             next_state, reward, done, info = self.env.step(action)
-
             reset = info.get("needs_reset", False)
-            pos = info["player_x"], info["player_y"]
-            reward, reached = self.rf(pos, goal_pos)
+            
+            reward, reached = self.local_rf(
+                next_state, info, goal_pos, dsc_goal_salient_event
+            )
 
             num_steps += 1
             total_reward += reward
-            visited_positions.append(pos)
+            visited_positions.append(utils.info_to_pos(info))
             visited_states.append(next_state)
 
             option_transitions.append(
@@ -210,12 +257,12 @@ class ModelFreeOption(object):
                                       np.sign(reward), 
                                       next_state, 
                                       done or reached, 
-                                      reset,   # TODO: Think about done and reset for options
+                                      reset,
                                       info)
             )
 
             # Truncate initiation trajectories around death transitions
-            if info["dead"] and not self.global_init:
+            if (not self.global_init) and self.failure_condition(info, check_falling=False):
                 self.derive_training_examples(visited_states,
                                               visited_positions,
                                               reached_term=False)
@@ -225,16 +272,17 @@ class ModelFreeOption(object):
 
             state = next_state
 
-        reached_term = self.is_term_true(state, info) if not self.global_init else dsc_goal_salient_event(pos)
+        reached_term = self.local_rf(state, info, goal_pos, dsc_goal_salient_event)[1]
         self.success_curve.append(reached_term)
 
         if not eval_mode:
-            self.update_option_after_rollout(state, info, goal, option_transitions, 
+            self.update_option_after_rollout(state, info, goal, goal_pos, option_transitions, 
                                              visited_states, visited_positions, reached_term)
+            print(f"Updated {self.name} on {len(visited_positions)} transitions")
 
         return state, done, reset, visited_positions, goal_pos, info
 
-    def update_option_after_rollout(self, state, info, goal, option_transitions,
+    def update_option_after_rollout(self, state, info, goal, goal_pos, option_transitions,
                                     visited_states, visited_positions, reached_term):
         """ After rolling out an option policy, update its effect set, policy and initiation classifier. """
 
@@ -247,8 +295,12 @@ class ModelFreeOption(object):
                 assert isinstance(self.target_salient_event, SalientEvent)
                 self.target_salient_event.add_to_effect_set(state, info)
 
-        assert not self.use_oracle_rf, "Deprecated"
-        self.no_rf_update(option_transitions, goal, reached_term)
+        if self.use_oracle_rf:
+            option_positions = [utils.info_to_pos(trans[-1]) for trans in option_transitions]
+            self.solver.her(option_transitions, option_positions, goal, goal_pos)
+        else:
+            reached_goal_pos = utils.info_to_pos(info)
+            self.no_rf_update(option_transitions, goal, goal_pos, reached_goal_pos, reached_term)
 
         if not self.global_init and len(visited_states) > 0:
             self.derive_training_examples(visited_states, visited_positions, reached_term)
@@ -260,23 +312,57 @@ class ModelFreeOption(object):
     # Hindsight Experience Replay
     # ------------------------------------------------------------
 
-    def no_rf_update(self, transitions, pursued_goal, reached_termination_region):
+    def no_rf_update(self, transitions, pursued_goal, pursued_goal_pos,
+                    reached_goal_pos, reached_termination_region):
         """ Hindsight experience replay without requiring an oracle reward function. """
+
+        original_rewards = [trans[2] for trans in transitions]
 
         if reached_termination_region:
             final_transition = transitions[-1]
             reached_goal = final_transition[3]
+
+            assert np.isclose(utils.info_to_pos(final_transition[-1]), reached_goal_pos).all()
+
             relabeled_trajectory = self.positive_relabel(transitions)
             self.experience_replay(relabeled_trajectory, reached_goal)
-        else:
-            self.experience_replay(transitions, pursued_goal)
-            
-            hindsight_goal, hindsight_goal_idx = self.solver.pick_hindsight_goal(transitions)
-            hindsight_trajectory = transitions[:hindsight_goal_idx]
 
-            if len(hindsight_trajectory) > 0:  # TODO: Remove cause its ugly
+            # Sanity check rewards along the positive trajectory
+            relabeled_rewards = [trans[2] for trans in relabeled_trajectory]
+            assert np.isclose(sum(original_rewards), 1.), original_rewards
+            assert np.isclose(sum(relabeled_rewards), 1.), relabeled_rewards
+
+            if self.replay_original_goal_on_pos:
+                relabeled_transitions = self.relabel_pos_trajectory_original_goal(
+                    transitions, pursued_goal_pos, reached_goal_pos
+                )
+
+                if relabeled_transitions is not None:
+                    self.experience_replay(relabeled_transitions, pursued_goal)
+        else:
+            # Sanity check rewards along negative trajectory
+            assert np.isclose(sum(original_rewards), 0.), f"{self, original_rewards}"
+            self.experience_replay(transitions, pursued_goal)
+
+            # HER on the negative trajectory
+            self.negative_trajectory_her(transitions)
+    
+    def negative_trajectory_her(self, transitions):
+        hindsight_goal, hindsight_goal_idx = self.solver.pick_hindsight_goal(transitions)
+        hindsight_trajectory = transitions[:hindsight_goal_idx+1]
+
+        if len(hindsight_trajectory) > 0:
+
+            if self.use_rf_on_neg_traj:
+                print("[-trajReplay] Replaying negative trajectory with oracle-rf")
+                visited_positions = [utils.info_to_pos(trans[-1]) for trans in transitions]
+                hindsight_goal_pos = visited_positions[hindsight_goal_idx]  
+                relabeled_trajectory = self.negative_oracle_relabel(hindsight_trajectory, hindsight_goal_pos)
+            else:
+                print("[-trajReplay] Replaying negative trajectory with positive relabel")
                 relabeled_trajectory = self.positive_relabel(hindsight_trajectory)
-                self.experience_replay(relabeled_trajectory, hindsight_goal)
+            
+            self.experience_replay(relabeled_trajectory, hindsight_goal)
 
     def positive_relabel(self, trajectory):
         """ Relabel the final transition in the trajectory as a positive goal transition. """ 
@@ -284,7 +370,78 @@ class ModelFreeOption(object):
         trajectory[-1] = original_transition[0], original_transition[1], +1., \
                          original_transition[3], True, \
                          original_transition[5], original_transition[6]
+        
+        # Sanity check -- since we are only using this function on positive 
+        # trajectories for now, only the final transition should be positive
+        rewards = [transition[2] for transition in trajectory]
+        assert np.isclose(sum(rewards), 1), rewards
+
         return trajectory
+
+    def negative_relabel(self, trajectory):
+        relabeled_trajectory = []
+        for state, action, _, next_state, done, reset, info in trajectory:
+            relabeled_trajectory.append((
+                state, action, 0., next_state, done, reset, info
+            ))
+
+        # Sanity check
+        rewards = [transition[2] for transition in relabeled_trajectory]
+        if not np.isclose(sum(rewards), 0): ipdb.set_trace()
+
+        return relabeled_trajectory
+
+    def oracle_relabel_pos_trajectory_original_goal(self,
+                                                    trajectory,
+                                                    pursued_goal_pos,
+                                                    reached_goal_pos):
+        final_transition = trajectory[-1]
+        final_pos = utils.info_to_pos(final_transition[-1])
+        assert np.isclose(final_pos, reached_goal_pos).all(), f"{final_pos, reached_goal_pos}"
+        
+        if self.rf(final_pos, pursued_goal_pos)[1]:
+            print("[+trajReplay] Replaying positive trajectory with *positive* original goal")
+            relabeled_transitions = self.positive_relabel(trajectory)
+            assert np.isclose(sum([x[2] for x in relabeled_transitions]), 1.)
+            return relabeled_transitions
+        
+        print("[+trajReplay] Replaying positive trajectory with *negative* original goal")
+        relabeled_transitions = self.negative_relabel(trajectory)
+        assert np.isclose(sum([x[2] for x in relabeled_transitions]), 0.)
+        return relabeled_transitions
+
+    def relabel_pos_trajectory_original_goal(self, 
+                                             trajectory, 
+                                             pursued_goal_pos,
+                                             reached_goal_pos):
+        """ If the pursued goal was from a salient event and we reached that salient event, 
+            we can assume that we were epsilon-close to the pursued goal. """
+        final_transition = trajectory[-1]
+        final_pos = utils.info_to_pos(final_transition[-1])
+        assert np.isclose(final_pos, reached_goal_pos).all(), f"{final_pos, reached_goal_pos}"
+        
+        if self.target_salient_event is not None and self.target_salient_event(pursued_goal_pos):
+            print("[+SalientEventTrajReplay] Replaying positive trajectory with *positive* original goal")
+            relabeled_transitions = self.positive_relabel(trajectory)
+            assert np.isclose(sum([x[2] for x in relabeled_transitions]), 1.)
+            return relabeled_transitions
+
+    def negative_oracle_relabel(self, trajectory, goal_pos):
+        relabeled_trajectory = []
+        for state, action, _, next_state, done, reset, info in trajectory:
+            pos = utils.info_to_pos(info)
+            hindsight_reward, hindsight_reached = self.rf(pos, goal_pos)
+            hindsight_done = hindsight_reached or done
+            relabeled_trajectory.append((
+                state, action, hindsight_reward, next_state, hindsight_done, reset, info
+            ))
+            if hindsight_reached: break
+
+        # Sanity check on negative transitions when using oracle on -ive trajectories
+        rewards = [transition[2] for transition in relabeled_trajectory]
+        if not np.isclose(sum(rewards), 1): ipdb.set_trace()
+
+        return relabeled_trajectory
 
     def experience_replay(self, trajectory, goal):
         for state, action, reward, next_state, done, reset, _ in trajectory:

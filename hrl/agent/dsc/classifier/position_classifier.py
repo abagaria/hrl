@@ -25,6 +25,10 @@ class PositionInitiationClassifier(InitiationClassifier):
     def pessimistic_predict(self, state):
         assert isinstance(self.pessimistic_classifier, (OneClassSVM, SVC))
         return self.pessimistic_classifier.predict([state])[0] == 1
+    
+    def is_initialized(self):
+        return self.optimistic_classifier is not None and \
+            self.pessimistic_classifier is not None
 
     def add_positive_examples(self, images, positions):
         assert len(images) == len(positions)

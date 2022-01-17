@@ -1,5 +1,6 @@
 import ipdb
 import torch
+import scipy
 import random
 import numpy as np
 from pfrl.wrappers import atari_wrappers
@@ -12,9 +13,13 @@ from ..dsc.chain import SkillChain
 
 
 class SkillGraphAgent:
-    def __init__(self, dsc_agent):
+    def __init__(self, dsc_agent, distance_metric):
         assert isinstance(dsc_agent, RobustDSC)
+        assert distance_metric in ("euclidean", "vf", "ucb"), distance_metric
+
         self.dsc_agent = dsc_agent
+        self.distance_metric = distance_metric
+        
         self.planner = PlanGraph()
         self.exploration_agent = self._get_exploration_agent()
 
@@ -220,6 +225,34 @@ class SkillGraphAgent:
     # Distance functions
     # -----------------------------–––––––--------------
 
+    def closest_node_lut(self, target_event):
+        spos  = (77, 235)
+        gpos0 = (123, 148)
+        gpos1 = (132, 192)
+        gpos2 = (24, 235)
+        gpos3 = (130, 235)
+        gpos4 = (77, 192)
+        gpos5 = (23, 148)
+
+        # maps destination -> source
+        lut = {
+            spos : gpos4,
+            gpos0: gpos1,
+            gpos1: random.choice([spos, gpos4]),
+            gpos2: spos,
+            gpos3: spos,
+            gpos4: spos,
+            gpos5: gpos0,
+        }
+
+        target_pos = lut[tuple(target_event.target_pos)]
+
+        for beta in self.salient_events:
+            if tuple(beta.target_pos) == target_pos:
+                return beta
+        
+        ipdb.set_trace()
+
     def choose_closest_source_target_vertex_pair(self, state, info, goal_salient_event, choose_among_events):
         candidate_vertices_to_fall_from = self.planner.get_reachable_nodes_from_source_state(state, info)
         candidate_vertices_to_fall_from = list(candidate_vertices_to_fall_from) + self.get_corresponding_events(state, info)
@@ -234,7 +267,9 @@ class SkillGraphAgent:
         candidate_vertices_to_fall_from = list(set(candidate_vertices_to_fall_from))
         candidate_vertices_to_jump_to = list(set(candidate_vertices_to_jump_to))
 
-        return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from, candidate_vertices_to_jump_to)
+        return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from,
+                                                 candidate_vertices_to_jump_to,
+                                                 metric=self.distance_metric)
 
     def get_goal_vertices_for_rollout(self, state, info, goal_salient_event):
         # Revise the goal_salient_event if it cannot be reached from the current state
@@ -246,12 +281,14 @@ class SkillGraphAgent:
                 return planner_goal_vertex, dsc_goal_vertex
         return goal_salient_event, goal_salient_event
 
-    def get_closest_pair_of_vertices(self, src_vertices, dest_vertices):
+    def get_closest_pair_of_vertices(self, src_vertices, dest_vertices, metric):
         def sample(A, num_rows):
             return A[np.random.randint(A.shape[0], size=num_rows), :].squeeze()
 
         if len(src_vertices) > 0 and len(dest_vertices) > 0:
-            distance_matrix = self.single_sample_vf_based_distances(src_vertices, dest_vertices)
+            distance_matrix = self.get_distance_matrix(src_vertices,
+                                                       dest_vertices,
+                                                       metric=metric)
             min_array = np.argwhere(distance_matrix == np.min(distance_matrix)).squeeze()
 
             if len(min_array.shape) > 1 and min_array.shape[0] > 1:
@@ -259,28 +296,50 @@ class SkillGraphAgent:
 
             return src_vertices[min_array[0]], dest_vertices[min_array[1]]
 
-    def single_sample_vf_based_distances(self, src_vertices, dest_vertices):
-        def sample(vertex):
-            return random.choice(vertex.effect_set).obs
+    def get_distance_matrix(self, src_vertices, dest_vertices, metric="euclidean"):
+        assert metric in ("euclidean", "vf", "ucb"), metric
 
-        def batched_pairwise_distances(observationsA, observationsB, vf):
+        def sample(vertex, key):
+            assert key in ('obs', 'pos')
+            x = random.choice(vertex.effect_set)
+            return x.obs if key == 'obs' else x.pos
+
+        def value_to_distance(v, n):
+            pos_value = v.squeeze().abs()
+            if metric == "ucb":
+                _n = torch.as_tensor(n).float().to(
+                    self.dsc_agent.global_option.solver.device
+                )
+                pos_value = pos_value + (1. / torch.sqrt(_n))
+            return 1. / pos_value
+
+        def batched_pairwise_distances(observationsA, observationsB, vf, n_points):
             distance_matrix = torch.zeros((len(observationsA), len(observationsB)))
             distance_matrix = distance_matrix.to(self.dsc_agent.global_option.solver.device)
 
             for i, obsA in enumerate(observationsA):
                 assert isinstance(obsA, atari_wrappers.LazyFrames), type(obsA)
                 with torch.no_grad():
-                    distance_matrix[i, :] = -vf(obsA, observationsB).squeeze()
+                    value = vf(obsA, observationsB)
+                    distance_matrix[i, :] = value_to_distance(value, n_points)
 
             return distance_matrix.cpu().numpy()
 
-        src_observations = [sample(v) for v in src_vertices]
-        dst_observations = [sample(v) for v in dest_vertices]
+        def euclidean_distances(positionsA, positionsB):
+            return scipy.spatial.distance.cdist(positionsA, positionsB)
 
-        per_point_distance_matrix = batched_pairwise_distances(src_observations,
-                                                               dst_observations,
-                                                               self.dsc_agent.global_option.value_function)
-        return per_point_distance_matrix
+        attribute = 'pos' if metric == "euclidean" else 'obs'
+        src_observations = [sample(v, attribute) for v in src_vertices]
+        dst_observations = [sample(v, attribute) for v in dest_vertices]
+        n_dst_observations = [len(v.effect_set) for v in dest_vertices]
+
+        if metric == "euclidean":
+            return euclidean_distances(src_observations, dst_observations)
+
+        return batched_pairwise_distances(src_observations,
+                                          dst_observations,
+                                          self.dsc_agent.global_option.value_function,
+                                          n_dst_observations)
 
     # -----------------------------–––––––--------------
     # Maintaining the graph
