@@ -341,6 +341,34 @@ class SkillGraphAgent:
                                           self.dsc_agent.global_option.value_function,
                                           n_dst_observations)
 
+    def test_distance_metrics(self, vertices, metric):
+
+        labels = {}
+        matrix_labels = []
+
+        for idx, vertex in enumerate(vertices):
+            labels[vertex] = idx
+            matrix_labels.append(str(vertex.get_target_position()))
+
+        predicted_y_values = []
+        true_y_values = []
+        x_values = []
+
+        correct_count = 0
+
+        for vertex in vertices:
+            y_vertex, x_vertex = self.get_closest_pair_of_vertices([x for x in vertices if x != vertex], [vertex], metric=metric)
+            predicted_y_values.append(labels[y_vertex])
+            x_values.append(labels[x_vertex])
+            true_y_vertex = self.closest_node_lut(vertex)
+            true_y_values.append(labels[true_y_vertex])
+
+            if y_vertex == true_y_vertex:
+                correct_count += 1
+        
+        return predicted_y_values, true_y_values, x_values, (correct_count/len(vertices))
+                        
+
     # -----------------------------–––––––--------------
     # Maintaining the graph
     # -----------------------------–––––––--------------

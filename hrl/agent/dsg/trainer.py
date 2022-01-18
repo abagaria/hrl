@@ -14,6 +14,9 @@ from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+import matplotlib.pyplot as plt
+import os
 
 class DSGTrainer:
     def __init__(self, env, dsc, dsg, rnd,
@@ -67,6 +70,103 @@ class DSGTrainer:
             
             with open(self.dsc_agent.log_file, "wb+") as f:
                 pickle.dump(self.gc_successes, f)
+
+    def test_distance_metrics_run_loop(self, start_episode, num_episodes, plot_dir, test_freq=10):
+
+        metrics = [
+            "euclidean",
+            "vf",
+            "ucb"
+         ]
+
+        labels = [
+            '(123, 148)',
+            '(132, 192)',
+            '( 24, 235)',
+            '(130, 235)',
+            '( 77, 192)',
+            '( 23, 148)',
+            '( 77, 235)'
+        ]
+
+        accuracies = {
+            'episode': [],
+            'euclidean': [],
+            'vf': [],
+            'ucb': []
+        }
+
+        base_plot_dir = plot_dir
+
+        for episode in range(start_episode, start_episode + num_episodes):
+
+            print("=" * 80); print(f"Episode: {episode} Step: {self.env.T}"); print("=" * 80)
+            if episode % self.expansion_freq == 0:
+                self.graph_expansion_run_loop(episode, self.expansion_duration)
+            else:
+                self.graph_consolidation_run_loop(episode)
+
+            if episode % test_freq == 0:
+                accuracies['episode'].append(episode)
+                for metric in metrics:
+                    plot_dir = os.path.join(base_plot_dir, metric)
+                    if not os.path.exists(plot_dir):
+                        os.makedirs(plot_dir)
+
+                    predicted_y_values, true_y_values, x_values, accuracy = self.dsg_agent.test_distance_metrics(self.salient_events, metric)
+                    accuracies[metric].append(accuracy)
+                    cm = confusion_matrix(true_y_values, predicted_y_values, normalize="true", labels=np.arange(len(self.salient_events)))
+                    cm_input = confusion_matrix(x_values, predicted_y_values, labels=np.arange(len(self.salient_events)))
+
+                    fig_name = os.path.join(plot_dir, 'metric-{}-episode-{}-truth-predicted.png'.format(metric, episode))
+
+                    DSGTrainer.plot_confusion_matrix(cm, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Predicted Closest Location", y_label="True Closest Location")
+                    fig_name = os.path.join(plot_dir, 'metric-{}-episode-{}-input-output.png'.format(metric, episode))
+                    DSGTrainer.plot_confusion_matrix(cm_input, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Source Location", y_label="Destination Location")
+
+                    if metric == metrics[0] and episode == 0:
+                        fig_name = os.path.join(base_plot_dir, 'metric-lut-input-output.png')
+                        cm_input = confusion_matrix(x_values, true_y_values, labels=np.arange(len(self.salient_events)))
+                        DSGTrainer.plot_confusion_matrix(cm_input, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Source Location", y_label="Destination Location")
+
+                    plt.clf()
+                    plt.plot(accuracies['episode'], accuracies[metric])
+                    plt.xlabel('Episode')
+                    plt.ylabel('Accuracy')
+                    fig_name = os.path.join(base_plot_dir, 'metric-{}-accuracy.png'.format(metric))
+                    plt.savefig(fig_name)
+                    plt.close('all')
+
+    @staticmethod
+    def plot_confusion_matrix(confusion_matrix, save_fig_name, class_names=None, cmap=plt.cm.Blues, title=None, x_label=None, y_label=None):
+        
+        confusion_matrix = np.flip(confusion_matrix, axis=0)
+
+        if class_names is not None:
+            assert len(class_names) == confusion_matrix.shape[0]
+        plt.clf()
+        plt.imshow(confusion_matrix, cmap=cmap, interpolation='nearest')
+        if title is not None:
+            plt.title(title)
+        if x_label is not None:
+            plt.xlabel(x_label)
+        if y_label is not None:
+            plt.ylabel(y_label)
+        if class_names is not None:
+            tick_marks = np.arange(len(class_names))
+            plt.xticks(tick_marks, class_names, rotation=45)
+            # plt.yticks(tick_marks, class_names)
+            plt.yticks(tick_marks, class_names[::-1])
+        cmap_min, cmap_max = cmap(0), cmap(1.0)
+        thresh = (confusion_matrix.max()+confusion_matrix.min()) / 2.0
+        for i in range(confusion_matrix.shape[0]):
+            for j in range(confusion_matrix.shape[0]):
+                color = cmap_max if (confusion_matrix[i,j] < thresh) else cmap_min
+                plt.text(j, i, "{:.2f}".format(confusion_matrix[i,j]), ha="center", va="center", color=color)
+
+        # plt.show()
+        plt.savefig(save_fig_name, bbox_inches='tight')
+        plt.close('all')
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
         intrinsic_subgoals = []
