@@ -14,7 +14,7 @@ from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 
-from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import os
 
