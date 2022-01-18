@@ -102,44 +102,51 @@ class DSGTrainer:
 
         base_plot_dir = plot_dir
 
-        for episode in range(start_episode, start_episode + num_episodes):
+        for current_episode in range(start_episode, start_episode + num_episodes, test_freq):
 
-            print("=" * 80); print(f"Episode: {episode} Step: {self.env.T}"); print("=" * 80)
-            if episode % self.expansion_freq == 0:
-                self.graph_expansion_run_loop(episode, self.expansion_duration)
-            else:
-                self.graph_consolidation_run_loop(episode)
+            # Run normal loop
+            self.run_loop(current_episode, test_freq)
 
-            if episode % test_freq == 0:
-                accuracies['episode'].append(episode)
-                for metric in metrics:
-                    plot_dir = os.path.join(base_plot_dir, metric)
-                    if not os.path.exists(plot_dir):
-                        os.makedirs(plot_dir)
+            #####################################################
+            #               Run metric test                     #
+            #####################################################
+            
+            # to get the accurate episode in the figure names we add test_freq to current episode
+            print("[Testing] Running distance metric tests")
 
-                    predicted_y_values, true_y_values, x_values, accuracy = self.dsg_agent.test_distance_metrics(self.salient_events, metric)
-                    accuracies[metric].append(accuracy)
-                    cm = confusion_matrix(true_y_values, predicted_y_values, normalize="true", labels=np.arange(len(self.salient_events)))
-                    cm_input = confusion_matrix(x_values, predicted_y_values, labels=np.arange(len(self.salient_events)))
+            episode = current_episode + test_freq
 
-                    fig_name = os.path.join(plot_dir, 'metric-{}-episode-{}-truth-predicted.png'.format(metric, episode))
+            accuracies['episode'].append(episode)
+            for metric in metrics:
+                plot_dir = os.path.join(base_plot_dir, metric)
+                if not os.path.exists(plot_dir):
+                    os.makedirs(plot_dir)
 
-                    DSGTrainer.plot_confusion_matrix(cm, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Predicted Closest Location", y_label="True Closest Location")
-                    fig_name = os.path.join(plot_dir, 'metric-{}-episode-{}-input-output.png'.format(metric, episode))
+                predicted_y_values, true_y_values, x_values, accuracy = self.dsg_agent.test_distance_metrics(self.salient_events, metric)
+                accuracies[metric].append(accuracy)
+                cm = confusion_matrix(true_y_values, predicted_y_values, normalize="true", labels=np.arange(len(self.salient_events)))
+                cm_input = confusion_matrix(x_values, predicted_y_values, labels=np.arange(len(self.salient_events)))
+
+                fig_name = os.path.join(plot_dir, 'metric-{}-episode-{}-truth-predicted.png'.format(metric, episode))
+
+                DSGTrainer.plot_confusion_matrix(cm, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Predicted Closest Location", y_label="True Closest Location")
+                fig_name = os.path.join(plot_dir, 'metric-{}-episode-{}-input-output.png'.format(metric, episode))
+                DSGTrainer.plot_confusion_matrix(cm_input, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Source Location", y_label="Destination Location")
+
+                if metric == metrics[0] and current_episode == 0:
+                    fig_name = os.path.join(base_plot_dir, 'metric-lut-input-output.png')
+                    cm_input = confusion_matrix(x_values, true_y_values, labels=np.arange(len(self.salient_events)))
                     DSGTrainer.plot_confusion_matrix(cm_input, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Source Location", y_label="Destination Location")
 
-                    if metric == metrics[0] and episode == 0:
-                        fig_name = os.path.join(base_plot_dir, 'metric-lut-input-output.png')
-                        cm_input = confusion_matrix(x_values, true_y_values, labels=np.arange(len(self.salient_events)))
-                        DSGTrainer.plot_confusion_matrix(cm_input, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Source Location", y_label="Destination Location")
+                plt.clf()
+                plt.plot(accuracies['episode'], accuracies[metric])
+                plt.xlabel('Episode')
+                plt.ylabel('Accuracy')
+                fig_name = os.path.join(base_plot_dir, 'metric-{}-accuracy.png'.format(metric))
+                plt.savefig(fig_name)
+                plt.close('all')
 
-                    plt.clf()
-                    plt.plot(accuracies['episode'], accuracies[metric])
-                    plt.xlabel('Episode')
-                    plt.ylabel('Accuracy')
-                    fig_name = os.path.join(base_plot_dir, 'metric-{}-accuracy.png'.format(metric))
-                    plt.savefig(fig_name)
-                    plt.close('all')
+            
 
     @staticmethod
     def plot_confusion_matrix(confusion_matrix, save_fig_name, class_names=None, cmap=plt.cm.Blues, title=None, x_label=None, y_label=None):
