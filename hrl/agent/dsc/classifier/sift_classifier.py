@@ -62,7 +62,7 @@ class BOVWClassifier:
         # train svm
         if svm_type == 'svc':
             class_weight = 'balanced' if len(X) > 10 else None
-            self.svm_classifier = svm.SVC(class_weight=class_weight)
+            self.svm_classifier = svm.SVC(class_weight=class_weight, random_state=0)
         elif svm_type == 'one_class_svm':
             self.svm_classifier = svm.OneClassSVM(gamma=gamma, nu=nu)
         self.svm_classifier.fit(hist_features, Y)
