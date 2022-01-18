@@ -27,10 +27,10 @@ from dopamine.agents.rainbow import rainbow_agent as base_rainbow_agent
 from dopamine.discrete_domains import atari_lib
 import gin
 import tensorflow.compat.v1 as tf
+import numpy as np
 
 import numpy as np
 import math
-
 
 
 @gin.configurable
@@ -230,7 +230,6 @@ class RNDRainbowAgent(
         summary_writer=summary_writer,
         summary_writing_frequency=summary_writing_frequency)
 
-
   def _build_networks(self):
     super()._build_networks()
 
@@ -258,7 +257,7 @@ class RNDRainbowAgent(
     current_idx = 0
 
     for state_chunk in state_chunks:
-      chunk_values = self._sess.run(self.value_function, {self.batch_ph:state_chunk})
+      chunk_values = self._sess.run(self.value_function, {self.batch_ph: state_chunk})
       current_chunk_size = len(state_chunk)
       values[current_idx:current_idx + current_chunk_size] = chunk_values
       current_idx += current_chunk_size

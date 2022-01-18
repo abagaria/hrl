@@ -13,6 +13,7 @@ from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
+from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
 
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
@@ -23,7 +24,7 @@ class DSGTrainer:
                  expansion_freq, expansion_duration,
                  rnd_log_filename,
                  goal_selection_criterion="random",
-                 predefined_events=[]):
+                 predefined_events=[], enable_rnd_logging=False):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
@@ -55,6 +56,7 @@ class DSGTrainer:
         self.rnd_extrinsic_rewards = [] 
         self.rnd_intrinsic_rewards = []
         self.rnd_log_filename = rnd_log_filename
+        self.enable_rnd_logging = enable_rnd_logging
 
     # ---------------------------------------------------
     # Run loops 
@@ -68,8 +70,10 @@ class DSGTrainer:
             else:
                 self.graph_consolidation_run_loop(episode)
             
+            t0 = time.time()
             with open(self.dsc_agent.log_file, "wb+") as f:
                 pickle.dump(self.gc_successes, f)
+            print(f"[Episode={episode}, Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
 
     def test_distance_metrics_run_loop(self, start_episode, num_episodes, plot_dir, test_freq=10):
 
@@ -173,24 +177,49 @@ class DSGTrainer:
         extrinsic_subgoals = []
 
         for episode in range(start_episode, start_episode + num_episodes):
-            observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout()
-            print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
+            state, info = self.env.reset()
+            expansion_node = self.dsg_agent.get_node_to_expand()
+            print(f"[Episode={episode}] Attempting to expand {expansion_node}")
 
+            state, info, done, reset, reached = self.dsg_agent.run_loop(state=state,
+                                                                        info=info,
+                                                                        goal_salient_event=expansion_node,
+                                                                        episode=episode,
+                                                                        eval_mode=False)
 
-            extrinsic_subgoal_proposals, intrinsic_subgoal_proposals = self.extract_subgoals(
-                                                                            observations,
-                                                                            visited_positions,
-                                                                            rewards, 
-                                                                        )
-            if len(extrinsic_subgoal_proposals) > 0:
-                extrinsic_subgoals.extend(extrinsic_subgoal_proposals)
-            
-            if len(intrinsic_subgoal_proposals) > 0:
-                intrinsic_subgoals.extend(intrinsic_subgoal_proposals)
+            if reached and not done and not reset:
+                observations, rewards, intrinsic_rewards, visited_positions = self.exploration_rollout(state)
+                print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
 
-            self.rnd_extrinsic_rewards.append(rewards)
-            self.rnd_intrinsic_rewards.append(intrinsic_rewards)
+                extrinsic_subgoal_proposals, intrinsic_subgoal_proposals = self.extract_subgoals(
+                                                                                observations,
+                                                                                visited_positions,
+                                                                                rewards, 
+                                                                            )
+                if len(extrinsic_subgoal_proposals) > 0:
+                    extrinsic_subgoals.extend(extrinsic_subgoal_proposals)
+                
+                if len(intrinsic_subgoal_proposals) > 0:
+                    intrinsic_subgoals.extend(intrinsic_subgoal_proposals)
 
+                self.rnd_extrinsic_rewards.append(rewards)
+                self.rnd_intrinsic_rewards.append(intrinsic_rewards)
+
+        if self.enable_rnd_logging:
+            self.log_rnd_progress(intrinsic_subgoals, extrinsic_subgoals, episode)
+    
+    def exploration_rollout(self, state):
+        assert isinstance(state, atari_wrappers.LazyFrames)
+
+        # convert LazyFrame to np array for dopamine
+        initial_state = np.asarray(state)
+        initial_state = np.reshape(state, self.rnd_agent._agent.state.shape)
+
+        observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout(initial_state=initial_state)
+
+        return observations, rewards, intrinsic_rewards, visited_positions
+
+    def log_rnd_progress(self, intrinsic_subgoals, extrinsic_subgoals, episode):
         best_spr_triple = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
         
         with open(self.rnd_log_filename, "wb+") as f:
@@ -216,6 +245,13 @@ class DSGTrainer:
                 pickle.dump(best_spr_triple, f)
             
             self.n_intrinsic_subgoals += 1
+
+        visualize_graph_nodes_with_expansion_probabilities(self.dsg_agent,
+                                                           episode,
+                                                           self.dsc_agent.experiment_name,
+                                                           self.dsc_agent.seed)
+
+        self.rnd_agent.plot_value(episode=episode)
 
     def graph_consolidation_run_loop(self, episode):
         done = False

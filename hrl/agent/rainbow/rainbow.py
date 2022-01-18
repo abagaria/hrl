@@ -7,15 +7,17 @@ from pfrl import replay_buffers
 from pfrl import agents, explorers
 from pfrl.wrappers import atari_wrappers
 from pfrl.q_functions import DistributionalDuelingDQN
+from pfrl.utils import batch_states as pfrl_batch_states
 
 
 class Rainbow:
     def __init__(self, n_actions, n_atoms, v_min, v_max, noisy_net_sigma, lr, 
                  n_steps, betasteps, replay_start_size, replay_buffer_size, gpu,
-                 goal_conditioned):
+                 goal_conditioned, use_custom_batch_states=True):
         self.n_actions = n_actions
         n_channels = 4 + int(goal_conditioned)
         self.goal_conditioned = goal_conditioned
+        self.use_custom_batch_states = use_custom_batch_states
 
         self.q_func = DistributionalDuelingDQN(n_actions, n_atoms, v_min, v_max, n_input_channels=n_channels)
         pnn.to_factorized_noisy(self.q_func, sigma_scale=noisy_net_sigma)
@@ -44,11 +46,19 @@ class Rainbow:
             target_update_interval=32_000,
             update_interval=4,
             batch_accumulator="mean",
-            phi=self.phi
+            phi=self.phi,
+            batch_states=self.batch_states if use_custom_batch_states else pfrl_batch_states
         )
 
         self.T = 0
         self.device = torch.device(f"cuda:{gpu}" if gpu > -1 else "cpu")
+
+    @staticmethod
+    def batch_states(states, device, phi):
+        assert isinstance(states, list), type(states)
+        assert isinstance(states[0], atari_wrappers.LazyFrames), type(states[0])
+        features = np.array([phi(s) for s in states])
+        return torch.as_tensor(features).to(device)
 
     @staticmethod
     def phi(x):

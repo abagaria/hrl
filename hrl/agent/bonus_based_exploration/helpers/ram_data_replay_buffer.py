@@ -30,6 +30,9 @@ class MontezumaRevengeReplayBuffer():
             os.makedirs(info_dir)
         return os.path.join(info_dir, '{}_ckpt.npy'.format(name))
 
+    def get_index(self, memory_type, index):
+        return self.memory[memory_type][index]
+
     def get_indices(self, memory_type, indices):
         return self.memory[memory_type][indices]
     

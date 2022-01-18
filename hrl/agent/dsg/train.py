@@ -3,6 +3,7 @@ import json
 import time
 import ipdb
 import pfrl
+import torch
 import pickle
 import random
 import argparse
@@ -80,6 +81,7 @@ if __name__ == "__main__":
     parser.add_argument("--distance_metric", type=str, default="euclidean")
     parser.add_argument("--n_kmeans_clusters", type=int, default=99)
     parser.add_argument("--n_sift_keypoints", type=int, default=30)
+    parser.add_argument("--enable_rnd_logging", action="store_true", default=False)
 
     args = parser.parse_args()
 
@@ -161,13 +163,16 @@ if __name__ == "__main__":
                           args.n_kmeans_clusters,
                           args.n_sift_keypoints)
 
-    dsg_agent = SkillGraphAgent(dsc_agent, args.distance_metric)
+    dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric)
     
     trainer = DSGTrainer(env, dsc_agent, dsg_agent, exploration_agent,
-                         1000, 10, 
+                         50, 10, 
                          _rnd_log_file,
                          args.goal_selection_criterion,
-                         [beta1, beta2, beta3, beta4, beta5, beta6])
+                         [beta1, beta2, beta3, beta4, beta5, beta6],
+                         args.enable_rnd_logging)
+
+    print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
     t0 = time.time()
     trainer.run_loop(0, int(1e5))

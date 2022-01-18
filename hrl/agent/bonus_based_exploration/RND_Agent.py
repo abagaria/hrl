@@ -2,7 +2,6 @@ import os
 import ipdb
 import numpy as np
 
-from tqdm import tqdm
 from dopamine.discrete_domains.run_experiment import Runner
 from dopamine.discrete_domains import atari_lib
 from absl import logging
@@ -27,11 +26,6 @@ class RNDAgent(Runner):
         self.info_buffer = ram_data_replay_buffer.MontezumaRevengeReplayBuffer(self._agent._replay.memory._replay_capacity)
 
         self.info_buffer.load(self._base_dir)
-
-    def set_env(self, env):
-        """ env is non-lazy-frame version of train::make_env(). """
-        self._environment = env
-        self.env_wrapper = env_wrapper.MontezumaInfoWrapper(env)
 
     def _initialize_episode_from_point(self, starting_state):
         return self._agent.begin_episode_from_point(starting_state)
@@ -58,7 +52,7 @@ class RNDAgent(Runner):
             action = self._initialize_episode()
         else:
             action = self._initialize_episode_from_point(initial_state)
-
+        
         is_terminal = False
 
         # Keep interacting until we reach a terminal state
@@ -119,7 +113,7 @@ class RNDAgent(Runner):
             return scaled_intrinsic_reward / scale
         return 0.
 
-    def value_function(self, stacks):
+    def value_function(self, stacks):  # TODO: Maybe set agent eval_mode=True
         ## Observation needs to be a state from nature dqn which is 4 frames
         return self._agent._get_value_function(stacks)
 
@@ -144,11 +138,10 @@ class RNDAgent(Runner):
             if self._agent._replay.memory.is_valid_transition(index):
                 valid_indices = np.append(valid_indices, index)
 
-
         values = np.zeros(len(valid_indices))
-        rooms = np.zeros(len(valid_indices), dtype=np.int8)
-        player_x = np.zeros(len(valid_indices), dtype=np.int8)
-        player_y = np.zeros(len(valid_indices), dtype=np.int8)
+        rooms = np.zeros(len(valid_indices), dtype=np.int16)
+        player_x = np.zeros(len(valid_indices), dtype=np.int16)
+        player_y = np.zeros(len(valid_indices), dtype=np.int16)
 
         index_chunks = get_chunks(valid_indices, chunk_size)
         current_idx = 0
@@ -164,8 +157,6 @@ class RNDAgent(Runner):
 
             current_idx += current_chunk_size
 
-
-
         unique_rooms = np.unique(rooms)
 
         for room in unique_rooms:
@@ -174,9 +165,7 @@ class RNDAgent(Runner):
             plt.colorbar()
             figname = self._get_plot_name(self._base_dir, 'value', str(room), str(episode), str(steps))
             plt.savefig(figname)
-            plt.clf()
-
-        
+            plt.close()
 
     def plot_reward(self, episode=0, steps=0):
         self._agent.eval_mode = True
@@ -216,14 +205,11 @@ class RNDAgent(Runner):
     def _get_plot_name(self, base_dir, type, room, episode, steps):
         plot_dir = os.path.join(base_dir, 'plots', episode)
         if not os.path.isdir(plot_dir):
-            os.makedirs(plot_dir)
+            os.makedirs(plot_dir, exist_ok=True)
         return os.path.join(plot_dir, '{}_room_{}_steps_{}.png'.format(type, room, steps))
 
-
-
-
-
-        
-
-
-
+    def _checkpoint_experiment(self, iteration):
+        print(f"[RNDAgent] Iteration {iteration} Skipping checkpointing")
+    
+    def _save_tensorboard_summaries(self, iteration, num_episodes_train, average_reward_train, num_episodes_eval, average_reward_eval, average_steps_per_second):
+        print(f"[RNDAgent] Iteration {iteration} Skipping Tensorboard logging")
