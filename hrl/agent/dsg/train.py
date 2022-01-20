@@ -93,6 +93,7 @@ if __name__ == "__main__":
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}")
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/initiation_set_plots")
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/value_function_plots")
+    distance_plot_dir = create_log_dir(f"plots/{args.experiment_name}/{args.seed}/distance_metric_plots")
 
     with open(f"logs/{args.experiment_name}/{args.seed}/hyperparameters.txt", "w+") as _args_file:
         json.dump(args.__dict__, _args_file, indent=2)

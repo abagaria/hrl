@@ -83,16 +83,6 @@ class DSGTrainer:
             "ucb"
          ]
 
-        labels = [
-            '(123, 148)',
-            '(132, 192)',
-            '( 24, 235)',
-            '(130, 235)',
-            '( 77, 192)',
-            '( 23, 148)',
-            '( 77, 235)'
-        ]
-
         accuracies = {
             'episode': [],
             'euclidean': [],
@@ -123,6 +113,11 @@ class DSGTrainer:
                     os.makedirs(plot_dir)
 
                 predicted_y_values, true_y_values, x_values, accuracy = self.dsg_agent.test_distance_metrics(self.salient_events, metric)
+
+                labels = []
+                for event in self.salient_events:
+                    labels.append(str(event.target_pos) + " visits:" + str(len(event.effect_set)))
+
                 accuracies[metric].append(accuracy)
                 cm = confusion_matrix(true_y_values, predicted_y_values, normalize="true", labels=np.arange(len(self.salient_events)))
                 cm_input = confusion_matrix(x_values, predicted_y_values, labels=np.arange(len(self.salient_events)))
