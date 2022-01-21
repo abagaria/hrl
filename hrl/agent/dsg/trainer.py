@@ -20,7 +20,9 @@ class DSGTrainer:
                  expansion_freq, expansion_duration,
                  rnd_log_filename,
                  goal_selection_criterion="random",
-                 predefined_events=[], enable_rnd_logging=False):
+                 predefined_events=[],
+                 enable_rnd_logging=False,
+                 disable_graph_expansion=False):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
@@ -50,6 +52,7 @@ class DSGTrainer:
         self.rnd_intrinsic_rewards = []
         self.rnd_log_filename = rnd_log_filename
         self.enable_rnd_logging = enable_rnd_logging
+        self.disable_graph_expansion = disable_graph_expansion
 
     # ---------------------------------------------------
     # Run loops 
@@ -58,7 +61,7 @@ class DSGTrainer:
     def run_loop(self, start_episode, num_episodes):
         for episode in range(start_episode, start_episode + num_episodes):
             print("=" * 80); print(f"Episode: {episode} Step: {self.env.T}"); print("=" * 80)
-            if episode % self.expansion_freq == 0:
+            if not self.disable_graph_expansion and (episode % self.expansion_freq == 0):
                 self.graph_expansion_run_loop(episode, self.expansion_duration)
             else:
                 self.graph_consolidation_run_loop(episode)

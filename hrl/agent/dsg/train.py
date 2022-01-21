@@ -82,6 +82,8 @@ if __name__ == "__main__":
     parser.add_argument("--n_kmeans_clusters", type=int, default=99)
     parser.add_argument("--n_sift_keypoints", type=int, default=30)
     parser.add_argument("--enable_rnd_logging", action="store_true", default=False)
+    parser.add_argument("--disable_graph_expansion", action="store_true", default=False)
+    parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
 
