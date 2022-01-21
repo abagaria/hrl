@@ -7,7 +7,6 @@ import numpy as np
 import networkx as nx
 import networkx.algorithms.shortest_paths as shortest_paths
 
-from collections import defaultdict
 from pfrl.wrappers import atari_wrappers
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
@@ -26,7 +25,7 @@ class DSGTrainer:
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
         assert isinstance(rnd, RNDAgent)
-        assert goal_selection_criterion in ("random", "closest")
+        assert goal_selection_criterion in ("random", "closest", "random_unconnected")
 
         self.env = env
         self.dsc_agent = dsc
@@ -43,9 +42,6 @@ class DSGTrainer:
 
         for event in self.salient_events:
             self.dsg_agent.add_salient_event(event)
-
-        # Map goal to success curve
-        self.gc_successes = defaultdict(list)
 
         # Logging for exploration rollouts
         self.n_extrinsic_subgoals = 0
@@ -69,7 +65,7 @@ class DSGTrainer:
             
             t0 = time.time()
             with open(self.dsc_agent.log_file, "wb+") as f:
-                pickle.dump(self.gc_successes, f)
+                pickle.dump(self.dsg_agent.gc_successes, f)
             print(f"[Episode={episode}, Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
@@ -169,9 +165,6 @@ class DSGTrainer:
                                                                         goal_salient_event=event,
                                                                         episode=episode,
                                                                         eval_mode=False)
-            
-            # Log success or failure for the pursued goal
-            self.gc_successes[tuple(event.target_pos)].append(reached)
 
             if reached:
                 print(f"DSG successfully reached {event}")
@@ -196,6 +189,13 @@ class DSGTrainer:
             if selected_event is not None:
                 print(f"[Closest] DSG selected event {selected_event}")
                 return selected_event
+
+        if self.goal_selection_criterion == "random_unconnected":
+            selected_event = self._select_random_unconnected_salient_event(state, info)
+            
+            if selected_event is not None:
+                print(f"[RandomUnconnected] DSG selected event {selected_event}")
+                return selected_event
         
         selected_event = self._randomly_select_salient_event(state, info)
         print(f"[Random] DSG selected event {selected_event}")
@@ -218,6 +218,12 @@ class DSGTrainer:
             print(f"[Random] Deep skill graphs target event: {target_event}")
 
         return target_event
+
+    def _select_random_unconnected_salient_event(self, state, info):
+        unconnected_events = self._get_unconnected_events(state, info)
+
+        if len(unconnected_events) > 0:
+            return random.choice(unconnected_events)
 
     def _select_closest_unconnected_salient_event(self, state, info):
         unconnected_events = self._get_unconnected_events(state, info)

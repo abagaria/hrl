@@ -4,6 +4,7 @@ import scipy
 import random
 import numpy as np
 from scipy.special import softmax
+from collections import defaultdict
 from pfrl.wrappers import atari_wrappers
 from hrl.agent.dsc.option import ModelFreeOption
 from .graph import PlanGraph
@@ -25,6 +26,9 @@ class SkillGraphAgent:
 
         self.salient_events = []
         self.max_reward_so_far = -np.inf
+
+        # Map goal to success curve
+        self.gc_successes = defaultdict(list)
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -59,19 +63,26 @@ class SkillGraphAgent:
         assert isinstance(episode, int)
         assert isinstance(eval_mode, bool)
 
+        done = False
+        reset = False
+
         if self.is_state_inside_vertex(state, info, goal_salient_event):
-            return state, info, False, False, True
+            return state, info, done, reset, True
 
         planner_goal_vertex, dsc_goal_vertex = self.get_goal_vertices_for_rollout(state, info, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 
-        state, info, done, reset = self.run_sub_loop(state, info, planner_goal_vertex, goal_salient_event, episode, eval_mode)
+        if not planner_goal_vertex(info):
+            state, info, done, reset = self.run_sub_loop(state, info, planner_goal_vertex, goal_salient_event, episode, eval_mode)
+            self.gc_successes[tuple(planner_goal_vertex.target_pos)].append(planner_goal_vertex(info))
 
-        if not done and not reset:
+        if not dsc_goal_vertex(info) and not done and not reset:
             state, info, done, reset = self.run_sub_loop(state, info, dsc_goal_vertex, goal_salient_event, episode, eval_mode)
+            self.gc_successes[tuple(dsc_goal_vertex.target_pos)].append(dsc_goal_vertex(info))
 
-        if not done and not reset:
+        if not goal_salient_event(info) and not done and not reset:
             state, info, done, reset = self.run_sub_loop(state, info, goal_salient_event, goal_salient_event, episode, eval_mode)
+            self.gc_successes[tuple(goal_salient_event.target_pos)].append(goal_salient_event(info))
 
         return state, info, done, reset, self.is_state_inside_vertex(state, info, goal_salient_event)
 
