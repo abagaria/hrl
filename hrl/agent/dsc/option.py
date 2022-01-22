@@ -128,12 +128,12 @@ class ModelFreeOption(object):
         return self.initiation_classifier.pessimistic_predict(x)
 
     def is_term_true(self, state, info):
+        if self.failure_condition(info, check_falling=True):
+            return False
+
         if self.parent is None:
             pos = np.array([info["player_x"], info["player_y"]])
             return self.target_salient_event(pos)
-
-        if info["falling"] or info["dead"]:
-            return False
 
         return self.parent.pessimistic_is_init_true(state,  info)
 
