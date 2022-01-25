@@ -25,6 +25,9 @@ class MontezumaInfoWrapper(gym.Wrapper):
     def get_room_number(self):
         return int(self.getByte(self.get_current_ram(), '83'))
 
+    def get_is_falling(self):
+        return int(self.getByte(self.get_current_ram(), 'd8')) != 0
+
     def get_current_ale(self):
         return self.env.environment.ale
 

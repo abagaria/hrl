@@ -62,7 +62,10 @@ class RNDAgent(Runner):
             player_x = self.env_wrapper.get_player_x()
             player_y = self.env_wrapper.get_player_y()
             room_num = self.env_wrapper.get_room_number()
-            visited_positions.append((player_x, player_y, room_num))
+            is_falling = self.env_wrapper.get_is_falling()
+            visited_positions.append(
+                (player_x, player_y, room_num, is_falling)
+            )
 
             self.info_buffer.add(player_x, player_y, room_num, self._agent._replay.memory.cursor())
             observation, reward, is_terminal = self._run_one_step(action)
@@ -94,7 +97,7 @@ class RNDAgent(Runner):
         logging.info('Completed episode %d', iteration)
         logging.info('Steps taken: %d Total reward: %d', step_number, sum(rewards))
 
-        return np.array(observations), np.array(rewards), np.array(intrinsic_rewards), np.array(visited_positions)
+        return np.array(observations), np.array(rewards), np.array(intrinsic_rewards), visited_positions
 
     def get_intrinsic_reward(self, obs):
         rf = self._agent.intrinsic_model.compute_intrinsic_reward
