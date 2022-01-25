@@ -1,15 +1,17 @@
 import gym
+import ipdb
 import time
 import random
 import pickle
-import ipdb
 import numpy as np
 import networkx as nx
+import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
 
 from pfrl.wrappers import atari_wrappers
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
+from hrl.agent.dsc.utils import pos_to_info
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
@@ -37,49 +39,51 @@ class DSGTrainer:
         self.expansion_duration = expansion_duration
         self.init_salient_event = dsc.init_salient_event
         self.goal_selection_criterion = goal_selection_criterion
-        
-        self.predefined_events = predefined_events
-        self.generated_salient_events = predefined_events
-        self.salient_events = predefined_events + [self.init_salient_event]
 
-        for event in self.salient_events:
-            self.dsg_agent.add_salient_event(event)
+        self.salient_events = []
+        self.predefined_events = predefined_events
+
+        for event in predefined_events + [self.init_salient_event]:
+            self.add_salient_event(event)
 
         # Logging for exploration rollouts
         self.n_extrinsic_subgoals = 0
         self.n_intrinsic_subgoals = 0
-        self.rnd_extrinsic_rewards = [] 
+        self.rnd_extrinsic_rewards = []
         self.rnd_intrinsic_rewards = []
         self.rnd_log_filename = rnd_log_filename
         self.enable_rnd_logging = enable_rnd_logging
         self.disable_graph_expansion = disable_graph_expansion
 
     # ---------------------------------------------------
-    # Run loops 
+    # Run loops
     # ---------------------------------------------------
 
     def run_loop(self, start_episode, num_episodes):
         for episode in range(start_episode, start_episode + num_episodes):
             print("=" * 80); print(f"Episode: {episode} Step: {self.env.T}"); print("=" * 80)
-            if not self.disable_graph_expansion and (episode % self.expansion_freq == 0):
+
+            if (not self.disable_graph_expansion) and (episode % self.expansion_freq == 0):
                 self.graph_expansion_run_loop(episode, self.expansion_duration)
             else:
                 self.graph_consolidation_run_loop(episode)
-            
+
             t0 = time.time()
             with open(self.dsc_agent.log_file, "wb+") as f:
                 pickle.dump(self.dsg_agent.gc_successes, f)
             print(f"[Episode={episode}, Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
-        intrinsic_subgoals = []
-        extrinsic_subgoals = []
+        exploration_observations = []
+        exploration_visited_positions = []
+        exploration_extrinsic_rewards = []
 
         for episode in range(start_episode, start_episode + num_episodes):
             state, info = self.env.reset()
             expansion_node = self.dsg_agent.get_node_to_expand()
             print(f"[Episode={episode}] Attempting to expand {expansion_node}")
 
+            # Use the planner to get to the expansion node
             state, info, done, reset, reached = self.dsg_agent.run_loop(state=state,
                                                                         info=info,
                                                                         goal_salient_event=expansion_node,
@@ -87,40 +91,43 @@ class DSGTrainer:
                                                                         eval_mode=False)
 
             if reached and not done and not reset:
-                observations, rewards, intrinsic_rewards, visited_positions = self.exploration_rollout(state)
-                print(f"[RND Rollout] Episode {episode}\tSum Reward: {rewards.sum()}\tSum RewardInt: {intrinsic_rewards.sum()}")
+                observations, rewards, visited_positions = self.exploration_rollout(state, episode)
 
-                extrinsic_subgoal_proposals, intrinsic_subgoal_proposals = self.extract_subgoals(
-                                                                                observations,
-                                                                                visited_positions,
-                                                                                rewards, 
-                                                                            )
-                if len(extrinsic_subgoal_proposals) > 0:
-                    extrinsic_subgoals.extend(extrinsic_subgoal_proposals)
-                
-                if len(intrinsic_subgoal_proposals) > 0:
-                    intrinsic_subgoals.extend(intrinsic_subgoal_proposals)
+                exploration_observations.extend(observations)
+                exploration_extrinsic_rewards.extend(rewards)
+                exploration_visited_positions.extend(visited_positions)
 
-                self.rnd_extrinsic_rewards.append(rewards)
-                self.rnd_intrinsic_rewards.append(intrinsic_rewards)
+        # Examine *all* exploration trajectories and extract potential salient events
+        if len(exploration_observations) > 0:
+            extrinsic_subgoals, intrinsic_subgoals = self.extract_subgoals(
+                exploration_observations,
+                exploration_visited_positions,
+                exploration_extrinsic_rewards,
+            )
 
-        if self.enable_rnd_logging:
-            self.log_rnd_progress(intrinsic_subgoals, extrinsic_subgoals, episode)
-    
-    def exploration_rollout(self, state):
+            chosen_intrinsic_goal = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
+            new_events = self.extract_salient_events(extrinsic_subgoals+[chosen_intrinsic_goal])
+
+            if self.enable_rnd_logging:
+                self.log_rnd_progress([chosen_intrinsic_goal], extrinsic_subgoals, new_events, episode)
+
+    def exploration_rollout(self, state, episode):
         assert isinstance(state, atari_wrappers.LazyFrames)
 
         # convert LazyFrame to np array for dopamine
         initial_state = np.asarray(state)
         initial_state = np.reshape(state, self.rnd_agent._agent.state.shape)
 
-        observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout(initial_state=initial_state)
+        observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout(initial_state)
 
-        return observations, rewards, intrinsic_rewards, visited_positions
+        self.rnd_extrinsic_rewards.append(rewards)
+        self.rnd_intrinsic_rewards.append(intrinsic_rewards)
+        print(f"[RND Rollout] Episode {episode}\tReward: {rewards.sum()}\tIntrinsicReward: {intrinsic_rewards.sum()}")
 
-    def log_rnd_progress(self, intrinsic_subgoals, extrinsic_subgoals, episode):
-        best_spr_triple = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
-        
+        return observations, rewards, visited_positions
+
+    def log_rnd_progress(self, intrinsic_subgoals, extrinsic_subgoals, added_events, episode):
+
         with open(self.rnd_log_filename, "wb+") as f:
             pickle.dump({
                 "rint": self.rnd_intrinsic_rewards,
@@ -141,9 +148,26 @@ class DSGTrainer:
             intrinsic_subgoal_filename = f"{base_str}_intrinsic_{self.n_intrinsic_subgoals}.pkl"
 
             with open(intrinsic_subgoal_filename, "wb+") as f:
-                pickle.dump(best_spr_triple, f)
-            
+                pickle.dump(intrinsic_subgoals[0], f)
+
             self.n_intrinsic_subgoals += 1
+
+        if len(added_events) > 0:
+            for event in added_events:
+                pos_label = tuple(event.target_pos[:2])
+                salient_event_filename = f"{base_str}_event_{pos_label}.pkl"
+
+                with open(salient_event_filename, "wb+") as f:
+                    pickle.dump({
+                        "obs": event.target_obs,
+                        "pos": event.target_pos
+                    }, f)
+
+                img_filename = f"plots/{self.dsc_agent.experiment_name}/{self.dsc_agent.seed}/event_{pos_label}.png"
+                plt.imshow(np.array(event.target_obs)[-1])
+                plt.title(str(pos_label))
+                plt.savefig(img_filename)
+                plt.close()
 
         visualize_graph_nodes_with_expansion_probabilities(self.dsg_agent,
                                                            episode,
@@ -164,7 +188,7 @@ class DSGTrainer:
             self.create_skill_chains_if_needed(state, info, event)
             print(f"[Graph Consolidation] From {pos} to {event.target_pos}")
             state, info, done, reset, reached = self.dsg_agent.run_loop(state=state,
-                                                                        info=info, 
+                                                                        info=info,
                                                                         goal_salient_event=event,
                                                                         episode=episode,
                                                                         eval_mode=False)
@@ -195,11 +219,11 @@ class DSGTrainer:
 
         if self.goal_selection_criterion == "random_unconnected":
             selected_event = self._select_random_unconnected_salient_event(state, info)
-            
+
             if selected_event is not None:
                 print(f"[RandomUnconnected] DSG selected event {selected_event}")
                 return selected_event
-        
+
         selected_event = self._randomly_select_salient_event(state, info)
         print(f"[Random] DSG selected event {selected_event}")
         return selected_event
@@ -231,7 +255,7 @@ class DSGTrainer:
     def _select_closest_unconnected_salient_event(self, state, info):
         unconnected_events = self._get_unconnected_events(state, info)
         current_events = self.get_corresponding_salient_events(state, info)
-        
+
         closest_pair = self.dsg_agent.get_closest_pair_of_vertices(
             current_events,
             unconnected_events,
@@ -262,7 +286,7 @@ class DSGTrainer:
                 )
 
                 init, target = init_event, goal_salient_event
-                
+
                 if closest_event_pair is not None:
                     init, target = closest_event_pair[0], closest_event_pair[1]
 
@@ -270,13 +294,13 @@ class DSGTrainer:
                     print(f"[DeepSkillGraphsAgent] Creating chain from {init} -> {target}")
                     self.dsc_agent.create_new_chain(init_event=init, target_event=target)
 
-
     def is_path_under_construction(self, state, info, start_event, goal_event):
         assert isinstance(state, atari_wrappers.LazyFrames), f"{type(state)}"
         assert isinstance(start_event, SalientEvent), f"{type(start_event)}"
         assert isinstance(goal_event, SalientEvent), f"{type(goal_event)}"
 
         match = lambda c: c.init_salient_event == start_event and c.target_salient_event == goal_event
+
         if any([match(c) for c in self.dsc_agent.chains]):
             return True
 
@@ -286,7 +310,7 @@ class DSGTrainer:
         return under_construction
 
     def does_path_exist_in_optimistic_graph(self, node1, node2):
-        
+
         # Create a lightweight copy of the plan-graph
         optimistic_graph = nx.DiGraph()
         for edge in self.dsg_agent.planner.plan_graph.edges:
@@ -307,12 +331,6 @@ class DSGTrainer:
     # Manage salient events
     # ---------------------------------------------------
 
-    def create_salient_event(self, target_state, target_pos):
-        salient_event = SalientEvent(target_state, target_pos)
-        self.salient_events.append(salient_event)
-        self.generated_salient_events(salient_event)
-        self.dsg_agent.add_salient_event(salient_event)
-
     def get_corresponding_salient_events(self, state, info):
         # TODO: Need this if we remove init_event from salient_events
         # salient_events = [self.init_salient_event] + self.salient_events
@@ -332,18 +350,26 @@ class DSGTrainer:
     # ---------------------------------------------------
 
     def extract_subgoals(self, observations, positions, extrinsic_rewards):
+        def stack_to_lz(frames):
+            """ Convert a list of frames to a LazyFrames object. """
+            frames = [frame.transpose(2, 0, 1) for frame in frames]
+            return atari_wrappers.LazyFrames(frames, stack_axis=0)
+
         def extract_subgoals_from_ext_rewards(obs, pos, rewards):
-            sgs = []
-            for x, p, r in zip(obs, pos, rewards):
-                if r > 0:
-                    sgs.append((x, p, r))
-            return sgs
-        
+            indexes = [i for i, r in enumerate(rewards) if r > 0]
+            if len(indexes) > 0:
+                states = [stack_to_lz(obs[i-3:i+1]) for i in indexes]
+                selected_positions = [pos[i] for i in indexes]
+                positive_rewards = [rewards[i] for i in indexes]
+                return list(zip(states, selected_positions, positive_rewards))
+            return []
+
         def extract_subgoals_from_int_rewards(obs, pos):
             r_int = self.rnd_agent.reward_function(obs)
             i = r_int.argmax()
-            return [(obs[i], pos[i], r_int[i])]
-        
+            state = stack_to_lz(obs[i-3:i+1])
+            return [(state, pos[i], r_int[i])]
+
         subgoals1 = extract_subgoals_from_ext_rewards(observations, positions, extrinsic_rewards)
         subgoals2 = extract_subgoals_from_int_rewards(observations, positions)
 
@@ -360,10 +386,49 @@ class DSGTrainer:
         max_intrinsic_reward = -np.inf
 
         for obs, position, reward in s_r_pairs:
-            
+
             if reward > max_intrinsic_reward:
                 best_obs = obs
                 best_pos = position
                 max_intrinsic_reward = reward
-        
+
         return best_obs, best_pos, max_intrinsic_reward
+
+    def extract_salient_events(self, discovered_goals):
+        """ Convert a list of discovered goal states to salient events. """
+        added_events = []
+        for obs, info_tuple, reward in discovered_goals:
+            pos = np.array([info_tuple[0], info_tuple[1]])
+            event = SalientEvent(obs, pos, tol=2.)
+            if not self.should_reject_new_event(event, info_tuple):
+                print("Accepted New Salient Event: ", event)
+                added_events.append(event)
+                self.add_salient_event(event)
+        return added_events
+
+    def should_reject_new_event(self, salient_event, info_tuple):
+        """ Use heuristics to reject some new salient events. """
+        assert isinstance(info_tuple, tuple), info_tuple
+        assert isinstance(salient_event, SalientEvent), salient_event
+
+        def satisfies_existing_event(s, p):
+            return any([event(p) for event in self.salient_events])
+
+        def satisfies_existing_option(s, p):
+            return any([o.pessimistic_is_init_true(s, pos_to_info(p)) for o in self.dsc_agent.mature_options])
+
+        def satisfies_death_condition(i):
+            falling = i[-1]
+            return falling
+
+        target_state = salient_event.target_obs
+        target_pos = salient_event.target_pos
+
+        return satisfies_existing_event(target_state, target_pos) or \
+            satisfies_existing_option(target_state, target_pos) or \
+            satisfies_death_condition(info_tuple)
+
+    def add_salient_event(self, new_event):
+        print("[DSGTrainer] Adding new SalientEvent ", new_event)
+        self.salient_events.append(new_event)
+        self.dsg_agent.salient_events.append(new_event)
