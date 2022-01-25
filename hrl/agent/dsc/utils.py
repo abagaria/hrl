@@ -16,6 +16,11 @@ def info_to_pos(info):
     pos = info['player_x'], info['player_y']
     return np.array(pos)
 
+def pos_to_info(pos):
+    if isinstance(pos, dict):
+        return pos
+    return dict(player_x=pos[0], player_y=pos[1])
+
 def make_meshgrid(x, y, h=1.):
     x_min, x_max = x.min() - 1, x.max() + 1
     y_min, y_max = y.min() - 1, y.max() + 1
