@@ -4,6 +4,7 @@ import scipy
 import random
 import numpy as np
 from scipy.special import softmax
+from collections import defaultdict
 from pfrl.wrappers import atari_wrappers
 from hrl.agent.dsc.option import ModelFreeOption
 from .graph import PlanGraph
@@ -25,6 +26,12 @@ class SkillGraphAgent:
 
         self.salient_events = []
         self.max_reward_so_far = -np.inf
+
+        # Map goal to success curve
+        self.gc_successes = defaultdict(list)
+
+        # beta1 -> beta2 -> Number of attempted traversals from beta1 to beta2
+        self.count_table = defaultdict(lambda: defaultdict(int))
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -151,10 +158,15 @@ class SkillGraphAgent:
 
         # Deliberately did not add `eval_mode` to the DSC rollout b/c we usually do this when we
         # want to fall off the graph, and it is always good to do some exploration when outside the graph
-        state, info, done, reset, new_options = self.dsc_agent.dsc_rollout(state, info, 
-                                                                           dsc_goal_vertex,
-                                                                           episode, eval_mode=False,
-                                                                           interrupt_handle=dsc_interrupt_handle)
+        state, info, done, reset, new_options, length = self.dsc_agent.dsc_rollout(state,
+                                                                                   info, 
+                                                                                   dsc_goal_vertex,
+                                                                                   episode,
+                                                                                   eval_mode=False,
+                                                                                   interrupt_handle=dsc_interrupt_handle)
+        
+        if length > 0:
+            self.update_count_table(state, info, dsc_goal_vertex)
 
         for new_option in new_options:
             self.add_newly_created_option_to_plan_graph(new_option)
@@ -380,16 +392,11 @@ class SkillGraphAgent:
             x = random.choice(vertex.effect_set)
             return x.obs if key == 'obs' else x.pos
 
-        def value_to_distance(v, n):
+        def value_to_distance(v):
             pos_value = v.squeeze().abs()
-            if metric == "ucb":
-                _n = torch.as_tensor(n).float().to(
-                    self.dsc_agent.global_option.solver.device
-                )
-                pos_value = pos_value + (1. / torch.sqrt(_n))
-            return 1. / pos_value
+            return 1. / (pos_value + 1e-3)
 
-        def batched_pairwise_distances(observationsA, observationsB, vf, n_points):
+        def vf_pairwise_distances(observationsA, observationsB, vf):
             distance_matrix = torch.zeros((len(observationsA), len(observationsB)))
             distance_matrix = distance_matrix.to(self.dsc_agent.global_option.solver.device)
 
@@ -397,9 +404,26 @@ class SkillGraphAgent:
                 assert isinstance(obsA, atari_wrappers.LazyFrames), type(obsA)
                 with torch.no_grad():
                     value = vf(obsA, observationsB)
-                    distance_matrix[i, :] = value_to_distance(value, n_points)
+                    distance_matrix[i, :] = value_to_distance(value)
 
             return distance_matrix.cpu().numpy()
+
+        def ucb_pairwise_distances(source_nodes, destination_nodes, vf):
+            source_observations = [sample(node, attribute) for node in source_nodes]
+            destination_observations = [sample(node, attribute) for node in destination_nodes]
+
+            distance_matrix = vf_pairwise_distances(source_observations,
+                                                    destination_observations, vf)
+
+            for i, src_node in enumerate(source_nodes):
+                for j, dest_node in enumerate(destination_nodes):
+                    count = self.count_table[src_node][dest_node]
+                    bonus = 1. / np.sqrt(count + 4.)  # constant of 4 corresponds to a max bonus of 0.5
+
+                    # Convert distance to value -> add bonus -> invert again to get distance
+                    distance_matrix[i, j] = 1. / ((1. / distance_matrix[i, j]) + bonus)
+            
+            return distance_matrix
 
         def euclidean_distances(positionsA, positionsB):
             return scipy.spatial.distance.cdist(positionsA, positionsB)
@@ -407,15 +431,18 @@ class SkillGraphAgent:
         attribute = 'pos' if metric == "euclidean" else 'obs'
         src_observations = [sample(v, attribute) for v in src_vertices]
         dst_observations = [sample(v, attribute) for v in dest_vertices]
-        n_dst_observations = [len(v.effect_set) for v in dest_vertices]
 
         if metric == "euclidean":
             return euclidean_distances(src_observations, dst_observations)
 
-        return batched_pairwise_distances(src_observations,
-                                          dst_observations,
-                                          self.dsc_agent.global_option.value_function,
-                                          n_dst_observations)
+        if metric == "vf":
+            return vf_pairwise_distances(src_observations,
+                                         dst_observations,
+                                         self.dsc_agent.global_option.value_function)
+
+        return ucb_pairwise_distances(src_vertices,
+                                      dest_vertices,
+                                      self.dsc_agent.global_option.value_function)
 
     def test_distance_metrics(self, vertices, metric):
 
@@ -642,6 +669,18 @@ class SkillGraphAgent:
     # -----------------------------–––––––--------------
     # Utility functions
     # -----------------------------–––––––--------------
+
+    def update_count_table(self, state, info, dsc_goal_vertex):
+        """ Keep track of the number of attempted traversals between pairs of nodes. """
+        assert isinstance(dsc_goal_vertex, SalientEvent)
+
+        for src in self.get_corresponding_events(state, info):
+            assert isinstance(src, SalientEvent)
+
+            key1 = tuple(src.get_target_position())
+            key2 = tuple(dsc_goal_vertex.get_target_position())
+
+            self.count_table[key1][key2] += 1
 
     @staticmethod
     def sample_from_vertex(vertex):
