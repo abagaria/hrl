@@ -212,7 +212,7 @@ class ModelFreeOption(object):
     def rollout(self, start_state, info, dsc_goal_salient_event, eval_mode=False):
         """ Main option control loop. """
         start_position = info["player_x"], info["player_y"]
-        assert self.is_init_true(start_state, info)
+        # assert self.is_init_true(start_state, info)
 
         done = False
         reset = False
@@ -272,12 +272,11 @@ class ModelFreeOption(object):
 
             state = next_state
 
-        reached_term = self.local_rf(state, info, goal_pos, dsc_goal_salient_event)[1]
-        self.success_curve.append(reached_term)
+        self.success_curve.append(reached)
 
         if not eval_mode:
             self.update_option_after_rollout(state, info, goal, goal_pos, option_transitions, 
-                                             visited_states, visited_positions, reached_term)
+                                             visited_states, visited_positions, reached)
             print(f"Updated {self.name} on {len(visited_positions)} transitions")
 
         return state, done, reset, visited_positions, goal_pos, info

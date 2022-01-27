@@ -23,6 +23,7 @@ def make_env(env_name, seed, max_frames):
     )
 
     env.seed(seed)
+    env.action_space.seed(seed)
 
     return MontezumaInfoWrapper(env)
 
