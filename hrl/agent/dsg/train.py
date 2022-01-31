@@ -82,6 +82,8 @@ if __name__ == "__main__":
     parser.add_argument("--n_kmeans_clusters", type=int, default=99)
     parser.add_argument("--n_sift_keypoints", type=int, default=30)
     parser.add_argument("--enable_rnd_logging", action="store_true", default=False)
+    parser.add_argument("--disable_graph_expansion", action="store_true", default=False)
+    parser.add_argument("--purpose", type=str, default="")
 
     args = parser.parse_args()
 
@@ -171,10 +173,11 @@ if __name__ == "__main__":
                          _rnd_log_file,
                          args.goal_selection_criterion,
                          [beta1, beta2, beta3, beta4, beta5, beta6],
-                         args.enable_rnd_logging)
+                         args.enable_rnd_logging,
+                         args.disable_graph_expansion)
 
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
     t0 = time.time()
-    trainer.run_loop(0, int(1e5))
+    trainer.test_distance_metrics_run_loop(0, int(1e5), distance_plot_dir)
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")

@@ -123,7 +123,7 @@ class RobustDSC(object):
 
         # Was returning `rollout_trajectory, episode_reward, episode_length` as well
 
-        return state, info, done, reset, learned_options
+        return state, info, done, reset, learned_options, episode_length
 
     def run_loop(self, goal_salient_event, num_steps):
         step = 0
