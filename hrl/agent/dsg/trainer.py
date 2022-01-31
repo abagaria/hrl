@@ -134,18 +134,34 @@ class DSGTrainer:
                 accuracies[metric].append(accuracy)
                 cm = confusion_matrix(true_y_values, predicted_y_values,
                                       normalize="true", labels=np.arange(len(self.salient_events)))
+
+                cumulative_cm += confusion_matrix(true_y_values, predicted_y_values,
+                                      labels=np.arange(len(self.salient_events)))
+
                 cm_input = confusion_matrix(
                     x_values, predicted_y_values, labels=np.arange(len(self.salient_events)))
 
+                cumulative_cm_input += cm_input
+
                 fig_name = os.path.join(
                     plot_dir, 'metric-{}-episode-{}-truth-predicted.png'.format(metric, episode))
-
                 DSGTrainer.plot_confusion_matrix(cm, fig_name, cmap=plt.cm.Blues, class_names=labels,
                                                  x_label="Predicted Closest Location", y_label="True Closest Location")
+
+                fig_name = os.path.join(
+                    base_plot_dir, 'metric-{}-cumulative-truth-predicted.png'.format(metric))
+                DSGTrainer.plot_confusion_matrix(cumulative_cm, fig_name, cmap=plt.cm.Blues, class_names=labels,
+                                                 x_label="Predicted Closest Location", y_label="True Closest Location")
+
                 fig_name = os.path.join(
                     plot_dir, 'metric-{}-episode-{}-input-output.png'.format(metric, episode))
                 DSGTrainer.plot_confusion_matrix(
                     cm_input, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Source Location", y_label="Destination Location")
+
+                fig_name = os.path.join(
+                    base_plot_dir, 'metric-{}-cumulative-input-output.png'.format(metric))
+                DSGTrainer.plot_confusion_matrix(
+                    cumulative_cm_input, fig_name, cmap=plt.cm.Blues, class_names=labels, x_label="Source Location", y_label="Destination Location")
 
                 if metric == metrics[0] and current_episode == 0:
                     fig_name = os.path.join(
