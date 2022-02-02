@@ -49,8 +49,8 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
 
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    file_name = f"value_function_episode_{episode}"
+    plt.savefig(f"plots/{experiment_name}/{seed}/{file_name}.png")
     plt.close()
 
     return qvalues.max()

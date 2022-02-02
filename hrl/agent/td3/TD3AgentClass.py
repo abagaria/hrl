@@ -63,7 +63,7 @@ class TD3(object):
 
         self.trained_options = []
 
-        self.total_it = 0
+        self.T = 0
 
     def act(self, state, evaluation_mode=False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
@@ -94,14 +94,14 @@ class TD3(object):
 
         return normalized_actions
 
-    def step(self, state, action, reward, next_state, is_terminal):
+    def step(self, state, action, reward, next_state, is_terminal, reset=False):
         self.replay_buffer.add(state, action, reward, next_state, is_terminal)
 
         if len(self.replay_buffer) > self.batch_size:
             self.train(self.replay_buffer, self.batch_size)
 
     def train(self, replay_buffer, batch_size=100):
-        self.total_it += 1
+        self.T += 1
 
         # Sample replay buffer - result is tensors
         state, action, next_state, reward, done = replay_buffer.sample(batch_size)
@@ -138,7 +138,7 @@ class TD3(object):
         self.critic_optimizer.step()
 
         # Delayed policy updates
-        if self.total_it % self.policy_freq == 0:
+        if self.T % self.policy_freq == 0:
 
             # Compute actor loss
             actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
@@ -181,3 +181,48 @@ class TD3(object):
                 actions = actions.clamp(-self.max_action, self.max_action)
             q_values = self.get_qvalues(states, actions)
         return q_values.cpu().numpy()
+
+    def experience_replay(self, trajectory):
+        """ Add trajectory to the replay buffer and perform agent learning updates. """
+
+        for transition in trajectory:
+            self.step(*transition)
+
+    def rollout(self, env, state, episode):
+        """ Single episode of interaction with the env followed by experience replay. """
+        
+        done = False
+        reset = False
+        reached = False
+
+        episode_length = 0
+        episode_reward = 0.
+        episode_trajectory = []
+
+        while not done and not reset and not reached:
+            action = self.act(state)
+            next_state, reward, done, info = env.step(action)
+            
+            reset = info.get("needs_reset", False)
+
+            episode_trajectory.append((state,
+                                       action,
+                                       np.sign(reward), 
+                                       next_state, 
+                                       done or reached, 
+                                       reset))
+
+            self.T += 1
+            episode_length += 1
+            episode_reward += reward
+
+            state = next_state
+        
+        self.experience_replay(episode_trajectory)
+        self.log_progress(env, episode, episode_reward, episode_length)
+        
+        return episode_reward, episode_length
+
+    def log_progress(self, env, episode, episode_reward, episode_length):
+        start = env.get_position(env.init_state).round(decimals=2)
+        print(f"Episode: {episode}, Starting at {start}, Reward: {episode_reward}, Length: {episode_length}")
