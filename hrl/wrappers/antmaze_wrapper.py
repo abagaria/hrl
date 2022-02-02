@@ -1,14 +1,21 @@
-from copy import deepcopy
-
-import numpy as np
 import torch
-
+import numpy as np
+from copy import deepcopy
+from hrl.wrappers.environments.ant_maze_env import AntMazeEnv
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
 
 class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
-	def __init__(self, env, start_state, goal_state, use_dense_reward=False):
+	def __init__(self,
+				 env,
+				 start_state,
+				 goal_state,
+				 use_dense_reward=False,
+				 goal_reward=+0.,
+				 step_reward=-1.):
 		self.env = env
+		self.goal_reward = goal_reward  # reward for goal transition
+		self.step_reward = step_reward  # reward for every non-goal step (in sparse reward case)
 		self.norm_func = lambda x: np.linalg.norm(x, axis=-1) if isinstance(x, np.ndarray) else torch.norm(x, dim=-1)
 		self.reward_func = self.dense_gc_reward_func if use_dense_reward else self.sparse_gc_reward_func
 		self._determine_x_y_lims()
@@ -38,8 +45,8 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		dones = distances <= self.goal_tolerance
 
 		rewards = np.zeros_like(distances)
-		rewards[dones==1] = +0.
-		rewards[dones==0] = -1.
+		rewards[dones==1] = self.goal_reward
+		rewards[dones==0] = self.step_reward
 
 		return rewards, dones
 	
@@ -62,7 +69,7 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		assert distances.shape == dones.shape == (states.shape[0], ) == (goals.shape[0], )
 
 		rewards = -distances
-		rewards[dones==True] = 0
+		rewards[dones==True] = self.goal_reward
 
 		return rewards, dones
 	
@@ -126,6 +133,11 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
     # Used during testing only
     # ---------------------------------
 
+	def get_collision_func(self):
+		if isinstance(self.env, AntMazeEnv):
+			return self.env._is_in_collision
+		return self.env.env.wrapped_env._is_in_collision
+
 	def sample_random_state(self, reject_cond=lambda x: False):
 		num_tries = 0
 		rejected = True
@@ -133,7 +145,7 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 			low = np.array((self.xlims[0], self.ylims[0]))
 			high = np.array((self.xlims[1], self.ylims[1]))
 			sampled_point = np.random.uniform(low=low, high=high)
-			rejected = self.env.env.wrapped_env._is_in_collision(sampled_point) or reject_cond(sampled_point)
+			rejected = self.get_collision_func()(sampled_point) or reject_cond(sampled_point)
 			num_tries += 1
 
 			if not rejected:
