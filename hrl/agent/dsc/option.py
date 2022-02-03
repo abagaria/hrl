@@ -467,10 +467,10 @@ class ModelFreeOption(object):
             
             self.initiation_classifier.add_positive_examples(positive_states, positive_infos)
         else:
+            negative_infos = [start_info]
             negative_states = [start_state]
-            negative_positions = [start_info]
 
-            self.initiation_classifier.add_negative_examples(negative_states, negative_positions)
+            self.initiation_classifier.add_negative_examples(negative_states, negative_infos)
 
     # ------------------------------------------------------------
     # Distance functions

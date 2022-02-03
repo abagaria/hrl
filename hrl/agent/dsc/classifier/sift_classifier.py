@@ -10,16 +10,8 @@ import matplotlib.pyplot as plt
 from sklearn import cluster, svm
 from pfrl.wrappers import atari_wrappers
 
+from hrl.agent.dsc.datastructures import TrainingExample
 from hrl.agent.dsc.classifier.init_classifier import InitiationClassifier
-
-
-class TrainingExample:
-    def __init__(self, obs, pos):
-        assert isinstance(obs, atari_wrappers.LazyFrames)
-        assert isinstance(pos, (tuple, np.ndarray))
-
-        self.obs = obs
-        self.pos = pos
     
 
 class BOVWClassifier:
@@ -209,16 +201,16 @@ class SiftInitiationClassifier(InitiationClassifier):
 
         return pos_label and neg_label
 
-    def add_positive_examples(self, images, positions):
-        assert len(images) == len(positions)
+    def add_positive_examples(self, observations, infos):
+        assert len(observations) == len(infos)
 
-        positive_examples = [TrainingExample(img, pos) for img, pos in zip(images, positions)]
+        positive_examples = [TrainingExample(img, info) for img, info in zip(observations, infos)]
         self.positive_examples.append(positive_examples)
 
-    def add_negative_examples(self, images, positions):
-        assert len(images) == len(positions)
+    def add_negative_examples(self, observations, infos):
+        assert len(observations) == len(infos)
 
-        negative_examples = [TrainingExample(img, pos) for img, pos in zip(images, positions)]
+        negative_examples = [TrainingExample(img, info) for img, info in zip(observations, infos)]
         self.negative_examples.append(negative_examples)
 
     @staticmethod
