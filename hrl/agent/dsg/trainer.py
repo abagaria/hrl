@@ -19,7 +19,8 @@ from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabiliti
 
 class DSGTrainer:
     def __init__(self, env, dsc, dsg, rnd,
-                 expansion_freq, expansion_duration,
+                 expansion_freq,
+                 expansion_duration,
                  rnd_log_filename,
                  goal_selection_criterion="random",
                  predefined_events=[],
@@ -75,7 +76,7 @@ class DSGTrainer:
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
         exploration_observations = []
-        exploration_visited_positions = []
+        exploration_visited_infos = []
         exploration_extrinsic_rewards = []
 
         for episode in range(start_episode, start_episode + num_episodes):
@@ -91,17 +92,17 @@ class DSGTrainer:
                                                                         eval_mode=False)
 
             if reached and not done and not reset:
-                observations, rewards, visited_positions = self.exploration_rollout(state, episode)
+                observations, rewards, visited_infos = self.exploration_rollout(state, episode)
 
                 exploration_observations.extend(observations)
                 exploration_extrinsic_rewards.extend(rewards)
-                exploration_visited_positions.extend(visited_positions)
+                exploration_visited_infos.extend(visited_infos)
 
         # Examine *all* exploration trajectories and extract potential salient events
         if len(exploration_observations) > 0:
             extrinsic_subgoals, intrinsic_subgoals = self.extract_subgoals(
                 exploration_observations,
-                exploration_visited_positions,
+                exploration_visited_infos,
                 exploration_extrinsic_rewards,
             )
 
@@ -118,13 +119,13 @@ class DSGTrainer:
         initial_state = np.asarray(state)
         initial_state = np.reshape(state, self.rnd_agent._agent.state.shape)
 
-        observations, rewards, intrinsic_rewards, visited_positions = self.rnd_agent.rollout(initial_state)
+        observations, rewards, intrinsic_rewards, visited_infos = self.rnd_agent.rollout(initial_state)
 
         self.rnd_extrinsic_rewards.append(rewards)
         self.rnd_intrinsic_rewards.append(intrinsic_rewards)
         print(f"[RND Rollout] Episode {episode}\tReward: {rewards.sum()}\tIntrinsicReward: {intrinsic_rewards.sum()}")
 
-        return observations, rewards, visited_positions
+        return observations, rewards, visited_infos
 
     def log_rnd_progress(self, intrinsic_subgoals, extrinsic_subgoals, added_events, episode):
 
@@ -160,7 +161,7 @@ class DSGTrainer:
                 with open(salient_event_filename, "wb+") as f:
                     pickle.dump({
                         "obs": event.target_obs,
-                        "pos": event.target_pos
+                        "info": event.target_info
                     }, f)
 
                 img_filename = f"plots/{self.dsc_agent.experiment_name}/{self.dsc_agent.seed}/event_{pos_label}.png"
@@ -349,29 +350,29 @@ class DSGTrainer:
     # Skill graph expansion
     # ---------------------------------------------------
 
-    def extract_subgoals(self, observations, positions, extrinsic_rewards):
+    def extract_subgoals(self, observations, infos, extrinsic_rewards):
         def stack_to_lz(frames):
             """ Convert a list of frames to a LazyFrames object. """
             frames = [frame.transpose(2, 0, 1) for frame in frames]
             return atari_wrappers.LazyFrames(frames, stack_axis=0)
 
-        def extract_subgoals_from_ext_rewards(obs, pos, rewards):
+        def extract_subgoals_from_ext_rewards(obs, info, rewards):
             indexes = [i for i, r in enumerate(rewards) if r > 0]
             if len(indexes) > 0:
                 states = [stack_to_lz(obs[i-3:i+1]) for i in indexes]
-                selected_positions = [pos[i] for i in indexes]
+                selected_infos = [info[i] for i in indexes]
                 positive_rewards = [rewards[i] for i in indexes]
-                return list(zip(states, selected_positions, positive_rewards))
+                return list(zip(states, selected_infos, positive_rewards))
             return []
 
-        def extract_subgoals_from_int_rewards(obs, pos):
+        def extract_subgoals_from_int_rewards(obs, info):
             r_int = self.rnd_agent.reward_function(obs)
             i = r_int.argmax()
             state = stack_to_lz(obs[i-3:i+1])
-            return [(state, pos[i], r_int[i])]
+            return [(state, info[i], r_int[i])]
 
-        subgoals1 = extract_subgoals_from_ext_rewards(observations, positions, extrinsic_rewards)
-        subgoals2 = extract_subgoals_from_int_rewards(observations, positions)
+        subgoals1 = extract_subgoals_from_ext_rewards(observations, infos, extrinsic_rewards)
+        subgoals2 = extract_subgoals_from_int_rewards(observations, infos)
 
         return subgoals1, subgoals2
 
@@ -382,51 +383,52 @@ class DSGTrainer:
     @staticmethod
     def extract_best_intrinsic_subgoal(s_r_pairs):
         best_obs = None
-        best_pos = None
+        best_info = None
         max_intrinsic_reward = -np.inf
 
-        for obs, position, reward in s_r_pairs:
+        for obs, info, reward in s_r_pairs:
 
             if reward > max_intrinsic_reward:
                 best_obs = obs
-                best_pos = position
+                best_info = info
                 max_intrinsic_reward = reward
 
-        return best_obs, best_pos, max_intrinsic_reward
+        return best_obs, best_info, max_intrinsic_reward
 
     def extract_salient_events(self, discovered_goals):
         """ Convert a list of discovered goal states to salient events. """
         added_events = []
-        for obs, info_tuple, reward in discovered_goals:
-            pos = np.array([info_tuple[0], info_tuple[1]])
-            event = SalientEvent(obs, pos, tol=2.)
-            if not self.should_reject_new_event(event, info_tuple):
+        for obs, info, reward in discovered_goals:
+            event = SalientEvent(obs, info, tol=2.)
+            if not self.should_reject_new_event(event):
                 print("Accepted New Salient Event: ", event)
                 added_events.append(event)
-                self.add_salient_event(event)
+
+                # Add the discovered event only if we are not in gc experiment mode
+                if len(self.predefined_events) == 0:
+                    self.add_salient_event(event)
+
         return added_events
 
-    def should_reject_new_event(self, salient_event, info_tuple):
+    def should_reject_new_event(self, salient_event):
         """ Use heuristics to reject some new salient events. """
-        assert isinstance(info_tuple, tuple), info_tuple
         assert isinstance(salient_event, SalientEvent), salient_event
 
-        def satisfies_existing_event(s, p):
-            return any([event(p) for event in self.salient_events])
+        def satisfies_existing_event(s, info):
+            return any([event(info) for event in self.salient_events])
 
-        def satisfies_existing_option(s, p):
-            return any([o.pessimistic_is_init_true(s, pos_to_info(p)) for o in self.dsc_agent.mature_options])
+        def satisfies_existing_option(s, info):
+            return any([o.pessimistic_is_init_true(s, info) for o in self.dsc_agent.mature_options])
 
-        def satisfies_death_condition(i):
-            falling = i[-1]
-            return falling
+        def satisfies_death_condition(info):
+            return info['falling']
 
         target_state = salient_event.target_obs
-        target_pos = salient_event.target_pos
+        target_info = salient_event.target_info
 
-        return satisfies_existing_event(target_state, target_pos) or \
-            satisfies_existing_option(target_state, target_pos) or \
-            satisfies_death_condition(info_tuple)
+        return satisfies_existing_event(target_state, target_info) or \
+               satisfies_existing_option(target_state, target_info) or \
+               satisfies_death_condition(target_info)
 
     def add_salient_event(self, new_event):
         print("[DSGTrainer] Adding new SalientEvent ", new_event)

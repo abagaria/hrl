@@ -31,6 +31,8 @@ class MontezumaInfoWrapper(gym.Wrapper):
         info["falling"] = self.get_is_falling(ram)
         info["player_x"] = self.get_player_x(ram)
         info["player_y"] = self.get_player_y(ram)
+        info["has_key"] = self.get_has_key(ram)
+        info["room_number"] = self.get_room_number(ram)
         info["dead"] = int(info["lives"] < self.num_lives)
 
         return info
@@ -50,6 +52,12 @@ class MontezumaInfoWrapper(gym.Wrapper):
     
     def get_is_falling(self, ram):
         return int(int(self.getByte(ram, 'd8')) != 0)
+
+    def get_room_number(self, ram):
+        return int(self.getByte(ram, '83'))
+
+    def get_has_key(self, ram):
+        return int(self.getByte(ram, 'c1')) != 0
 
     def get_current_ale(self):
         # return self.env.unwrapped.ale

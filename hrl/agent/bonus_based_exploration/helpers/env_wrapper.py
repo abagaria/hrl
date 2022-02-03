@@ -13,8 +13,18 @@ class MontezumaInfoWrapper(gym.Wrapper):
         info["player_x"] = self.get_player_x()
         info["player_y"] = self.get_player_y()
         info["room_number"] = self.get_room_number()
+        info["has_key"] = self.get_has_key()
 
         return obs, reward, done, info
+
+    def get_current_info(self):
+        return dict(
+            player_x=self.get_player_x(),
+            player_y=self.get_player_y(),
+            room_number=self.get_room_number(),
+            has_key=self.get_has_key(),
+            falling=self.get_is_falling()
+        )
 
     def get_player_x(self):
         return int(self.getByte(self.get_current_ram(), 'aa'))
@@ -27,6 +37,9 @@ class MontezumaInfoWrapper(gym.Wrapper):
 
     def get_is_falling(self):
         return int(self.getByte(self.get_current_ram(), 'd8')) != 0
+
+    def get_has_key(self):
+        return int(self.getByte(self.get_current_ram(), 'c1')) != 0
 
     def get_current_ale(self):
         return self.env.environment.ale

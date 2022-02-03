@@ -43,8 +43,8 @@ class RNDAgent(Runner):
         
         rewards = []
         observations = []
+        visited_infos = []
         intrinsic_rewards = []
-        visited_positions = []
 
         step_number = 0
 
@@ -59,15 +59,15 @@ class RNDAgent(Runner):
 
         while True:
 
-            player_x = self.env_wrapper.get_player_x()
-            player_y = self.env_wrapper.get_player_y()
-            room_num = self.env_wrapper.get_room_number()
-            is_falling = self.env_wrapper.get_is_falling()
-            visited_positions.append(
-                (player_x, player_y, room_num, is_falling)
+            info = self.env_wrapper.get_current_info()
+            visited_infos.append(info)
+            self.info_buffer.add(
+                info['player_x'],
+                info['player_y'], 
+                info['room_number'],
+                self._agent._replay.memory.cursor()
             )
 
-            self.info_buffer.add(player_x, player_y, room_num, self._agent._replay.memory.cursor())
             observation, reward, is_terminal = self._run_one_step(action)
 
             intrinsic_reward = self.get_intrinsic_reward(observation)
@@ -97,7 +97,7 @@ class RNDAgent(Runner):
         logging.info('Completed episode %d', iteration)
         logging.info('Steps taken: %d Total reward: %d', step_number, sum(rewards))
 
-        return np.array(observations), np.array(rewards), np.array(intrinsic_rewards), visited_positions
+        return np.array(observations), np.array(rewards), np.array(intrinsic_rewards), visited_infos
 
     def get_intrinsic_reward(self, obs):
         rf = self._agent.intrinsic_model.compute_intrinsic_reward

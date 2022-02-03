@@ -21,6 +21,14 @@ def pos_to_info(pos):
         return pos
     return dict(player_x=pos[0], player_y=pos[1])
 
+def default_pos_to_info(pos):
+    return dict(
+        player_x=pos[0],
+        player_y=pos[1],
+        has_key=False,
+        room_number=1
+    )
+
 def make_meshgrid(x, y, h=1.):
     x_min, x_max = x.min() - 1, x.max() + 1
     y_min, y_max = y.min() - 1, y.max() + 1
@@ -42,7 +50,10 @@ def get_initiation_set_values(option, low, high, res):
     for x in np.arange(low[0], high[0]+res, res):
         for y in np.arange(low[1], high[1]+res, res):
             pos = np.array((x, y))
-            init = option.is_init_true(pos, {"player_x": x, "player_y": y})
+            init = option.is_init_true(
+                pos, 
+                default_pos_to_info(pos)
+            )
             values.append(init)
     return values
 

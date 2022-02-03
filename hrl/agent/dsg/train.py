@@ -13,6 +13,7 @@ from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.dsg.dsg import SkillGraphAgent
 from hrl.agent.dsg.trainer import DSGTrainer
+from hrl.agent.dsc.utils import default_pos_to_info
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.montezuma.info_wrapper import MontezumaInfoWrapper, Reshape
 
@@ -84,6 +85,8 @@ if __name__ == "__main__":
     parser.add_argument("--enable_rnd_logging", action="store_true", default=False)
     parser.add_argument("--disable_graph_expansion", action="store_true", default=False)
     parser.add_argument("--use_predefined_events", action="store_true", default=False)
+    parser.add_argument("--n_consolidation_episodes", type=int, default=50)
+    parser.add_argument("--n_expansion_episodes", type=int, default=10)
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
@@ -140,13 +143,13 @@ if __name__ == "__main__":
 
     pfrl.utils.set_random_seed(args.seed)
 
-    beta0 = SalientEvent(s0, p0, tol=2.)
-    beta1 = SalientEvent(g0, gpos, tol=2.)
-    beta2 = SalientEvent(g1, gpos1, tol=2.)
-    beta3 = SalientEvent(g2, gpos2, tol=2.)
-    beta4 = SalientEvent(g3, gpos3, tol=2.)
-    beta5 = SalientEvent(g4, gpos4, tol=2.)
-    beta6 = SalientEvent(g5, gpos5, tol=2.)
+    beta0 = SalientEvent(s0, default_pos_to_info(p0), tol=2.)
+    beta1 = SalientEvent(g0, default_pos_to_info(gpos), tol=2.)
+    beta2 = SalientEvent(g1, default_pos_to_info(gpos1), tol=2.)
+    beta3 = SalientEvent(g2, default_pos_to_info(gpos2), tol=2.)
+    beta4 = SalientEvent(g3, default_pos_to_info(gpos3), tol=2.)
+    beta5 = SalientEvent(g4, default_pos_to_info(gpos4), tol=2.)
+    beta6 = SalientEvent(g5, default_pos_to_info(gpos5), tol=2.)
 
     predefined_events = []
     if args.use_predefined_events:
@@ -173,11 +176,13 @@ if __name__ == "__main__":
     dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric)
     
     trainer = DSGTrainer(env, dsc_agent, dsg_agent, exploration_agent,
-                         50, 10, 
+                         args.n_consolidation_episodes, 
+                         args.n_expansion_episodes, 
                          _rnd_log_file,
                          args.goal_selection_criterion,
                          predefined_events,
-                         args.enable_rnd_logging)
+                         args.enable_rnd_logging,
+                         args.disable_graph_expansion)
 
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     

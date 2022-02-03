@@ -50,9 +50,9 @@ class SkillGraphAgent:
                 if selected_option is not None:
                     return selected_option
         
-        # TODO: What is the type of sampled_goal?
+        # DSC expects `sampled_goal` to be an info dict
         print(f"Reverting to the DSC policy over options targeting {sampled_goal}")
-        option = self.dsc_agent.act(state, info, goal_pos=sampled_goal)
+        option = self.dsc_agent.act(state, info, goal_info=sampled_goal)
 
         return option
 
@@ -123,7 +123,7 @@ class SkillGraphAgent:
         # Note: I removed an assertion that goal_salient_event be a SalientEvent b/c in the absence of 
         #       a state sampler, goal_vertex and goal_salient_event are the same node and they could both be options
 
-        goal_obs, goal_pos = self.sample_from_vertex(goal_vertex)
+        goal_obs, goal_info = self.sample_from_vertex(goal_vertex)
         
         in_node = lambda node, s, info: node(info) if isinstance(node, SalientEvent) else node.is_term_true(s, info)
         inside = lambda s, info: in_node(goal_vertex, s, info)
@@ -135,7 +135,7 @@ class SkillGraphAgent:
         reached = False
 
         while not reached and not done and not reset:
-            option = self.act(state, info, goal_vertex, sampled_goal=goal_pos)
+            option = self.act(state, info, goal_vertex, sampled_goal=goal_info)
 
             # TODO: goal_salient_event or goal_vertex? Whats the difference?
             state, info, done, reset, _, _ = self.perform_option_rollout(state,
@@ -150,7 +150,7 @@ class SkillGraphAgent:
         return state, info, done, reset
 
     def dsc_outside_graph(self, state, info, episode, goal_salient_event, dsc_goal_vertex):
-        _, dsc_goal_pos = self.sample_from_vertex(dsc_goal_vertex)
+
         dsc_interrupt_handle = lambda s, i: self.is_state_inside_vertex(s, i, dsc_goal_vertex) or\
                                             self.is_state_inside_vertex(s, i, goal_salient_event)
 
@@ -158,7 +158,7 @@ class SkillGraphAgent:
             print(f"Not rolling out DSC because {info} triggered interrupt handle")
             return state, info, False, False
 
-        print(f"Rolling out DSC with goal vertex {dsc_goal_vertex} and goal state {dsc_goal_pos}")
+        print(f"Rolling out DSC with goal vertex {dsc_goal_vertex}")
 
         # Deliberately did not add `eval_mode` to the DSC rollout b/c we usually do this when we
         # want to fall off the graph, and it is always good to do some exploration when outside the graph
@@ -633,9 +633,9 @@ class SkillGraphAgent:
         if isinstance(vertex, ModelFreeOption):
             return vertex.get_goal_for_rollout()
         if vertex.get_target_position() is not None:
-            return vertex.get_target_obs(), vertex.get_target_position()
+            return vertex.target_obs, vertex.target_info
         sample = random.choice(vertex.effect_set)
-        return sample.obs, sample.pos
+        return sample.obs, sample.info
 
     @staticmethod
     def is_state_inside_vertex(state, info, vertex):

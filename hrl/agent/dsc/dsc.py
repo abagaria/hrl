@@ -61,20 +61,18 @@ class RobustDSC(object):
             if cond(option, (state, info)):
                 return option
 
-    def _get_chains_corresponding_to_goal(self, goal_pos):
-        chains = [chain for chain in self.chains if chain.target_salient_event(goal_pos)]
+    def _get_chains_corresponding_to_goal(self, goal_info):
+        chains = [chain for chain in self.chains if chain.target_salient_event(goal_info)]
 
         if len(chains) == 0:
             for chain in self.chains:
                 for option in chain.options:
-                    goal_info = {"player_x": goal_pos[0], "player_y": goal_pos[1], 
-                                 "falling": False, "dead": False}
                     if option.is_term_true(None, goal_info):
                         chains.append(chain)
         return chains
 
-    def act(self, state, info, goal_pos):
-        chains_targeting_goal = self._get_chains_corresponding_to_goal(goal_pos)
+    def act(self, state, info, goal_info):
+        chains_targeting_goal = self._get_chains_corresponding_to_goal(goal_info)
         for chain in chains_targeting_goal:
             for option in chain.options:
                 if option.is_init_true(state, info) and not option.is_term_true(state, info):
@@ -100,7 +98,7 @@ class RobustDSC(object):
         learned_options = []
 
         while not done and not reset and not reached and not interrupt_handle(state, info):
-            selected_option = self.act(state, info, goal_salient_event.target_pos)
+            selected_option = self.act(state, info, goal_salient_event.target_info)
             next_state, done, reset, visited_positions, goal_pos, info = selected_option.rollout(state,
                                                                                                  info,
                                                                                                  goal_salient_event,
