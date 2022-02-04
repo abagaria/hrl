@@ -32,3 +32,6 @@ class AntMazeEnv(MazeEnv):
                 (-10., -10.), (10., 10.)
             ]
         }
+
+    def step(self, action):
+        return super().step(action*30.)

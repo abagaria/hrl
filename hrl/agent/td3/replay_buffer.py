@@ -1,5 +1,7 @@
-import numpy as np
+import time
 import torch
+import pickle
+import numpy as np
 
 
 class ReplayBuffer(object):
@@ -16,15 +18,17 @@ class ReplayBuffer(object):
 		self.next_state = np.zeros((max_size, state_dim))
 		self.reward = np.zeros((max_size, 1))
 		self.done = np.zeros((max_size, 1))
+		self.info = [None] * max_size
 
 		self.device = device
 
-	def add(self, state, action, reward, next_state, done):
+	def add(self, state, action, reward, next_state, done, info=None):
 		self.state[self.ptr] = state
 		self.action[self.ptr] = action
 		self.reward[self.ptr] = reward
 		self.next_state[self.ptr] = next_state
 		self.done[self.ptr] = done
+		self.info[self.ptr] = info
 
 		self.ptr = (self.ptr + 1) % self.max_size
 		self.size = min(self.size + 1, self.max_size)
@@ -58,3 +62,17 @@ class ReplayBuffer(object):
 		self.next_state = np.zeros((self.max_size, self.state_dim))
 		self.reward = np.zeros((self.max_size, 1))
 		self.done = np.zeros((self.max_size, 1))
+		self.info = [None] * self.max_size
+
+	def save(self, filename):
+		t0 = time.time()
+		save_dict = dict(
+			state=self.state[:self.size],
+			action=self.action[:self.size],
+			reward=self.reward[:self.size],
+			next_state=self.next_state[:self.size],
+			info=self.info[:self.size]
+		)
+		with open(filename, "wb+") as f:
+			pickle.dump(save_dict, f)
+		print(f"Took {time.time()-t0}s to save replay buffer")

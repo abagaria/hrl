@@ -27,7 +27,8 @@ class TD3(object):
             exploration_noise=0.1,
             lr_c=3e-4, lr_a=3e-4,
             device=torch.device("cuda"),
-            name="Global-TD3-Agent"
+            name="Global-TD3-Agent",
+            store_extra_info=True,
     ):
 
         self.critic_learning_rate = lr_c
@@ -59,6 +60,7 @@ class TD3(object):
         self.epsilon = exploration_noise
         self.device = device
         self.name = name
+        self.store_extra_info = store_extra_info
         self.use_output_normalization = use_output_normalization
 
         self.trained_options = []
@@ -95,10 +97,22 @@ class TD3(object):
         return normalized_actions
 
     def step(self, state, action, reward, next_state, is_terminal, reset=False):
-        self.replay_buffer.add(state, action, reward, next_state, is_terminal)
+        info = self.compute_extra_info(state, next_state) if self.store_extra_info else None
+        self.replay_buffer.add(state, action, reward, next_state, is_terminal, info=info)
 
         if len(self.replay_buffer) > self.batch_size:
             self.train(self.replay_buffer, self.batch_size)
+
+    def compute_extra_info(self, state, next_state):
+        s = state[np.newaxis, ...]
+        sp = next_state[np.newaxis, ...]
+        states = np.concatenate((s, sp), axis=0)
+        values = self.get_values(states)
+        next_action = self.get_actions(sp)
+        return dict(
+            values=values,
+            next_action=next_action
+        )
 
     def train(self, replay_buffer, batch_size=100):
         self.T += 1
@@ -181,6 +195,13 @@ class TD3(object):
                 actions = actions.clamp(-self.max_action, self.max_action)
             q_values = self.get_qvalues(states, actions)
         return q_values.cpu().numpy()
+
+    @torch.no_grad()
+    def get_actions(self, states):
+        if isinstance(states, np.ndarray):
+            states = torch.as_tensor(states).float().to(self.device)
+        actions = self.actor(states)
+        return actions.cpu().numpy()
 
     def experience_replay(self, trajectory):
         """ Add trajectory to the replay buffer and perform agent learning updates. """

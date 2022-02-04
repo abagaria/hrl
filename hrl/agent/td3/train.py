@@ -16,7 +16,7 @@ from hrl.wrappers.environments.ant_maze_env import AntMazeEnv
 from hrl.agent.td3.utils import make_chunked_value_function_plot 
 
 
-def make_env(name, start, goal, seed, horizon=1000):
+def make_env(name, start, goal, dense_reward, seed, horizon=1000):
     if "reacher" not in name.lower():
         env = gym.make(name)
     else:
@@ -32,11 +32,13 @@ def make_env(name, start, goal, seed, horizon=1000):
         }
         env = AntMazeEnv(**gym_mujoco_kwargs)
 
+    goal_reward = 0. if dense_reward else 1.
+
     env = D4RLAntMazeWrapper(env,
                             start_state=start,
                             goal_state=goal,
-                            use_dense_reward=False,
-                            goal_reward=1.,
+                            use_dense_reward=dense_reward,
+                            goal_reward=goal_reward,
                             step_reward=0.)
 
     env = pfrl.wrappers.CastObservationToFloat32(env)
@@ -54,6 +56,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_training_episodes", type=int, default=1000)
     parser.add_argument("--use_random_starts", action="store_true", default=False)
     parser.add_argument("--plot_value_function", action="store_true", default=False)
+    parser.add_argument("--use_dense_rewards", action="store_true", default=False)
+    parser.add_argument("--save_replay_buffer", action="store_true", default=False)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -68,11 +72,13 @@ if __name__ == "__main__":
         json.dump(args.__dict__, _args_file, indent=2)
 
     _log_file = f"logs/{args.experiment_name}/{args.seed}/td3_log.pkl"
+    _buffer_log_file = f"logs/{args.experiment_name}/{args.seed}/td3_replay_buffer.pkl"
 
     env = make_env(args.environment_name,
                    start=np.array([0., 0.]),
                    goal=np.array([0., 8.]),
-                   seed=args.seed)
+                   seed=args.seed,
+                   dense_reward=args.use_dense_rewards)
     
     pfrl.utils.set_random_seed(args.seed)
 
@@ -85,7 +91,8 @@ if __name__ == "__main__":
                 use_output_normalization=False,
                 device=torch.device(
                     f"cuda:{args.gpu_id}" if args.gpu_id > -1 else "cpu"
-                )
+                ),
+                store_extra_info=args.save_replay_buffer
     )
 
     t0 = time.time()
@@ -116,10 +123,13 @@ if __name__ == "__main__":
             }
             pickle.dump(episode_metrics, f)
 
-        if args.plot_value_function:
+        if args.plot_value_function and current_episode % 10 == 0:
             make_chunked_value_function_plot(agent,
                                             current_episode,
                                             args.seed,
                                             args.experiment_name)
+        
+        if args.save_replay_buffer and current_episode % 100 == 0:
+            agent.replay_buffer.save(_buffer_log_file)
 
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")
