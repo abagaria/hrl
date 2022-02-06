@@ -16,7 +16,7 @@ class RobustDSC(object):
                  use_rf_on_neg_traj, replay_original_goal_on_pos,
                  use_pos_for_init,
                  p_her, max_num_options, seed, log_filename,
-                 num_kmeans_clusters, num_sift_keypoints):
+                 num_kmeans_clusters, sift_threshold):
 
         self.mdp = mdp
         self.seed = seed
@@ -39,7 +39,7 @@ class RobustDSC(object):
         self.gestation_period = gestation_period
         self.init_salient_event = init_event
         self.num_kmeans_clusters = num_kmeans_clusters
-        self.num_sift_keypoints = num_sift_keypoints
+        self.sift_threshold = sift_threshold
 
         self.global_option = self.create_global_option()
 
@@ -259,7 +259,7 @@ class RobustDSC(object):
                                  chain_id=chain_idx,
                                  p_her=self.p_her,
                                  num_kmeans_clusters=self.num_kmeans_clusters,
-                                 num_sift_keypoints=self.num_sift_keypoints)
+                                 sift_threshold=self.sift_threshold)
         self.current_option_idx += 1
         return option
 
@@ -288,7 +288,7 @@ class RobustDSC(object):
                                  chain_id=0,
                                  p_her=self.p_her,
                                  num_kmeans_clusters=self.num_kmeans_clusters,
-                                 num_sift_keypoints=self.num_sift_keypoints)
+                                 sift_threshold=self.sift_threshold)
         return option
 
     def create_child_option(self, parent):

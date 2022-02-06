@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--distance_metric", type=str, default="euclidean")
     parser.add_argument("--n_kmeans_clusters", type=int, default=99)
-    parser.add_argument("--n_sift_keypoints", type=int, default=30)
+    parser.add_argument("--sift_threshold", type=float, default=7)
     parser.add_argument("--enable_rnd_logging", action="store_true", default=False)
     parser.add_argument("--disable_graph_expansion", action="store_true", default=False)
     parser.add_argument("--use_predefined_events", action="store_true", default=False)
@@ -171,7 +171,7 @@ if __name__ == "__main__":
                           args.seed,
                           _log_file,
                           args.n_kmeans_clusters,
-                          args.n_sift_keypoints)
+                          args.sift_threshold)
 
     dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric)
     

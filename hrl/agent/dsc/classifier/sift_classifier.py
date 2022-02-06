@@ -1,15 +1,14 @@
-import cv2
 import math
 import random
 import pickle
 import itertools
 from collections import deque
 
+import cudasift
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import cluster, svm
 from pfrl.wrappers import atari_wrappers
-
 from hrl.agent.dsc.datastructures import TrainingExample
 from hrl.agent.dsc.classifier.init_classifier import InitiationClassifier
     
@@ -21,14 +20,12 @@ class BOVWClassifier:
     args:
         num_clusters: number of clusters to use for kmeans clustering
     """
-    def __init__(self, num_clusters=99, num_sift_keypoints=30):
+    def __init__(self, num_clusters=55, sift_threshold=7):
         self.num_clusters = num_clusters
         self.kmeans_cluster = None
         self.svm_classifier = None
-        if num_sift_keypoints is not None:
-            self.sift_detector = cv2.SIFT_create(nfeatures=num_sift_keypoints)
-        else:
-            self.sift_detector = cv2.SIFT_create()
+        self.sift_data = cudasift.PySiftData(100)
+        self.sift_threshold = sift_threshold
     
     def is_initialized(self):
         return self.kmeans_cluster is not None and self.svm_classifier is not None
@@ -56,7 +53,7 @@ class BOVWClassifier:
         # train svm
         if svm_type == 'svc':
             class_weight = 'balanced' if len(X) > 10 else None
-            self.svm_classifier = svm.SVC(class_weight=class_weight)
+            self.svm_classifier = svm.SVC(class_weight=class_weight, random_state=0)
         elif svm_type == 'one_class_svm':
             self.svm_classifier = svm.OneClassSVM(gamma=gamma, nu=nu)
         self.svm_classifier.fit(hist_features, Y)
@@ -99,9 +96,12 @@ class BOVWClassifier:
         return:
             a list of SIFT features
         """
-        keypoints = self.sift_detector.detect(images)
-        keypoints, descriptors = self.sift_detector.compute(images, keypoints)
-        return descriptors  # type: tuple
+        descriptors = []
+        for image in images:   
+            cudasift.ExtractKeypoints(image, self.sift_data, thresh=7)
+            df, descriptor = self.sift_data.to_data_frame()
+            descriptors.append(descriptor[:len(df), :])
+        return descriptors
     
     def train_kmeans(self, sift_features):
         """
@@ -164,10 +164,10 @@ class BOVWClassifier:
 
 
 class SiftInitiationClassifier(InitiationClassifier):
-    def __init__(self, num_clusters=50, num_sift_keypoints=None, gamma='scale', nu=0.1, buffer_size=100):
-        optimistic_classifier = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
-        self.pessimistic_classifier_for_pos_data = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
-        self.pessimistic_classifier_for_neg_data = BOVWClassifier(num_clusters=num_clusters, num_sift_keypoints=num_sift_keypoints)
+    def __init__(self, num_clusters=55, sift_threshold=7, gamma=0.15, nu=0.05, buffer_size=100):
+        optimistic_classifier = BOVWClassifier(num_clusters=num_clusters, sift_threshold=sift_threshold)
+        self.pessimistic_classifier_for_pos_data = BOVWClassifier(num_clusters=num_clusters, sift_threshold=sift_threshold)
+        self.pessimistic_classifier_for_neg_data = BOVWClassifier(num_clusters=num_clusters, sift_threshold=sift_threshold)
 
         self.gamma = gamma
         self.nu = nu
@@ -201,16 +201,16 @@ class SiftInitiationClassifier(InitiationClassifier):
 
         return pos_label and neg_label
 
-    def add_positive_examples(self, observations, infos):
-        assert len(observations) == len(infos)
+    def add_positive_examples(self, images, positions):
+        assert len(images) == len(positions)
 
-        positive_examples = [TrainingExample(img, info) for img, info in zip(observations, infos)]
+        positive_examples = [TrainingExample(img, pos) for img, pos in zip(images, positions)]
         self.positive_examples.append(positive_examples)
 
-    def add_negative_examples(self, observations, infos):
-        assert len(observations) == len(infos)
+    def add_negative_examples(self, images, positions):
+        assert len(images) == len(positions)
 
-        negative_examples = [TrainingExample(img, info) for img, info in zip(observations, infos)]
+        negative_examples = [TrainingExample(img, pos) for img, pos in zip(images, positions)]
         self.negative_examples.append(negative_examples)
 
     @staticmethod
@@ -259,10 +259,10 @@ class SiftInitiationClassifier(InitiationClassifier):
         
         if len(positive_training_examples) > 0:
             self.pessimistic_classifier_for_pos_data.fit(positive_training_examples, Y[training_predictions == 1], 
-                                    svm_type='one_class_svm', gamma=0.075, nu=0.005)
+                                    svm_type='one_class_svm', gamma=self.gamma, nu=self.nu)
         if len(negative_training_examples) > 0:
             self.pessimistic_classifier_for_neg_data.fit(negative_training_examples, [1 for _ in negative_training_examples],
-                                    svm_type='one_class_svm', gamma=0.075, nu=0.005)
+                                    svm_type='one_class_svm', gamma=self.gamma, nu=self.nu)
 
     def sample(self):
         """ Sample from the pessimistic initiation classifier. """

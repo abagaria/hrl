@@ -21,7 +21,7 @@ class ModelFreeOption(object):
                  use_oracle_rf, use_rf_on_pos_traj, use_rf_on_neg_traj,
                  replay_original_goal_on_pos,
                  max_num_options, use_pos_for_init, chain_id,
-                 p_her, num_kmeans_clusters, num_sift_keypoints):
+                 p_her, num_kmeans_clusters, sift_threshold):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
         self.parent = parent
@@ -52,7 +52,7 @@ class ModelFreeOption(object):
         self.gestation_period = gestation_period
 
         self.num_kmeans_clusters = num_kmeans_clusters
-        self.num_sift_keypoints = num_sift_keypoints
+        self.sift_threshold = sift_threshold
 
         self.initiation_classifier = self._get_initiation_classifier()
         self.solver = self._get_model_free_solver()
@@ -88,7 +88,7 @@ class ModelFreeOption(object):
             return PositionInitiationClassifier()
         return SiftInitiationClassifier(
             num_clusters=self.num_kmeans_clusters,
-            num_sift_keypoints=self.num_sift_keypoints,
+            sift_threshold=self.sift_threshold,
         )
 
     # ------------------------------------------------------------
@@ -210,7 +210,6 @@ class ModelFreeOption(object):
 
     def rollout(self, start_state, info, dsc_goal_salient_event, eval_mode=False):
         """ Main option control loop. """
-        assert self.is_init_true(start_state, info)
 
         done = False
         reset = False
