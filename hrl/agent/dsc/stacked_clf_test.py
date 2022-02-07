@@ -449,6 +449,7 @@ def test_classifier(clf, test_data, plot_dir):
 
     # optimistic predictions
     if len(optimistic_positive_pos) > 0:
+        print(f"[+] Optimistic positive predictions: {len(optimistic_positive_pos)}")
         plt.scatter(*zip(*optimistic_positive_pos), marker='+', alpha=0.3)
     if len(optimistic_positive_pos) > 0:
         plt.scatter(*zip(*optimistic_negative_pos), marker='o', alpha=0.3)
@@ -463,6 +464,7 @@ def test_classifier(clf, test_data, plot_dir):
     # pessimistic predictions
     if len(pessimistic_positive_pos):
         plt.scatter(*zip(*pessimistic_positive_pos), marker='+', alpha=0.3)
+        print(f"[+] Pessimistic positive predictions: {len(pessimistic_positive_pos)}")
     if len(pessimistic_negative_pos):
         plt.scatter(*zip(*pessimistic_negative_pos), marker='o', alpha=0.3)
     plt.clim(0, 1)
@@ -484,16 +486,14 @@ def test_classifier(clf, test_data, plot_dir):
 
 
 if __name__ == "__main__":
-    import torch
     random.seed(0)
     np.random.seed(0)
-    torch.manual_seed(0)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--nu", type=float, default=0.05)
     parser.add_argument("--gamma", type=float, default=0.075)
     parser.add_argument("--num_kp", type=int, default=30)
-    parser.add_argument("--num_cluster", type=int, default=99)
+    parser.add_argument("--num_cluster", type=int, default=55)
     args = parser.parse_args()
 
     plot_dir = f"plots/stacked_classifier"
@@ -507,7 +507,7 @@ if __name__ == "__main__":
     assert len(testing_data) > 0
 
     # init classifier
-    classifier = SiftInitiationClassifier()
+    classifier = SiftInitiationClassifier(num_clusters=args.num_cluster,)
 
     train_classifier(classifier, positive_train, negative_train, plot_dir)
     test_classifier(classifier, testing_data, plot_dir)
