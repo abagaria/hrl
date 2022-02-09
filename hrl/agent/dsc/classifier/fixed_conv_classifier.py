@@ -134,7 +134,7 @@ class FixedConvInitiationClassifier(InitiationClassifier):
         self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=self.nu/10., gamma=self.gamma)
         self.optimistic_classifier.fit(positive_feature_matrix)
 
-    def train_two_class_classifier(self, nu=0.1):
+    def train_two_class_classifier(self):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
         negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
         positive_labels = [1] * positive_feature_matrix.shape[0]
@@ -156,7 +156,7 @@ class FixedConvInitiationClassifier(InitiationClassifier):
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=self.nu, gamma=self.gamma)
             print(f"Fitting pessimistic clasifier on input shape {positive_training_examples.shape}")
             self.pessimistic_classifier.fit(positive_training_examples)
 
