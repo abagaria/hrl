@@ -1,4 +1,5 @@
 import ipdb
+import torch
 import random
 import numpy as np
 from copy import deepcopy
@@ -7,11 +8,14 @@ from scipy.spatial import distance
 from pfrl.wrappers import atari_wrappers
 
 from . import utils
-from hrl.agent.rainbow.rainbow import Rainbow
-from .classifier.position_classifier import PositionInitiationClassifier
-from .classifier.sift_classifier import SiftInitiationClassifier
-from hrl.salient_event.salient_event import SalientEvent
 from .datastructures import TrainingExample
+from hrl.agent.rainbow.rainbow import Rainbow
+from hrl.salient_event.salient_event import SalientEvent
+from .classifier.sift_classifier import SiftInitiationClassifier
+from .classifier.position_classifier import PositionInitiationClassifier
+from .classifier.fixed_conv_classifier import FixedConvInitiationClassifier
+from .classifier.single_conv_init_classifier import SingleConvInitiationClassifier
+from .classifier.double_conv_init_classifier import DoubleConvInitiationClassifier
 
 
 class ModelFreeOption(object):
@@ -21,7 +25,8 @@ class ModelFreeOption(object):
                  use_oracle_rf, use_rf_on_pos_traj, use_rf_on_neg_traj,
                  replay_original_goal_on_pos,
                  max_num_options, use_pos_for_init, chain_id,
-                 p_her, num_kmeans_clusters, sift_threshold):
+                 p_her, num_kmeans_clusters, sift_threshold,
+                 classifier_type, use_full_neg_traj, use_pessimistic_relabel):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
         self.parent = parent
@@ -32,6 +37,7 @@ class ModelFreeOption(object):
         self.n_training_steps = n_training_steps
         self.use_pos_for_init = use_pos_for_init
         self.p_her = p_her
+        self.classifier_type = classifier_type
         
         self.use_oracle_rf = use_oracle_rf
         self.use_rf_on_pos_traj = use_rf_on_pos_traj
@@ -53,6 +59,8 @@ class ModelFreeOption(object):
 
         self.num_kmeans_clusters = num_kmeans_clusters
         self.sift_threshold = sift_threshold
+        self.use_full_neg_traj = use_full_neg_traj
+        self.use_pessimistic_relabel = use_pessimistic_relabel
 
         self.initiation_classifier = self._get_initiation_classifier()
         self.solver = self._get_model_free_solver()
@@ -86,10 +94,29 @@ class ModelFreeOption(object):
     def _get_initiation_classifier(self):
         if self.use_pos_for_init:
             return PositionInitiationClassifier()
-        return SiftInitiationClassifier(
-            num_clusters=self.num_kmeans_clusters,
-            sift_threshold=self.sift_threshold,
+        if self.classifier_type == "sift":
+            return SiftInitiationClassifier(
+                num_clusters=self.num_kmeans_clusters,
+                sift_threshold=self.sift_threshold,
+            )
+        device = torch.device(
+            f"cuda:{self.gpu_id}" if self.gpu_id > -1 else "cpu"
         )
+        print(f"Creating classifier of type {self.classifier_type}")
+        if self.classifier_type == "fixed-cnn":
+            return FixedConvInitiationClassifier(
+                device,
+                gamma=6e-7,
+                nu=2.5e-4
+            )
+        if self.classifier_type == "single-cnn":
+            return SingleConvInitiationClassifier(device)
+        if self.classifier_type == "double-cnn":
+            return DoubleConvInitiationClassifier(device,
+                pessimistic_relabel=self.pessimistic_relabel)
+        if self.classifier_type == "epistemic-cnn":
+            return
+        raise NotImplementedError(self.classifier_type)
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -466,8 +493,12 @@ class ModelFreeOption(object):
             
             self.initiation_classifier.add_positive_examples(positive_states, positive_infos)
         else:
-            negative_infos = [start_info]
+            negative_infos = [start_info] 
             negative_states = [start_state]
+
+            if self.use_full_neg_traj:
+                negative_infos += visited_infos[-self.buffer_length:]
+                negative_states += visited_states[-self.buffer_length:]
 
             self.initiation_classifier.add_negative_examples(negative_states, negative_infos)
 

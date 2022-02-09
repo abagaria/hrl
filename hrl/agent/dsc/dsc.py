@@ -16,7 +16,8 @@ class RobustDSC(object):
                  use_rf_on_neg_traj, replay_original_goal_on_pos,
                  use_pos_for_init,
                  p_her, max_num_options, seed, log_filename,
-                 num_kmeans_clusters, sift_threshold):
+                 num_kmeans_clusters, sift_threshold,
+                 classifier_type, use_full_neg_traj, use_pessimistic_relabel):
 
         self.mdp = mdp
         self.seed = seed
@@ -40,6 +41,9 @@ class RobustDSC(object):
         self.init_salient_event = init_event
         self.num_kmeans_clusters = num_kmeans_clusters
         self.sift_threshold = sift_threshold
+        self.classifier_type = classifier_type
+        self.use_full_neg_traj = use_full_neg_traj
+        self.use_pessimistic_relabel = use_pessimistic_relabel
 
         self.global_option = self.create_global_option()
 
@@ -259,7 +263,10 @@ class RobustDSC(object):
                                  chain_id=chain_idx,
                                  p_her=self.p_her,
                                  num_kmeans_clusters=self.num_kmeans_clusters,
-                                 sift_threshold=self.sift_threshold)
+                                 sift_threshold=self.sift_threshold,
+                                 classifier_type=self.classifier_type,
+                                 use_full_neg_traj=self.use_full_neg_traj,
+                                 use_pessimistic_relabel=self.use_pessimistic_relabel)
         self.current_option_idx += 1
         return option
 
@@ -288,7 +295,10 @@ class RobustDSC(object):
                                  chain_id=0,
                                  p_her=self.p_her,
                                  num_kmeans_clusters=self.num_kmeans_clusters,
-                                 sift_threshold=self.sift_threshold)
+                                 sift_threshold=self.sift_threshold,
+                                 classifier_type=self.classifier_type,
+                                 use_full_neg_traj=self.use_full_neg_traj,
+                                 use_pessimistic_relabel=self.use_pessimistic_relabel)
         return option
 
     def create_child_option(self, parent):

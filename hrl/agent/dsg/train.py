@@ -1,3 +1,4 @@
+from email.policy import default
 import os
 import json
 import time
@@ -65,11 +66,8 @@ if __name__ == "__main__":
     parser.add_argument("--gpu_id", type=int)
     parser.add_argument("--experiment_name", type=str)
     parser.add_argument("--environment_name", type=str)
-    parser.add_argument("--gestation_period", type=int, default=10)
-    parser.add_argument("--buffer_length", type=int, default=50)
     parser.add_argument("--num_training_steps", type=int, default=int(2e6))
     parser.add_argument("--use_oracle_rf", action="store_true", default=False)
-    parser.add_argument("--use_pos_for_init", action="store_true", default=False)
     parser.add_argument("--max_num_options", type=int, default=5)
     parser.add_argument("--max_frames_per_episode", type=int, default=30*60*60)  # 30 mins
     parser.add_argument("--p_her", type=float, default=1.)
@@ -80,16 +78,32 @@ if __name__ == "__main__":
     parser.add_argument("--replay_original_goal_on_pos", action="store_true", default=False)
 
     parser.add_argument("--distance_metric", type=str, default="euclidean")
-    parser.add_argument("--n_kmeans_clusters", type=int, default=99)
-    parser.add_argument("--sift_threshold", type=float, default=7)
+    
     parser.add_argument("--enable_rnd_logging", action="store_true", default=False)
     parser.add_argument("--disable_graph_expansion", action="store_true", default=False)
     parser.add_argument("--use_predefined_events", action="store_true", default=False)
     parser.add_argument("--n_consolidation_episodes", type=int, default=50)
     parser.add_argument("--n_expansion_episodes", type=int, default=10)
+
+    # Params for learning initiation set classifiers
+    parser.add_argument("--use_pos_for_init", action="store_true", default=False)
+    parser.add_argument("--initiation_classifier_type", type=str, default="")
+    parser.add_argument("--use_full_negative_trajectory", action="store_true", default=False)
+    parser.add_argument("--use_pessimistic_relabel", action="store_true", default=False)
+    parser.add_argument("--n_kmeans_clusters", type=int, default=99)
+    parser.add_argument("--sift_threshold", type=float, default=7)
+    parser.add_argument("--gestation_period", type=int, default=10)
+    parser.add_argument("--buffer_length", type=int, default=50)
+
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
+
+    # initiation_classifier_type is the type of image classifier we want to use
+    if args.use_pos_for_init: 
+        assert args.initiation_classifier_type == ""
+    if args.initiation_classifier_type != "":
+        assert not args.use_pos_for_init
 
     create_log_dir("logs")
     create_log_dir(f"logs/{args.experiment_name}")
@@ -171,7 +185,10 @@ if __name__ == "__main__":
                           args.seed,
                           _log_file,
                           args.n_kmeans_clusters,
-                          args.sift_threshold)
+                          args.sift_threshold,
+                          args.initiation_classifier_type,
+                          args.use_full_negative_trajectory,
+                          args.use_pessimistic_relabel)
 
     dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric)
     
