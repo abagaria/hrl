@@ -59,3 +59,10 @@ class SalientEvent:
     
     def __repr__(self):
         return str(self)
+
+    def distance(self, info):
+        """ Distance from current salient event to the input salient event. """
+        pos = info_to_pos(info)
+        x_dist = abs(pos[0] - self.target_info["player_x"])
+        y_dist = abs(pos[1] - self.target_info["player_y"])
+        return np.sqrt(x_dist**2 + y_dist**2)

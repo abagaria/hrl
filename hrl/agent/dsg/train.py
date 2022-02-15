@@ -1,4 +1,3 @@
-from email.policy import default
 import os
 import json
 import time
@@ -84,6 +83,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_predefined_events", action="store_true", default=False)
     parser.add_argument("--n_consolidation_episodes", type=int, default=50)
     parser.add_argument("--n_expansion_episodes", type=int, default=10)
+    parser.add_argument("--n_warmup_iterations", type=int, default=5)
 
     # Params for learning initiation set classifiers
     parser.add_argument("--use_pos_for_init", action="store_true", default=False)
@@ -95,6 +95,7 @@ if __name__ == "__main__":
     parser.add_argument("--gestation_period", type=int, default=10)
     parser.add_argument("--buffer_length", type=int, default=50)
 
+    parser.add_argument("--reject_jumping_states", action="store_true", default=False)
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
@@ -113,6 +114,8 @@ if __name__ == "__main__":
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}")
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/initiation_set_plots")
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/value_function_plots")
+    create_log_dir(f"plots/{args.experiment_name}/{args.seed}/accepted_events")
+    create_log_dir(f"plots/{args.experiment_name}/{args.seed}/rejected_events")
 
     with open(f"logs/{args.experiment_name}/{args.seed}/hyperparameters.txt", "w+") as _args_file:
         json.dump(args.__dict__, _args_file, indent=2)
@@ -199,10 +202,14 @@ if __name__ == "__main__":
                          args.goal_selection_criterion,
                          predefined_events,
                          args.enable_rnd_logging,
-                         args.disable_graph_expansion)
+                         args.disable_graph_expansion,
+                         args.reject_jumping_states)
 
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
     t0 = time.time()
-    trainer.run_loop(0, int(1e5))
+    for warmup_iteration in range(args.n_warmup_iterations):
+        trainer.graph_expansion_run_loop(warmup_iteration * args.n_expansion_episodes,
+                                         num_episodes=args.n_expansion_episodes)
+    trainer.run_loop((warmup_iteration * args.n_expansion_episodes) + 1, int(1e5))
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")

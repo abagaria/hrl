@@ -3,7 +3,6 @@ import random
 import numpy as np
 import torch.nn.functional as F
 
-from tqdm import tqdm
 from hrl.agent.dsc.classifier.ensemble_models import ImageCNN
 
 
@@ -57,7 +56,7 @@ class ConvClassifier:
             pos_weight = self.determine_pos_weight(y)
             n_gradient_steps = len(X) // self.batch_size
 
-            for _ in tqdm(range(n_gradient_steps), desc="Training CNN classifier"):
+            for _ in range(n_gradient_steps):
                 sampled_inputs, sampled_labels = self.sample(X, y)
 
                 logits = self.model(sampled_inputs)
@@ -74,4 +73,3 @@ class ConvClassifier:
 
             mean_loss = np.mean(losses)
             self.losses.append(mean_loss)
-            print("Mean loss: ", mean_loss)

@@ -32,7 +32,7 @@ def visualize_graph_nodes_with_expansion_probabilities(planner,
     def _get_event_representative_point(event):
         assert isinstance(event, SalientEvent)
         if event.get_target_position() is not None:
-            return event.get_target_position()
+            return event.target_pos
         trigger_positions = [eg.pos for eg in event.effect_set]
         trigger_positions = np.array(trigger_positions)
         return trigger_positions.mean(axis=0)

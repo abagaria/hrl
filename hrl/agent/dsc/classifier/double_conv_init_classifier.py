@@ -93,7 +93,6 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
                                                         threshold=self.optimistic_threshold,
                                                         n_input_channels=self.n_input_channels)
             self.optimistic_classifier.fit(X, Y)
-            print(f"Fitting optimistic clasifier on input shape {X.shape}")
 
             training_predictions = self.optimistic_classifier.predict(X)
             positive_training_examples = X[training_predictions == 1]
@@ -121,7 +120,6 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
                                                             threshold=self.pessimistic_threshold,
                                                             n_input_channels=self.n_input_channels)
 
-                print(f"Fitting pessimistic clasifier on input shape {X_pessimistic.shape}")
                 self.pessimistic_classifier.fit(X_pessimistic, Y_pessimistic)
 
     def plot_training_predictions(self, option_name, episode, experiment_name, seed):

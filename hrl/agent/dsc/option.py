@@ -113,7 +113,7 @@ class ModelFreeOption(object):
             return SingleConvInitiationClassifier(device)
         if self.classifier_type == "double-cnn":
             return DoubleConvInitiationClassifier(device,
-                pessimistic_relabel=self.pessimistic_relabel)
+                pessimistic_relabel=self.use_pessimistic_relabel)
         if self.classifier_type == "epistemic-cnn":
             return
         raise NotImplementedError(self.classifier_type)
