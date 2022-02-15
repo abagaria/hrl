@@ -25,7 +25,8 @@ class DSGTrainer:
                  goal_selection_criterion="random",
                  predefined_events=[],
                  enable_rnd_logging=False,
-                 disable_graph_expansion=False):
+                 disable_graph_expansion=False,
+                 reject_jumping_states=False):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
@@ -40,6 +41,7 @@ class DSGTrainer:
         self.expansion_duration = expansion_duration
         self.init_salient_event = dsc.init_salient_event
         self.goal_selection_criterion = goal_selection_criterion
+        self.reject_jumping_states = reject_jumping_states
 
         self.salient_events = []
         self.predefined_events = predefined_events
@@ -66,7 +68,7 @@ class DSGTrainer:
 
             if (not self.disable_graph_expansion) and (episode % self.expansion_freq == 0):
                 self.graph_expansion_run_loop(episode, self.expansion_duration)
-            else:
+            elif len(self.salient_events) > 0:
                 self.graph_consolidation_run_loop(episode)
 
             t0 = time.time()
@@ -94,9 +96,15 @@ class DSGTrainer:
             if reached and not done and not reset:
                 observations, rewards, visited_infos = self.exploration_rollout(state, episode)
 
-                exploration_observations.extend(observations)
-                exploration_extrinsic_rewards.extend(rewards)
-                exploration_visited_infos.extend(visited_infos)
+                # Filter out states that are inside other nodes or correspond to death states
+                observations, rewards, visited_infos = self.filter_exploration_trajectory(observations,
+                                                                                          rewards,
+                                                                                          visited_infos)
+
+                if len(observations) > 0:
+                    exploration_observations.extend(observations)
+                    exploration_extrinsic_rewards.extend(rewards)
+                    exploration_visited_infos.extend(visited_infos)
 
         # Examine *all* exploration trajectories and extract potential salient events
         if len(exploration_observations) > 0:
@@ -106,11 +114,11 @@ class DSGTrainer:
                 exploration_extrinsic_rewards,
             )
 
-            chosen_intrinsic_goal = self.extract_best_intrinsic_subgoal(intrinsic_subgoals)
-            new_events = self.extract_salient_events(extrinsic_subgoals+[chosen_intrinsic_goal])
+            assert len(intrinsic_subgoals) == 1, len(intrinsic_subgoals)
+            new_events = self.convert_discovered_goals_to_salient_events(extrinsic_subgoals+intrinsic_subgoals)
 
             if self.enable_rnd_logging:
-                self.log_rnd_progress([chosen_intrinsic_goal], extrinsic_subgoals, new_events, episode)
+                self.log_rnd_progress(intrinsic_subgoals, extrinsic_subgoals, new_events, episode)
 
     def exploration_rollout(self, state, episode):
         assert isinstance(state, atari_wrappers.LazyFrames)
@@ -164,7 +172,8 @@ class DSGTrainer:
                         "info": event.target_info
                     }, f)
 
-                img_filename = f"plots/{self.dsc_agent.experiment_name}/{self.dsc_agent.seed}/event_{pos_label}.png"
+                logdir = f"plots/{self.dsc_agent.experiment_name}/{self.dsc_agent.seed}"
+                img_filename = f"{logdir}/accepted_events/event_{pos_label}.png"
                 plt.imshow(np.array(event.target_obs)[-1])
                 plt.title(str(pos_label))
                 plt.savefig(img_filename)
@@ -175,7 +184,7 @@ class DSGTrainer:
                                                            self.dsc_agent.experiment_name,
                                                            self.dsc_agent.seed)
 
-        self.rnd_agent.plot_value(episode=episode)
+        # self.rnd_agent.plot_value(episode=episode)
 
     def graph_consolidation_run_loop(self, episode):
         done = False
@@ -353,13 +362,18 @@ class DSGTrainer:
     def extract_subgoals(self, observations, infos, extrinsic_rewards):
         def stack_to_lz(frames):
             """ Convert a list of frames to a LazyFrames object. """
+            if len(frames) < 4:
+                n_pad_frames = 4 - len(frames)
+                pad_frames = [frames[0] for _ in range(n_pad_frames)]
+                frames = pad_frames + frames
+                assert len(frames) == 4, len(frames)
             frames = [frame.transpose(2, 0, 1) for frame in frames]
             return atari_wrappers.LazyFrames(frames, stack_axis=0)
 
         def extract_subgoals_from_ext_rewards(obs, info, rewards):
             indexes = [i for i, r in enumerate(rewards) if r > 0]
             if len(indexes) > 0:
-                states = [stack_to_lz(obs[i-3:i+1]) for i in indexes]
+                states = [stack_to_lz(obs[max(0, i-3):min(i+1, len(obs))]) for i in indexes]
                 selected_infos = [info[i] for i in indexes]
                 positive_rewards = [rewards[i] for i in indexes]
                 return list(zip(states, selected_infos, positive_rewards))
@@ -368,7 +382,7 @@ class DSGTrainer:
         def extract_subgoals_from_int_rewards(obs, info):
             r_int = self.rnd_agent.reward_function(obs)
             i = r_int.argmax()
-            state = stack_to_lz(obs[i-3:i+1])
+            state = stack_to_lz(obs[max(0, i-3):min(i+1, len(obs))])
             return [(state, info[i], r_int[i])]
 
         subgoals1 = extract_subgoals_from_ext_rewards(observations, infos, extrinsic_rewards)
@@ -376,59 +390,57 @@ class DSGTrainer:
 
         return subgoals1, subgoals2
 
+    def filter_exploration_trajectory(self, observations, rewards, infos):
+        """ Given some observations, return the ones that pass our filtering rules. """
+        
+        def is_death_state(info):
+            return info['falling'] or info['dead']
+
+        def is_jumping(info):
+            return info['jumping']
+
+        def is_inside_another_event(info):
+            return any([event(info) for event in self.salient_events])
+
+        def is_close_to_another_event(info):
+            distances = [event.distance(info) for event in self.salient_events]
+            return any([distance < 5. for distance in distances])
+
+        def should_reject(obs, info):
+            return is_death_state(info) or \
+                   is_inside_another_event(info) or \
+                   is_close_to_another_event(info) or \
+                   (is_jumping(info) and self.reject_jumping_states)
+        
+        if len(observations) > 3:
+            accepted_triples = [(obs, reward, info) for obs, reward, info in 
+                                zip(observations, rewards, infos) if not should_reject(obs, info)]
+            
+            accepted_observations = [triple[0] for triple in accepted_triples]
+            accepted_rewards = [triple[1] for triple in accepted_triples]
+            accepted_infos = [triple[2] for triple in accepted_triples]
+
+            return accepted_observations, accepted_rewards, accepted_infos
+            
+        return [], [], []
+
     def get_intrinsic_values(self, observations):
         assert isinstance(observations, np.ndarray)
         return self.rnd_agent.value_function(observations)
 
-    @staticmethod
-    def extract_best_intrinsic_subgoal(s_r_pairs):
-        best_obs = None
-        best_info = None
-        max_intrinsic_reward = -np.inf
-
-        for obs, info, reward in s_r_pairs:
-
-            if reward > max_intrinsic_reward:
-                best_obs = obs
-                best_info = info
-                max_intrinsic_reward = reward
-
-        return best_obs, best_info, max_intrinsic_reward
-
-    def extract_salient_events(self, discovered_goals):
+    def convert_discovered_goals_to_salient_events(self, discovered_goals):
         """ Convert a list of discovered goal states to salient events. """
         added_events = []
         for obs, info, reward in discovered_goals:
             event = SalientEvent(obs, info, tol=2.)
-            if not self.should_reject_new_event(event):
-                print("Accepted New Salient Event: ", event)
-                added_events.append(event)
+            print("Accepted New Salient Event: ", event)
+            added_events.append(event)
 
-                # Add the discovered event only if we are not in gc experiment mode
-                if len(self.predefined_events) == 0:
-                    self.add_salient_event(event)
+            # Add the discovered event only if we are not in gc experiment mode
+            if len(self.predefined_events) == 0:
+                self.add_salient_event(event)
 
         return added_events
-
-    def should_reject_new_event(self, salient_event):
-        """ Use heuristics to reject some new salient events. """
-        assert isinstance(salient_event, SalientEvent), salient_event
-
-        def satisfies_existing_event(s, info):
-            return any([event(info) for event in self.salient_events])
-
-        def satisfies_existing_option(s, info):
-            return any([o.pessimistic_is_init_true(s, info) for o in self.dsc_agent.mature_options])
-
-        def satisfies_death_condition(info):
-            return info['falling']
-
-        target_state = salient_event.target_obs
-        target_info = salient_event.target_info
-
-        return satisfies_existing_event(target_state, target_info) or \
-               satisfies_existing_option(target_state, target_info) or \
-               satisfies_death_condition(target_info)
 
     def add_salient_event(self, new_event):
         print("[DSGTrainer] Adding new SalientEvent ", new_event)
