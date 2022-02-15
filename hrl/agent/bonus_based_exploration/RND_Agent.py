@@ -7,7 +7,8 @@ from dopamine.discrete_domains import atari_lib
 from absl import logging
 import tensorflow.compat.v1 as tf
 
-from hrl.agent.bonus_based_exploration.helpers import env_wrapper,ram_data_replay_buffer
+from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
+from hrl.agent.bonus_based_exploration.helpers import ram_data_replay_buffer
 import matplotlib.pyplot as plt
 
 class RNDAgent(Runner):
@@ -22,7 +23,8 @@ class RNDAgent(Runner):
             create_environment_fn=create_environment_fn
         )
 
-        self.env_wrapper = env_wrapper.MontezumaInfoWrapper(self._environment)
+        self.env_wrapper = MontezumaInfoWrapper(self._environment)
+        self.env_wrapper.num_lives = self.env_wrapper.get_num_lives(self.env_wrapper.get_current_ram())
         self.info_buffer = ram_data_replay_buffer.MontezumaRevengeReplayBuffer(self._agent._replay.memory._replay_capacity)
 
         self.info_buffer.load(self._base_dir)
@@ -59,7 +61,7 @@ class RNDAgent(Runner):
 
         while True:
 
-            info = self.env_wrapper.get_current_info()
+            info = self.env_wrapper.get_current_info(info={}, update_lives=True)
             visited_infos.append(info)
             self.info_buffer.add(
                 info['player_x'],
