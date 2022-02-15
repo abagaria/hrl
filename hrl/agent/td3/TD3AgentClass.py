@@ -1,10 +1,12 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
+import ipdb
 
 from hrl.agent.td3.replay_buffer import ReplayBuffer
 from hrl.agent.td3.model import Actor, Critic, NormActor
 from hrl.agent.td3.utils import *
+from hrl.experiments.distance_learning_network import DistanceNetwork
 
 
 # Adapted author implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
@@ -29,6 +31,8 @@ class TD3(object):
             device=torch.device("cuda"),
             name="Global-TD3-Agent",
             store_extra_info=True,
+            use_distance_function=False,
+            model_path="",
     ):
 
         self.critic_learning_rate = lr_c
@@ -66,6 +70,35 @@ class TD3(object):
         self.trained_options = []
 
         self.T = 0
+
+        self.use_distance_function = use_distance_function
+        self.distance_function = self.get_distance_function(model_path, state_dim)
+
+    def get_distance_function(self, model_path, state_dim):
+        if self.use_distance_function:
+            # TODO: Find a way to not make this manual
+            self.max_distance = 600
+
+            checkpoint = torch.load(model_path)
+            model = DistanceNetwork(input_dim=2 * state_dim, output_dim=1)
+            model.load_state_dict(checkpoint['model'])
+            model.to(self.device)
+            return model
+
+    @torch.no_grad()
+    def reward_function(self, s, goal):
+        assert isinstance(s, np.ndarray)
+        assert isinstance(goal, np.ndarray)
+        # input is batched
+        assert len(s.shape) == 2, s.shape
+        assert len(goal.shape) == 2, goal.shape
+
+        sg = np.concatenate((s, goal), axis=1)
+        sg = torch.as_tensor(sg).float().to(self.device)
+        distances = self.distance_function(sg).squeeze()
+        distances[distances < 0] = 0
+        rewards = -distances / self.max_distance
+        return rewards.cpu().numpy()
 
     def act(self, state, evaluation_mode=False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
@@ -205,13 +238,23 @@ class TD3(object):
 
     def experience_replay(self, trajectory):
         """ Add trajectory to the replay buffer and perform agent learning updates. """
-
         for transition in trajectory:
             self.step(*transition)
 
+    def assign_episode_rewards(self, env, episode_trajectory):
+        episode_start_state = episode_trajectory[0][0]
+        next_states = [transition[3] for transition in episode_trajectory]
+        goal_state = np.concatenate((env.goal_state, episode_start_state[2:]))
+        goal_state = goal_state[np.newaxis, ...]
+        goal_states = np.repeat(goal_state, len(next_states), axis=0)
+        next_states = np.array(next_states)
+        rewards = self.reward_function(next_states, goal_states)
+
+        episode_trajectory = [(s, a, r, ns, done, info) for r, (s, a, _, ns, done, info) in zip(rewards, episode_trajectory)]
+        return episode_trajectory
+
     def rollout(self, env, state, episode):
         """ Single episode of interaction with the env followed by experience replay. """
-        
         done = False
         reset = False
         reached = False
@@ -239,6 +282,10 @@ class TD3(object):
 
             state = next_state
         
+        if self.use_distance_function:
+            episode_trajectory = self.assign_episode_rewards(env, episode_trajectory)
+            episode_reward = sum(transition[2] for transition in episode_trajectory)
+
         self.experience_replay(episode_trajectory)
         self.log_progress(env, episode, episode_reward, episode_length)
         

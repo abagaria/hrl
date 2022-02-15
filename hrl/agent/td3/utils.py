@@ -54,3 +54,16 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
     plt.close()
 
     return qvalues.max()
+
+def make_reward_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    next_states = np.array([exp[3] for exp in replay_buffer])
+    rewards = np.array([exp[2] for exp in replay_buffer])
+
+    plt.scatter(next_states[:, 0], next_states[:, 1], c=rewards)
+    plt.colorbar()
+    file_name = f"reward_function_episode_{episode}"
+    plt.savefig(f"plots/{experiment_name}/{seed}/{file_name}.png")
+    plt.close()
+
+    return rewards.max()

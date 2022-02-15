@@ -1,4 +1,3 @@
-import ipdb
 import gym
 import d4rl
 import json
@@ -13,7 +12,7 @@ from hrl.utils import create_log_dir
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.wrappers.environments.ant_maze_env import AntMazeEnv
-from hrl.agent.td3.utils import make_chunked_value_function_plot 
+from hrl.agent.td3.utils import make_chunked_value_function_plot, make_reward_function_plot
 
 
 def make_env(name, start, goal, dense_reward, seed, horizon=1000):
@@ -56,8 +55,11 @@ if __name__ == "__main__":
     parser.add_argument("--num_training_episodes", type=int, default=1000)
     parser.add_argument("--use_random_starts", action="store_true", default=False)
     parser.add_argument("--plot_value_function", action="store_true", default=False)
+    parser.add_argument("--plot_reward_function", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     parser.add_argument("--save_replay_buffer", action="store_true", default=False)
+    parser.add_argument("--use_learned_distance_metric", action="store_true", default=False)
+    parser.add_argument("--distance_model_path", type=str, default="")
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -92,7 +94,9 @@ if __name__ == "__main__":
                 device=torch.device(
                     f"cuda:{args.gpu_id}" if args.gpu_id > -1 else "cpu"
                 ),
-                store_extra_info=args.save_replay_buffer
+                store_extra_info=args.save_replay_buffer,
+                use_distance_function=args.use_learned_distance_metric,
+                model_path=args.distance_model_path
     )
 
     t0 = time.time()
@@ -102,6 +106,8 @@ if __name__ == "__main__":
 
     for current_episode in range(args.num_training_episodes):
         env.reset()
+        # TODO: Don't reset env manually
+        env.set_xy([8, 0])
 
         if args.use_random_starts:
             env.set_xy(
@@ -125,6 +131,12 @@ if __name__ == "__main__":
 
         if args.plot_value_function and current_episode % 10 == 0:
             make_chunked_value_function_plot(agent,
+                                            current_episode,
+                                            args.seed,
+                                            args.experiment_name)
+        
+        if args.plot_reward_function and current_episode % 10 == 0:
+            make_reward_function_plot(agent,
                                             current_episode,
                                             args.seed,
                                             args.experiment_name)
