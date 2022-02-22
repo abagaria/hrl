@@ -66,17 +66,26 @@ class TD3(object):
         self.total_it = 0
 
     def act(self, state, evaluation_mode=False):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+        state = torch.FloatTensor(state).to(self.device)
         selected_action = self.actor(state)
 
         if self.use_output_normalization:
             selected_action = self.normalize_actions(selected_action)
 
-        selected_action = selected_action.cpu().data.numpy().flatten()
+        selected_action = selected_action.cpu().data.numpy()
         noise = np.random.normal(0, self.max_action * self.epsilon, size=self.action_dim)
         if not evaluation_mode:
             selected_action += noise
         return selected_action.clip(-self.max_action, self.max_action)
+    
+    def batch_act(self, states, evaluation_mode=False):
+        """
+        act function, used for vectorized environments
+        """
+        num_envs = len(states)
+        actions = self.act(np.array(states), evaluation_mode)
+        actions = list(actions.reshape(num_envs, -1))  # make actions into a list of len num_envs
+        return actions
 
     def normalize_actions(self, actions):
 
@@ -99,12 +108,19 @@ class TD3(object):
 
         if len(self.replay_buffer) > self.batch_size:
             self.train(self.replay_buffer, self.batch_size)
+    
+    def batch_observe(self, states, actions, rewards, next_states, is_terminals):
+        """
+        step function, used for vectorized envs
+        """
+        for state, action, reward, next_state, is_terminal in zip(states, actions, rewards, next_states, is_terminals):
+            self.step(state, action, reward, next_state, is_terminal)
 
     def train(self, replay_buffer, batch_size=100):
         self.total_it += 1
 
         # Sample replay buffer - result is tensors
-        state, action, next_state, reward, done = replay_buffer.sample(batch_size)
+        state, action, reward, next_state, done = replay_buffer.sample(batch_size)
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise

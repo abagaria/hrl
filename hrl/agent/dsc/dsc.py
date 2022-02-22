@@ -6,7 +6,7 @@ from collections import deque
 import numpy as np
 
 from hrl.agent.dsc.utils import *
-from hrl.agent.dsc.MBOptionClass import ModelBasedOption
+from hrl.option import ModelBasedOption
 
 
 class RobustDSC(object):
@@ -37,6 +37,7 @@ class RobustDSC(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
+        self.mdp = mdp #D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
         self.mdp = mdp
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
