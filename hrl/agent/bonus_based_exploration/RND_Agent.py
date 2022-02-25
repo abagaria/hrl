@@ -61,15 +61,6 @@ class RNDAgent(Runner):
 
         while True:
 
-            info = self.env_wrapper.get_current_info(info={}, update_lives=True)
-            visited_infos.append(info)
-            self.info_buffer.add(
-                info['player_x'],
-                info['player_y'], 
-                info['room_number'],
-                self._agent._replay.memory.cursor()
-            )
-
             observation, reward, is_terminal = self._run_one_step(action)
 
             intrinsic_reward = self.get_intrinsic_reward(observation)
@@ -78,6 +69,15 @@ class RNDAgent(Runner):
             intrinsic_rewards.append(intrinsic_reward)
             observations.append(observation)
             reward = max(min(reward, 1),-1)
+
+            info = self.env_wrapper.get_current_info(info={}, update_lives=True)
+            visited_infos.append(info)
+            self.info_buffer.add(
+                info['player_x'],
+                info['player_y'], 
+                info['room_number'],
+                self._agent._replay.memory.cursor()
+            )
 
             if self._environment.game_over or (step_number == self._max_steps_per_episode):
                 # Stop the run loop once we reach the true end of episode
