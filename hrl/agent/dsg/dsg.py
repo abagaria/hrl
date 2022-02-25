@@ -14,12 +14,13 @@ from ..dsc.chain import SkillChain
 
 
 class SkillGraphAgent:
-    def __init__(self, dsc_agent, exploration_agent, distance_metric):
+    def __init__(self, dsc_agent, exploration_agent, distance_metric, min_n_points_for_expansion):
         assert isinstance(dsc_agent, RobustDSC)
         assert distance_metric in ("euclidean", "vf", "ucb"), distance_metric
 
         self.dsc_agent = dsc_agent
         self.distance_metric = distance_metric
+        self.min_n_points_for_expansion = min_n_points_for_expansion
         
         self.planner = PlanGraph()
         self.exploration_agent = exploration_agent
@@ -239,12 +240,12 @@ class SkillGraphAgent:
         
         return _stochastic_pick_node(nodes, scores)
 
-    def get_candidate_nodes_for_expansion(self, min_number_of_points=3):
+    def get_candidate_nodes_for_expansion(self):
         """ There are two possibilities: First, we only consider nodes to which there is a path, but that is too
          conservative. Second, we consider all the events ever discovered, but that could be too aggressive since
          we may not have enough data to correctly estimate its closest node in the graph. Therefore, we try to be
          aggressive, but temper it with the requirement that we have seen that event a small number of times. """
-        nodes_with_enough_data = [node for node in self.salient_events if len(node.effect_set) >= min_number_of_points]
+        nodes_with_enough_data = [node for node in self.salient_events if len(node.effect_set) >= self.min_n_points_for_expansion]
         return nodes_with_enough_data
 
     def get_rnd_score(self, node, method="vf", accumulator="mean"):

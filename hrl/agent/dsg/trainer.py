@@ -3,6 +3,7 @@ import ipdb
 import time
 import random
 import pickle
+import itertools
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -14,7 +15,7 @@ from ..dsc.dsc import RobustDSC
 from hrl.agent.dsc.utils import pos_to_info
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
-from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
+from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities, get_regions_in_first_screen
 
 
 class DSGTrainer:
@@ -84,6 +85,7 @@ class DSGTrainer:
         for episode in range(start_episode, start_episode + num_episodes):
             state, info = self.env.reset()
             expansion_node = self.dsg_agent.get_node_to_expand()
+            expansion_node.n_expansion_attempts += 1
             print(f"[Episode={episode}] Attempting to expand {expansion_node}")
 
             # Use the planner to get to the expansion node
@@ -94,6 +96,7 @@ class DSGTrainer:
                                                                         eval_mode=False)
 
             if reached and not done and not reset:
+                expansion_node.n_expansions_completed += 1
                 observations, rewards, visited_infos = self.exploration_rollout(state, episode)
 
                 # Filter out states that are inside other nodes or correspond to death states
@@ -389,6 +392,28 @@ class DSGTrainer:
         subgoals2 = extract_subgoals_from_int_rewards(observations, infos)
 
         return subgoals1, subgoals2
+    
+    def should_reject_new_event(self, info, regions):
+        def get_satisfied_regions(i):
+            return [region for region in regions if regions[region](i)]
+
+        # Regions that the new salient event is in
+        new_satisfied_regions = get_satisfied_regions(info)
+
+        # Regions that existing salient events are in
+        old_satisfied_regions = [get_satisfied_regions(e.target_info) for e in self.salient_events]
+
+        # A single salient event is expected to be in a single region
+        if len(new_satisfied_regions) > 1:
+            ipdb.set_trace()
+        
+        # If the salient event is not in any of the acceptable regions, reject it
+        if len(new_satisfied_regions) == 0:
+            return True
+        
+        # If the salient event is in a region where we already have another event, reject it
+        satisfied_region = new_satisfied_regions[0]
+        return satisfied_region in itertools.chain.from_iterable(old_satisfied_regions)
 
     def filter_exploration_trajectory(self, observations, rewards, infos):
         """ Given some observations, return the ones that pass our filtering rules. """
@@ -410,7 +435,8 @@ class DSGTrainer:
             return is_death_state(info) or \
                    is_inside_another_event(info) or \
                    is_close_to_another_event(info) or \
-                   (is_jumping(info) and self.reject_jumping_states)
+                   (is_jumping(info) and self.reject_jumping_states) or \
+                   self.should_reject_new_event(info, get_regions_in_first_screen())
         
         if len(observations) > 3:
             accepted_triples = [(obs, reward, info) for obs, reward, info in 

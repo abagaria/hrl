@@ -17,6 +17,10 @@ class SalientEvent:
         self.target_info = target_info
         self.effect_set = deque([TrainingExample(target_obs, target_info)], maxlen=20)
 
+        # Logging
+        self.n_expansion_attempts = 0
+        self.n_expansions_completed = 0
+
     @property
     def target_pos(self):
         return info_to_pos(self.target_info)

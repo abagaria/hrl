@@ -96,6 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("--buffer_length", type=int, default=50)
 
     parser.add_argument("--reject_jumping_states", action="store_true", default=False)
+    parser.add_argument("--min_n_points_for_expansion", type=int, default=3)
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
@@ -193,7 +194,7 @@ if __name__ == "__main__":
                           args.use_full_negative_trajectory,
                           args.use_pessimistic_relabel)
 
-    dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric)
+    dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric, args.min_n_points_for_expansion)
     
     trainer = DSGTrainer(env, dsc_agent, dsg_agent, exploration_agent,
                          args.n_consolidation_episodes, 
@@ -208,8 +209,18 @@ if __name__ == "__main__":
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
     t0 = time.time()
+
+    # Create some possibly easy salient events using RND
     for warmup_iteration in range(args.n_warmup_iterations):
         trainer.graph_expansion_run_loop(warmup_iteration * args.n_expansion_episodes,
                                          num_episodes=args.n_expansion_episodes)
-    trainer.run_loop((warmup_iteration * args.n_expansion_episodes) + 1, int(1e5))
+
+    # After getting some easy goals, lets pre-train RND for a bit
+    for current_episode in range(warmup_iteration * args.n_expansion_episodes,
+                                (warmup_iteration * args.n_expansion_episodes) + 50):
+        state, info = trainer.env.reset()
+        trainer.exploration_rollout(state, current_episode)
+
+    # Full run loop that alternates between expansion and consolidation
+    trainer.run_loop(current_episode + 1, int(1e5))    
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")

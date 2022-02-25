@@ -1,4 +1,5 @@
 import os
+import ipdb
 import imageio
 import numpy as np
 import matplotlib.pyplot as plt
@@ -45,25 +46,31 @@ def visualize_graph_nodes_with_expansion_probabilities(planner,
     points = [_get_representative_point(n) for n in nodes]
     x_coords = [point[0] for point in points]
     y_coords = [point[1] for point in points]
-    vf_probabilities = [_get_node_probability(n, method='vf') for n in nodes]
     rf_probabilities = [_get_node_probability(n, method='rf') for n in nodes]
 
     nodes2 = planner.salient_events
     points2 = [_get_representative_point(n) for n in nodes2]
     x_coords2 = [point[0] for point in points2]
     y_coords2 = [point[1] for point in points2]
-    vf_probabilities2 = [_get_node_probability(n, method='vf') for n in nodes2]
     rf_probabilities2 = [_get_node_probability(n, method='rf') for n in nodes2]
+
+    # Expansion stats for salient events other than the start state salient event
+    expansion_nodes = planner.salient_events[1:] if len(planner.salient_events) > 0 else []
+    expansion_points = [_get_representative_point(n) for n in expansion_nodes]
+    expansion_xcoords = [point[0] for point in expansion_points]
+    expansion_ycoords = [point[1] for point in expansion_points]
+    n_expansion_attempts = [n.n_expansion_attempts for n in expansion_nodes]
+    n_expansions_completed = [n.n_expansions_completed for n in expansion_nodes]
 
     plt.figure(figsize=(16, 10))
 
     plt.subplot(2, 2, 1)
-    plt.scatter(x_coords, y_coords, c=vf_probabilities, s=100)
+    plt.scatter(expansion_xcoords, expansion_ycoords, c=n_expansion_attempts, s=100)
     plt.colorbar()
     plt.xlim((0, 150))
     plt.ylim((140, 250))
     plt.ylabel("Candidate Nodes")
-    plt.title("Intrinsic Value Function")
+    plt.title("Number of Expansion Attempts")
 
     plt.subplot(2, 2, 2)
     plt.scatter(x_coords, y_coords, c=rf_probabilities, s=100)
@@ -73,12 +80,12 @@ def visualize_graph_nodes_with_expansion_probabilities(planner,
     plt.title("Intrinsic Reward Function")
 
     plt.subplot(2, 2, 3)
-    plt.scatter(x_coords2, y_coords2, c=vf_probabilities2, s=100)
+    plt.scatter(expansion_xcoords, expansion_ycoords, c=n_expansions_completed, s=100)
     plt.colorbar()
     plt.xlim((0, 150))
     plt.ylim((140, 250))
     plt.ylabel("All Salient Nodes")
-    plt.title("Intrinsic Value Function")
+    plt.title("Num Expansions Completed")
 
     plt.subplot(2, 2, 4)
     plt.scatter(x_coords2, y_coords2, c=rf_probabilities2, s=100)
@@ -96,3 +103,17 @@ def visualize_graph_nodes_with_expansion_probabilities(planner,
     prefix = "event_node_prob_graph"
     plt.savefig(f"plots/{experiment_name}/{seed}/value_function_plots/{prefix}_episode_{episode}.png")
     plt.close()
+
+
+def get_regions_in_first_screen():
+    # region -> f(info) -> bool
+    return dict(
+        top_left=lambda info: info['player_x'] < 54 and info['player_y'] == 235,
+        top_right=lambda info: info['player_x'] > 98 and info['player_y'] == 235,
+        top_middle=lambda info: (89 > info['player_x'] > 63) and info['player_y'] == 235,
+        middle_left=lambda info: info['player_x'] < 36 and (209 >= info['player_y'] >= 180),
+        middle_middle=lambda info: (101 > info['player_x'] > 56) and info['player_y'] == 192,
+        middle_right=lambda info: info['player_x'] >= 120 and info['player_y'] == 192,
+        bottom_right=lambda info: info['player_x'] >= 123 and info['player_y'] == 148,
+        bottom_left=lambda info: info['player_x'] <= 23 and info['player_y'] == 148,
+    )

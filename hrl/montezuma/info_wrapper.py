@@ -34,7 +34,7 @@ class MontezumaInfoWrapper(gym.Wrapper):
         info["has_key"] = self.get_has_key(ram)
         info["room_number"] = self.get_room_number(ram)
         info["jumping"] = self.get_is_jumping(ram)
-        info["dead"] = int(info["lives"] < self.num_lives)
+        info["dead"] = int(info["lives"] < self.num_lives) or (self.getByte(ram, 'b7') > 0)
 
         if update_lives:
             self.num_lives = info["lives"]
