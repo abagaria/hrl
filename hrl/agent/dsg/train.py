@@ -97,6 +97,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--reject_jumping_states", action="store_true", default=False)
     parser.add_argument("--min_n_points_for_expansion", type=int, default=3)
+    parser.add_argument("--make_off_policy_updates", action="store_true", default=False)
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
@@ -204,7 +205,8 @@ if __name__ == "__main__":
                          predefined_events,
                          args.enable_rnd_logging,
                          args.disable_graph_expansion,
-                         args.reject_jumping_states)
+                         args.reject_jumping_states,
+                         make_off_policy_update=args.make_off_policy_updates)
 
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
