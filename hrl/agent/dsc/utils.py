@@ -1,5 +1,6 @@
 import os
 from re import L
+from importlib_metadata import itertools
 import pfrl
 import torch
 import scipy
@@ -106,21 +107,27 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     plt.close()
 
 
-def make_chunked_goal_conditioned_value_function_plot(solver,
-                                                      goal, episode, seed,
-                                                      experiment_name, chunk_size=1000, option_idx=None):
+def make_chunked_goal_conditioned_value_function_plot(solver, options,
+                                                      goal_salient_event, episode, seed,
+                                                      experiment_name, chunk_size=1000):
     assert isinstance(solver, Rainbow)
 
-    replay_buffer = solver.rbuf
+    goal = goal_salient_event.target_obs
+    goal_pos = goal_salient_event.target_pos
 
-    def _get_states():
-        states = []
-        positions = []
-        memory = replay_buffer.memory.data
-        for n_transitions in memory:
-            transition = n_transitions[-1]
-            states.append(transition["next_state"])
-            positions.append(transition["position"])
+    def get_chunks(x, n):
+        """ Break x into chunks of size n. """
+        for i in range(0, len(x), n):
+            yield x[i: i+n]
+
+    def _get_states2():
+        training_egs = []
+        for option in options:
+            pos_egs = list(itertools.chain.from_iterable(option.initiation_classifier.positive_examples))
+            neg_egs = list(itertools.chain.from_iterable(option.initiation_classifier.negative_examples))
+            training_egs.extend(pos_egs + neg_egs + list(option.effect_set))
+        states = [eg.obs for eg in training_egs]
+        positions = np.array([eg.pos for eg in training_egs])
         return states, positions
 
     def cat(s, g):
@@ -129,7 +136,7 @@ def make_chunked_goal_conditioned_value_function_plot(solver,
         return atari_wrappers.LazyFrames(list(s._frames)[:4] + [g], stack_axis=0)
 
     def _get_gc_states():
-        states, positions = _get_states()
+        states, positions = _get_states2()
         return [cat(s, goal) for s in states], positions
 
     # Take out the original goal and append the new goal
@@ -141,8 +148,8 @@ def make_chunked_goal_conditioned_value_function_plot(solver,
     if num_chunks == 0:
         return 0.
 
-    state_chunks = np.array_split(states, num_chunks, axis=0)
-    values = np.zeros((len(states),))
+    state_chunks = get_chunks(states, num_chunks)
+    values = torch.zeros((len(states),)).to(solver.device)
     current_idx = 0
 
     for state_chunk in tqdm(state_chunks, desc="Making VF plot"):
@@ -150,10 +157,10 @@ def make_chunked_goal_conditioned_value_function_plot(solver,
         values[current_idx:current_idx + current_chunk_size] = solver.value_function(state_chunk)
         current_idx += current_chunk_size
 
-    plt.scatter(positions[:, 0], positions[:, 1], c=values)
+    plt.scatter(positions[:, 0], positions[:, 1], c=values.cpu().numpy())
     plt.colorbar()
-    plt.title(f"VF Targeting {np.round(goal, 2)}")
-    plt.savefig(f"plots/{experiment_name}/{seed}/value_function_episode_{episode}_option_{option_idx}.png")
+    plt.title(f"VF Targeting {np.round(goal_pos, 2)}")
+    plt.savefig(f"plots/{experiment_name}/{seed}/value_function_plots/vf_goal_{goal_pos}_episode_{episode}.png")
     plt.close()
 
     return values.max()
