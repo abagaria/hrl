@@ -55,6 +55,7 @@ class RNDAgent(Runner):
         else:
             action = self._initialize_episode_from_point(initial_state)
         
+        actions = [action]
         is_terminal = False
 
         # Keep interacting until we reach a terminal state
@@ -91,6 +92,7 @@ class RNDAgent(Runner):
                 action = self._agent.step(reward, observation)
 
             step_number += 1
+            actions.append(action)
 
         self._end_episode(reward)
 
@@ -99,7 +101,11 @@ class RNDAgent(Runner):
         logging.info('Completed episode %d', iteration)
         logging.info('Steps taken: %d Total reward: %d', step_number, sum(rewards))
 
-        return np.array(observations), np.array(rewards), np.array(intrinsic_rewards), visited_infos
+        return np.array(observations),\
+               actions,\
+               np.array(rewards),\
+               np.array(intrinsic_rewards),\
+               visited_infos
 
     def get_intrinsic_reward(self, obs):
         rf = self._agent.intrinsic_model.compute_intrinsic_reward
