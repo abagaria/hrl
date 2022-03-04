@@ -15,7 +15,8 @@ from ..dsc.dsc import RobustDSC
 from hrl.agent.dsc.utils import pos_to_info
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
-from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities, get_regions_in_first_screen
+from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
+from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
 
 
 class DSGTrainer:
@@ -27,7 +28,9 @@ class DSGTrainer:
                  predefined_events=[],
                  enable_rnd_logging=False,
                  disable_graph_expansion=False,
-                 reject_jumping_states=False):
+                 reject_jumping_states=False,
+                 use_strict_regions=True,
+                 make_off_policy_update=False):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
@@ -43,6 +46,8 @@ class DSGTrainer:
         self.init_salient_event = dsc.init_salient_event
         self.goal_selection_criterion = goal_selection_criterion
         self.reject_jumping_states = reject_jumping_states
+        self.use_strict_regions = use_strict_regions
+        self.make_off_policy_update = make_off_policy_update
 
         self.salient_events = []
         self.predefined_events = predefined_events
@@ -78,6 +83,8 @@ class DSGTrainer:
             print(f"[Episode={episode}, Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
+        exploration_inits = []
+        exploration_actions = []
         exploration_observations = []
         exploration_visited_infos = []
         exploration_extrinsic_rewards = []
@@ -97,46 +104,102 @@ class DSGTrainer:
 
             if reached and not done and not reset:
                 expansion_node.n_expansions_completed += 1
-                observations, rewards, visited_infos = self.exploration_rollout(state, episode)
-
-                # Filter out states that are inside other nodes or correspond to death states
-                observations, rewards, visited_infos = self.filter_exploration_trajectory(observations,
-                                                                                          rewards,
-                                                                                          visited_infos)
+                init_state, observations, actions, rewards, visited_infos = self.exploration_rollout(state, episode)
 
                 if len(observations) > 0:
-                    exploration_observations.extend(observations)
-                    exploration_extrinsic_rewards.extend(rewards)
-                    exploration_visited_infos.extend(visited_infos)
+                    exploration_inits.append(init_state)
+                    exploration_actions.append(actions)
+                    exploration_observations.append(observations)
+                    exploration_extrinsic_rewards.append(rewards)
+                    exploration_visited_infos.append(visited_infos)
 
         # Examine *all* exploration trajectories and extract potential salient events
         if len(exploration_observations) > 0:
-            extrinsic_subgoals, intrinsic_subgoals = self.extract_subgoals(
+
+            intrinsic_subgoals, extrinsic_subgoals, \
+            intrinsic_trajectory_idx, extrinsic_trajectory_idx = self.new_subgoal_extractor(
                 exploration_observations,
-                exploration_visited_infos,
                 exploration_extrinsic_rewards,
+                exploration_visited_infos
             )
 
-            assert len(intrinsic_subgoals) == 1, len(intrinsic_subgoals)
-            new_events = self.convert_discovered_goals_to_salient_events(extrinsic_subgoals+intrinsic_subgoals)
+            if intrinsic_subgoals or extrinsic_subgoals:
+                new_events = self.convert_discovered_goals_to_salient_events(
+                    extrinsic_subgoals+intrinsic_subgoals
+                )
+        
+                if self.make_off_policy_update:
+                    for i in intrinsic_trajectory_idx + extrinsic_trajectory_idx:
+                        pfrl_observations = self.dopamine2pfrl(exploration_inits[i], exploration_observations[i])
+                        exploration_trajectory = self.create_exploration_trajectory(pfrl_observations,
+                                                                                    exploration_actions[i],
+                                                                                    exploration_extrinsic_rewards[i],
+                                                                                    exploration_visited_infos[i],
+                                                                                    new_events)
+                        self.off_policy_update(exploration_trajectory)
 
-            if self.enable_rnd_logging:
-                self.log_rnd_progress(intrinsic_subgoals, extrinsic_subgoals, new_events, episode)
+                if self.enable_rnd_logging:
+                    self.log_rnd_progress(intrinsic_subgoals, extrinsic_subgoals, new_events, episode)
 
     def exploration_rollout(self, state, episode):
         assert isinstance(state, atari_wrappers.LazyFrames)
 
         # convert LazyFrame to np array for dopamine
         initial_state = np.asarray(state)
-        initial_state = np.reshape(state, self.rnd_agent._agent.state.shape)
+        initial_state = np.reshape(initial_state, self.rnd_agent._agent.state.shape)
 
-        observations, rewards, intrinsic_rewards, visited_infos = self.rnd_agent.rollout(initial_state)
+        observations, actions, rewards, intrinsic_rewards, visited_infos = self.rnd_agent.rollout(initial_state)
 
         self.rnd_extrinsic_rewards.append(rewards)
         self.rnd_intrinsic_rewards.append(intrinsic_rewards)
         print(f"[RND Rollout] Episode {episode}\tReward: {rewards.sum()}\tIntrinsicReward: {intrinsic_rewards.sum()}")
 
-        return observations, rewards, visited_infos
+        return initial_state, observations, actions, rewards, visited_infos
+        
+    def dopamine2pfrl(self, init_state, observations):
+        """ Convert a dopamine trajectory into one that can be consumed by pfrl. """
+        
+        frame_stack = 4
+        pfrl_observations = []
+        s0 = init_state.transpose(3, 1, 2, 0)  # (1, 84, 84, 4) -> (4, 84, 84, 1)
+        assert s0.shape == (4, 84, 84, 1), s0.shape
+        padded_observations = list(s0) + list(observations)
+
+        for i in range(len(padded_observations)-3):
+            frames = padded_observations[i : i+frame_stack]
+            lazy_frames = self.stack_to_lz(frames)
+            pfrl_observations.append(lazy_frames)
+
+        return pfrl_observations
+
+    def create_exploration_trajectory(self, observations, actions, rewards, infos, new_events):
+        exploration_trajectory = []
+        start_observations = observations[:-1]
+        next_observations = observations[1:]
+
+        assert len(start_observations) == len(next_observations) == len(actions) == len(rewards) == len(infos)
+
+        # Convert trajectory into a list of (s, a, r, s', done, reset, info) tuples
+        # We are going to assume 0 rewards for all transitions for now, later in `off_policy_update`,
+        # we will give the final transition a positive terminal reward
+        for o, a, op, info in zip(start_observations, actions, next_observations, infos):
+            exploration_trajectory.append((o, a, 0., op, False, False, info))
+
+            # Truncate the traj when we hit the newly created salient event
+            if any([event(info) for event in new_events]):
+                print(f"Final info of the off-policy trajectory is {info}")
+                print(f"Going to make off-policy update on {len(exploration_trajectory)} transitions.")
+                break
+
+        return exploration_trajectory
+
+    def off_policy_update(self, exploration_trajectory):
+        """ Take successful RND trajectory and make an off-policy update to the exploitation policy. """
+        final_transition = exploration_trajectory[-1]
+        reached_goal = final_transition[3]
+        assert isinstance(reached_goal, atari_wrappers.LazyFrames), type(reached_goal)
+        relabeled_trajectory = self.dsc_agent.global_option.positive_relabel(exploration_trajectory)
+        self.dsc_agent.global_option.experience_replay(relabeled_trajectory, reached_goal)
 
     def log_rnd_progress(self, intrinsic_subgoals, extrinsic_subgoals, added_events, episode):
 
@@ -362,21 +425,23 @@ class DSGTrainer:
     # Skill graph expansion
     # ---------------------------------------------------
 
+    @staticmethod
+    def stack_to_lz(frames):
+        """ Convert a list of dopamine frames to a LazyFrames object. """
+        if len(frames) < 4:
+            n_pad_frames = 4 - len(frames)
+            pad_frames = [frames[0] for _ in range(n_pad_frames)]
+            frames = pad_frames + frames
+            assert len(frames) == 4, len(frames)
+        frames = [frame.transpose(2, 0, 1) for frame in frames]
+        return atari_wrappers.LazyFrames(frames, stack_axis=0)
+
     def extract_subgoals(self, observations, infos, extrinsic_rewards):
-        def stack_to_lz(frames):
-            """ Convert a list of frames to a LazyFrames object. """
-            if len(frames) < 4:
-                n_pad_frames = 4 - len(frames)
-                pad_frames = [frames[0] for _ in range(n_pad_frames)]
-                frames = pad_frames + frames
-                assert len(frames) == 4, len(frames)
-            frames = [frame.transpose(2, 0, 1) for frame in frames]
-            return atari_wrappers.LazyFrames(frames, stack_axis=0)
 
         def extract_subgoals_from_ext_rewards(obs, info, rewards):
             indexes = [i for i, r in enumerate(rewards) if r > 0]
             if len(indexes) > 0:
-                states = [stack_to_lz(obs[max(0, i-3):min(i+1, len(obs))]) for i in indexes]
+                states = [self.stack_to_lz(obs[max(0, i-3):min(i+1, len(obs))]) for i in indexes]
                 selected_infos = [info[i] for i in indexes]
                 positive_rewards = [rewards[i] for i in indexes]
                 return list(zip(states, selected_infos, positive_rewards))
@@ -385,13 +450,82 @@ class DSGTrainer:
         def extract_subgoals_from_int_rewards(obs, info):
             r_int = self.rnd_agent.reward_function(obs)
             i = r_int.argmax()
-            state = stack_to_lz(obs[max(0, i-3):min(i+1, len(obs))])
+            state = self.stack_to_lz(obs[max(0, i-3):min(i+1, len(obs))])
             return [(state, info[i], r_int[i])]
 
         subgoals1 = extract_subgoals_from_ext_rewards(observations, infos, extrinsic_rewards)
         subgoals2 = extract_subgoals_from_int_rewards(observations, infos)
 
         return subgoals1, subgoals2
+
+    def score_exploration_trajectory(self, observations, rewards, infos):
+        """ Given a dopamine trajectory, return the following:
+        1. The original trajectory
+        2. Intrinsic score of the trajectory
+        3. Transition corresponding to the highest intrinsic score
+        4. Transitions corresponding to the positive extrinsic rewards
+        """
+        def frame2state(traj, idx):
+            """ Convert a dopamine obs to a pfrl LazyFrames object. """
+            return self.stack_to_lz(
+                traj[
+                    max(0, idx - 3) : min(idx + 1, len(traj))
+                ]
+            )
+
+        f_observations, f_rewards, f_infos = self.filter_exploration_trajectory(observations, rewards, infos)
+
+        if len(f_observations) > 0:
+
+            intrinsic_rewards = self.rnd_agent.reward_function(f_observations)
+            
+            i = intrinsic_rewards.argmax()
+            intrinsic_score = intrinsic_rewards.max()
+
+            # TODO: we should be indexing into the unfiltered observations
+            best_intrinsic_state = frame2state(f_observations, i)
+            best_intrinsic_sir_triple = best_intrinsic_state, f_infos[i], f_rewards[i]
+
+            pos_extrinsic_idx = [j for j in range(len(f_rewards)) if f_rewards[j] > 0]
+            best_extrinsic_sir_triples = [(frame2state(f_observations, j), f_infos[j],\
+                                        f_rewards[j]) for j in pos_extrinsic_idx]
+
+            return intrinsic_score, best_intrinsic_sir_triple, best_extrinsic_sir_triples
+        
+        return -np.inf, [], []
+
+    def new_subgoal_extractor(self, observations, rewards, infos):
+        """ Given unfiltered dopamine trajectories (represented as lists of lists), 
+        return the following:
+        1. (s, i, r) triple corresponding to the highest intrinsic reward
+        2. (s, i, r) triple corresponding to positive extrinsic rewards
+        3. Trajectory index corresponding to the highest intrinsic reward
+        4. Trajectory indices corresponding to positive extrinsic rewards
+        """
+        extrinsic_triples = []
+        best_intrinsic_score = -np.inf
+        best_intrinsic_triple = None
+        best_intrinsic_trajectory_idx = None
+        extrinsic_trajectory_idx = []
+
+        for i, (obs_traj, reward_traj, info_traj) in enumerate(zip(observations, rewards, infos)):
+            intrinsic_score, best_int_triple, ext_triples = self.score_exploration_trajectory(
+                obs_traj, reward_traj, info_traj
+            )
+            
+            if intrinsic_score > best_intrinsic_score:
+                best_intrinsic_score = intrinsic_score
+                best_intrinsic_triple = best_int_triple
+                best_intrinsic_trajectory_idx = i
+            
+            if len(ext_triples) > 0:
+                extrinsic_triples.extend(ext_triples)
+                extrinsic_trajectory_idx.append(i)
+
+        intrinsic_triples = [best_intrinsic_triple] if best_intrinsic_triple else []
+
+        return intrinsic_triples, extrinsic_triples, \
+               [best_intrinsic_trajectory_idx], extrinsic_trajectory_idx
     
     def should_reject_new_event(self, info, regions):
         def get_satisfied_regions(i):
@@ -432,11 +566,12 @@ class DSGTrainer:
             return any([distance < 5. for distance in distances])
 
         def should_reject(obs, info):
+            regions = get_regions_in_first_screen() if self.use_strict_regions else get_lineant_regions_in_first_screen()
             return is_death_state(info) or \
                    is_inside_another_event(info) or \
                    is_close_to_another_event(info) or \
                    (is_jumping(info) and self.reject_jumping_states) or \
-                   self.should_reject_new_event(info, get_regions_in_first_screen())
+                   self.should_reject_new_event(info, regions)
         
         if len(observations) > 3:
             accepted_triples = [(obs, reward, info) for obs, reward, info in 
