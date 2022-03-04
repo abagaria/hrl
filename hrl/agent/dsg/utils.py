@@ -117,3 +117,15 @@ def get_regions_in_first_screen():
         bottom_right=lambda info: info['player_x'] >= 123 and info['player_y'] == 148,
         bottom_left=lambda info: info['player_x'] <= 23 and info['player_y'] == 148,
     )
+
+def get_lineant_regions_in_first_screen():
+    return dict(
+        top_left=lambda info: info['player_x'] < 54 and info['player_y'] >= 235,
+        top_right=lambda info: info['player_x'] > 98 and info['player_y'] >= 235,
+        top_middle=lambda info: (89 > info['player_x'] > 63) and info['player_y'] >= 235,
+        middle_left=lambda info: info['player_x'] < 36 and (209 >= info['player_y'] >= 180),
+        middle_middle=lambda info: (101 > info['player_x'] > 56) and (209 >= info['player_y'] >= 180),
+        middle_right=lambda info: info['player_x'] >= 120 and (209 >= info['player_y'] >= 180),
+        bottom_right=lambda info: info['player_x'] >= 123 and info['player_y'] <= 160,
+        bottom_left=lambda info: info['player_x'] <= 23 and info['player_y'] <= 160,
+    )
