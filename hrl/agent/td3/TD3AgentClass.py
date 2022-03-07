@@ -96,20 +96,21 @@ class TD3(object):
 
         return normalized_actions
 
-    def step(self, state, action, reward, next_state, is_terminal, reset=False):
-        info = self.compute_extra_info(state, next_state) if self.store_extra_info else None
+    def step(self, state, action, reward, next_state, is_terminal, reset=False, episode=None):
+        info = self.compute_extra_info(episode, state, next_state) if self.store_extra_info else None
         self.replay_buffer.add(state, action, reward, next_state, is_terminal, info=info)
 
         if len(self.replay_buffer) > self.batch_size:
             self.train(self.replay_buffer, self.batch_size)
 
-    def compute_extra_info(self, state, next_state):
+    def compute_extra_info(self, episode, state, next_state):
         s = state[np.newaxis, ...]
         sp = next_state[np.newaxis, ...]
         states = np.concatenate((s, sp), axis=0)
         values = self.get_values(states)
         next_action = self.get_actions(sp)
         return dict(
+            episode=episode,
             values=values,
             next_action=next_action
         )
@@ -231,7 +232,8 @@ class TD3(object):
                                        np.sign(reward), 
                                        next_state, 
                                        done or reached, 
-                                       reset))
+                                       reset,
+                                       episode))
 
             self.T += 1
             episode_length += 1

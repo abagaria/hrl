@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 
 from hrl.utils import create_log_dir
+from hrl.agent.td3.utils import save
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.wrappers.environments.ant_maze_env import AntMazeEnv
@@ -58,6 +59,7 @@ if __name__ == "__main__":
     parser.add_argument("--plot_value_function", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     parser.add_argument("--save_replay_buffer", action="store_true", default=False)
+    parser.add_argument("--save_agent", action="store_true", default=False)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -67,6 +69,10 @@ if __name__ == "__main__":
     create_log_dir("plots")
     create_log_dir(f"plots/{args.experiment_name}")
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}")
+
+    create_log_dir("saved_modes")
+    create_log_dir(f"saved_models/{args.experiment_name}")
+    create_log_dir(f"saved_models/{args.experiment_name}/{args.seed}")
 
     with open(f"logs/{args.experiment_name}/{args.seed}/hyperparameters.txt", "w+") as _args_file:
         json.dump(args.__dict__, _args_file, indent=2)
@@ -131,5 +137,8 @@ if __name__ == "__main__":
         
         if args.save_replay_buffer and current_episode % 100 == 0:
             agent.replay_buffer.save(_buffer_log_file)
+
+        if args.save_agent and current_episode % 500 == 0:
+            save(agent, f"saved_models/{args.experiment_name}/{args.seed}/td3_episode_{current_episode}")
 
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")

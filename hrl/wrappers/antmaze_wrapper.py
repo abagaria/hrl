@@ -57,6 +57,8 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		assert isinstance(states, (np.ndarray, torch.Tensor))
 		assert isinstance(goals, (np.ndarray, torch.Tensor))
 
+		# import ipdb; ipdb.set_trace()
+		
 		if batched:
 			current_positions = states[:,:2]
 			goal_positions = goals[:,:2]
@@ -64,12 +66,19 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 			current_positions = states[:2]
 			goal_positions = goals[:2]
 		distances = self.norm_func(current_positions - goal_positions)
-		dones = distances <= self.goal_tolerance
 
-		assert distances.shape == dones.shape == (states.shape[0], ) == (goals.shape[0], )
+		if batched:
+			dones = distances <= self.goal_tolerance
 
-		rewards = -distances
-		rewards[dones==True] = self.goal_reward
+			assert distances.shape == dones.shape == (states.shape[0], ) == (goals.shape[0], )
+
+			rewards = -distances
+			rewards[dones==True] = self.goal_reward
+		
+		else:
+			assert np.isscalar(distances), distances 
+			dones = distances <= self.goal_tolerance
+			rewards = -distances if not dones else self.goal_reward
 
 		return rewards, dones
 	
