@@ -98,6 +98,9 @@ if __name__ == "__main__":
     parser.add_argument("--reject_jumping_states", action="store_true", default=False)
     parser.add_argument("--min_n_points_for_expansion", type=int, default=3)
     parser.add_argument("--make_off_policy_updates", action="store_true", default=False)
+    parser.add_argument("--goal_selection_epsilon", type=float, default=0.2, help="Random prob with which we select connected goals")
+    parser.add_argument("--boltzmann_temperature", type=float, default=2.)
+    parser.add_argument("--create_sparse_graph", action="store_true", default=False)
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
@@ -206,16 +209,21 @@ if __name__ == "__main__":
                          args.enable_rnd_logging,
                          args.disable_graph_expansion,
                          args.reject_jumping_states,
-                         make_off_policy_update=args.make_off_policy_updates)
+                         make_off_policy_update=args.make_off_policy_updates,
+                         goal_selection_epsilon=args.goal_selection_epsilon,
+                         boltzmann_temperature=args.boltzmann_temperature,
+                         create_sparse_graph=args.create_sparse_graph)
 
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
     t0 = time.time()
 
     # Create some possibly easy salient events using RND
+    trainer.create_sparse_graph = False
     for warmup_iteration in range(args.n_warmup_iterations):
         trainer.graph_expansion_run_loop(warmup_iteration * args.n_expansion_episodes,
                                          num_episodes=args.n_expansion_episodes)
+    trainer.create_sparse_graph = args.create_sparse_graph
 
     # After getting some easy goals, lets pre-train RND for a bit
     for current_episode in range(warmup_iteration * args.n_expansion_episodes,

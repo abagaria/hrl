@@ -9,10 +9,10 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
 
+from scipy import special
 from pfrl.wrappers import atari_wrappers
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
-from hrl.agent.dsc.utils import pos_to_info
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
@@ -30,12 +30,19 @@ class DSGTrainer:
                  disable_graph_expansion=False,
                  reject_jumping_states=False,
                  use_strict_regions=True,
-                 make_off_policy_update=False):
+                 make_off_policy_update=False,
+                 goal_selection_epsilon=0.2,
+                 boltzmann_temperature=2.0,
+                 create_sparse_graph=False):
         assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
         assert isinstance(rnd, RNDAgent)
-        assert goal_selection_criterion in ("random", "closest", "random_unconnected")
+        assert goal_selection_criterion in ("random",
+                                            "closest",
+                                            "random_unconnected",
+                                            "boltzmann_unconnected",
+                                            "competence")
 
         self.env = env
         self.dsc_agent = dsc
@@ -48,6 +55,9 @@ class DSGTrainer:
         self.reject_jumping_states = reject_jumping_states
         self.use_strict_regions = use_strict_regions
         self.make_off_policy_update = make_off_policy_update
+        self.goal_selection_epsilon = goal_selection_epsilon
+        self.boltzmann_temperature = boltzmann_temperature
+        self.create_sparse_graph = create_sparse_graph
 
         self.salient_events = []
         self.predefined_events = predefined_events
@@ -122,6 +132,11 @@ class DSGTrainer:
                 exploration_extrinsic_rewards,
                 exploration_visited_infos
             )
+
+            if self.create_sparse_graph:
+                intrinsic_subgoals, intrinsic_trajectory_idx = self.filter_subgoals_based_on_sparsity_cond(
+                    intrinsic_subgoals, intrinsic_trajectory_idx
+                )
 
             if intrinsic_subgoals or extrinsic_subgoals:
                 new_events = self.convert_discovered_goals_to_salient_events(
@@ -285,20 +300,41 @@ class DSGTrainer:
 
     def select_goal_salient_event(self, state, info):
         """ Select goal node to target during graph consolidation. """
+        if random.random() > self.goal_selection_epsilon:
 
-        if self.goal_selection_criterion == "closest":
-            selected_event = self._select_closest_unconnected_salient_event(state, info)
+            if self.goal_selection_criterion == "closest":
+                selected_event = self._select_closest_unconnected_salient_event(state, info)
 
-            if selected_event is not None:
-                print(f"[Closest] DSG selected event {selected_event}")
-                return selected_event
+                if selected_event is not None:
+                    print(f"[Closest] DSG selected event {selected_event}")
+                    return selected_event
 
-        if self.goal_selection_criterion == "random_unconnected":
-            selected_event = self._select_random_unconnected_salient_event(state, info)
+            if self.goal_selection_criterion == "random_unconnected":
+                selected_event = self._select_random_unconnected_salient_event(state, info)
 
-            if selected_event is not None:
-                print(f"[RandomUnconnected] DSG selected event {selected_event}")
-                return selected_event
+                if selected_event is not None:
+                    print(f"[RandomUnconnected] DSG selected event {selected_event}")
+                    return selected_event
+            
+            if self.goal_selection_criterion == "boltzmann_unconnected":
+                selected_event = self._select_boltzmann_closest_salient_event(state, info)
+
+                if selected_event is not None:
+                    print(f"[BoltzmannClosest] DSG selected event: {selected_event}")
+                    return selected_event
+
+            if self.goal_selection_criterion == "competence":
+                selected_event = self._select_competence_progress_salient_event(state, info, "unconnected")
+
+                if selected_event is not None:
+                    print(f"[{self.goal_selection_criterion}] DSG selectd event: {selected_event}")
+                    return selected_event
+
+        selected_event = self._select_competence_progress_salient_event(state, info, "connected")
+        
+        if selected_event is not None:
+            print(f"[CompetenceConnected] DSG selected event: {selected_event}")
+            return selected_event
 
         selected_event = self._randomly_select_salient_event(state, info)
         print(f"[Random] DSG selected event {selected_event}")
@@ -341,10 +377,81 @@ class DSGTrainer:
         if closest_pair is not None:
             return closest_pair[1]
 
+    def _select_boltzmann_closest_salient_event(self, state, info):
+        current_events = self.get_corresponding_salient_events(state, info)
+        unconnected_events = self._get_unconnected_events(state, info)
+
+        if current_events and unconnected_events:
+
+            if len(unconnected_events) == 1:
+                return unconnected_events[0]
+
+            distance_matrix = self.dsg_agent.get_distance_matrix(
+                current_events,
+                unconnected_events, 
+                metric="vf"
+            )
+            
+            # Higher the temperature, wider the output distribution
+            probabilities = special.softmax(
+                1. / distance_matrix / self.boltzmann_temperature,
+                axis=1
+            )
+
+            selected_event = np.random.choice(unconnected_events, size=1, p=probabilities.squeeze())[0]
+            assert isinstance(selected_event, SalientEvent), type(selected_event)
+
+            return selected_event
+    
+    def _select_competence_progress_salient_event(self, state, info, select_among):
+        """ Use competence progress to determine which salient event to target next. """
+        # TODO: Currently this is agnostic to the start state of the learning curve
+        assert select_among in ("connected", "unconnected"), select_among
+
+        scores = []
+        window_size = 50  # episodes  # TODO: How to pick this?
+
+        if select_among == "unconnected":
+            candidate_events = self._get_unconnected_events(state, info)
+        else:
+            candidate_events = self._get_connected_events(state, info)
+
+        if len(candidate_events) > 1:
+        
+            for event in candidate_events:
+                key = tuple(event.target_pos)
+                if key in self.dsg_agent.gc_successes and \
+                    len(self.dsg_agent.gc_successes[key]) >= (2 * window_size):
+                    n_recent_successes = sum(self.dsg_agent.gc_successes[key][-window_size:])
+                    n_past_successes = sum(self.dsg_agent.gc_successes[key][-2*window_size:window_size])
+                    score = abs(n_recent_successes - n_past_successes) / window_size
+                else:  # Optimistic initialization
+                    score = 1.
+                
+                scores.append(score)
+
+            scores = np.array(scores)
+            probabilities = special.softmax(scores / self.boltzmann_temperature)
+
+            selected_event = np.random.choice(candidate_events, size=1, p=probabilities.squeeze())[0]
+            assert isinstance(selected_event, SalientEvent), type(selected_event)
+
+            print(f"Candidate events: {candidate_events} | Probabilities: {probabilities}")
+
+            return selected_event
+
+        if len(candidate_events) == 1:
+            return candidate_events[0]
+
     def _get_unconnected_events(self, state, info):
         candidate_events = [event for event in self.salient_events if not event(info)]
         unconnected_events = self.dsg_agent.planner.get_unconnected_nodes(state, info, candidate_events)
         return unconnected_events
+
+    def _get_connected_events(self, state, info):
+        candidate_events = [event for event in self.salient_events if not event(info)]
+        connected_events = [event for event in candidate_events if self.dsg_agent.planner.does_path_exist(state, info, event)]
+        return connected_events
 
     # ---------------------------------------------------
     # Manage skill chains
@@ -484,7 +591,7 @@ class DSGTrainer:
 
             # TODO: we should be indexing into the unfiltered observations
             best_intrinsic_state = frame2state(f_observations, i)
-            best_intrinsic_sir_triple = best_intrinsic_state, f_infos[i], f_rewards[i]
+            best_intrinsic_sir_triple = best_intrinsic_state, f_infos[i], intrinsic_score
 
             pos_extrinsic_idx = [j for j in range(len(f_rewards)) if f_rewards[j] > 0]
             best_extrinsic_sir_triples = [(frame2state(f_observations, j), f_infos[j],\
@@ -526,7 +633,23 @@ class DSGTrainer:
 
         return intrinsic_triples, extrinsic_triples, \
                [best_intrinsic_trajectory_idx], extrinsic_trajectory_idx
-    
+
+    def filter_subgoals_based_on_sparsity_cond(self, sir_triples, trajectory_idx):
+        filtered_triples = []
+        filtered_trajectory_idx = []
+        
+        sess = self.rnd_agent._agent.intrinsic_model._sess
+        rnd_mean = sess.run(self.rnd_agent._agent.intrinsic_model.reward_mean)
+        rnd_std = sess.run(self.rnd_agent._agent.intrinsic_model.reward_std)
+
+        for sir, idx in zip(sir_triples, trajectory_idx):
+            intrinsic_reward = sir[2]
+            assert isinstance(intrinsic_reward, float), intrinsic_reward
+            if intrinsic_reward > rnd_mean + (2 * rnd_std):
+                filtered_triples.append(sir)
+                filtered_trajectory_idx.append(idx)
+        return filtered_triples, filtered_trajectory_idx
+
     def should_reject_new_event(self, info, regions):
         def get_satisfied_regions(i):
             return [region for region in regions if regions[region](i)]
