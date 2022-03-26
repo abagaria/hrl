@@ -5,10 +5,14 @@ from gym import spaces
 from collections import deque
 
 
+START_POSITION = (77, 235)
+
+
 class MontezumaInfoWrapper(gym.Wrapper):
     def __init__(self, env):
         self.T = 0
         self.num_lives = None
+        self.death_flag = False
         gym.Wrapper.__init__(self, env)
     
     def reset(self, **kwargs):
@@ -34,7 +38,22 @@ class MontezumaInfoWrapper(gym.Wrapper):
         info["has_key"] = self.get_has_key(ram)
         info["room_number"] = self.get_room_number(ram)
         info["jumping"] = self.get_is_jumping(ram)
-        info["dead"] = int(info["lives"] < self.num_lives) or (self.getByte(ram, 'b7') > 0)
+        
+        # Did the player die in the current frame
+        # (commented out portion is the animation flag from RAM, which is imperfect)
+        current_death = int(info["lives"] < self.num_lives) # or (self.getByte(ram, 'b7') > 0)
+
+        # Raise the death flag
+        if current_death:
+            self.death_flag = True
+
+        # This takes the variable length of the death animation into account: 
+        # Lower the death flag if the player has respawned at the start location
+        if self.death_flag and self.get_current_position() == START_POSITION:
+            self.death_flag = False
+
+        # Finally, report the death cond in the info dict
+        info["dead"] = self.death_flag
 
         if update_lives:
             self.num_lives = info["lives"]
