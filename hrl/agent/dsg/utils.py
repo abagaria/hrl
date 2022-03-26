@@ -1,8 +1,12 @@
 import os
 import ipdb
+import math
+import random
 import imageio
 import numpy as np
 import matplotlib.pyplot as plt
+
+from scipy import special
 from hrl.salient_event.salient_event import SalientEvent
 
 
@@ -101,6 +105,82 @@ def visualize_graph_nodes_with_expansion_probabilities(planner,
             plt.imshow(background_image, zorder=0, alpha=0.5)
 
     prefix = "event_node_prob_graph"
+    plt.savefig(f"plots/{experiment_name}/{seed}/value_function_plots/{prefix}_episode_{episode}.png")
+    plt.close()
+
+
+def visualize_consolidation_probabilities(dsg_trainer,
+                                          episode,
+                                          experiment_name,
+                                          seed):
+
+    def _get_event_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.target_pos
+        trigger_positions = [eg.pos for eg in event.effect_set]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
+
+    def get_probabilities(events):  # TODO: This is bad code replication
+        scores = []
+        window_size = 50
+
+        if len(events) > 1:
+    
+            for event in events:
+                key = tuple(event.target_pos)
+                if key in dsg_trainer.dsg_agent.gc_successes and \
+                    len(dsg_trainer.dsg_agent.gc_successes[key]) >= (2 * window_size):
+                    n_recent_successes = sum(dsg_trainer.dsg_agent.gc_successes[key][-window_size:])
+                    n_past_successes = sum(dsg_trainer.dsg_agent.gc_successes[key][-2*window_size:window_size])
+                    score = abs(n_recent_successes - n_past_successes) / window_size
+                else:  # Optimistic initialization
+                    score = 1.
+                
+                scores.append(score)
+
+            scores = np.array(scores)
+            probabilities = special.softmax(scores / dsg_trainer.boltzmann_temperature)
+            return probabilities
+        
+        else:
+            scores = [0] * len(events)
+            return np.array(scores)
+    
+    state = dsg_trainer.init_salient_event.target_obs
+    info = dsg_trainer.init_salient_event.target_info
+    connected_events = dsg_trainer._get_connected_events(state, info)
+    unconnected_events = dsg_trainer._get_unconnected_events(state, info)
+
+    connected_probabilities = get_probabilities(connected_events)
+    unconnected_probabilities = get_probabilities(unconnected_events)
+
+    connected_points = [_get_event_representative_point(e) for e in connected_events]
+    connected_x_coords = [point[0] for point in connected_points]
+    connected_y_coords = [point[1] for point in connected_points]
+
+    unconnected_points = [_get_event_representative_point(e) for e in unconnected_events]
+    unconnected_x_coords = [point[0] for point in unconnected_points]
+    unconnected_y_coords = [point[1] for point in unconnected_points]
+
+    plt.figure(figsize=(16, 10))
+
+    plt.subplot(1, 2, 1)
+    plt.scatter(connected_x_coords, connected_y_coords, c=connected_probabilities, s=100)
+    plt.colorbar()
+    plt.xlim((0, 150))
+    plt.ylim((140, 250))
+    plt.title("Connected Consolidation Probabilities")
+
+    plt.subplot(1, 2, 2)
+    plt.scatter(unconnected_x_coords, unconnected_y_coords, c=unconnected_probabilities, s=100)
+    plt.colorbar()
+    plt.xlim((0, 150))
+    plt.ylim((140, 250))
+    plt.title("Unconnected Consolidation Probabilities")
+    
+    prefix = "event_consolidation_probs"
     plt.savefig(f"plots/{experiment_name}/{seed}/value_function_plots/{prefix}_episode_{episode}.png")
     plt.close()
 
