@@ -59,6 +59,9 @@ class ImageCNN(torch.nn.Module):
         # Add batch and channel dimensions to lone inputs
         if image.shape == (84, 84):
             image = image.unsqueeze(0).unsqueeze(0)
+
+        if image.shape == (1, 84, 84):
+            image = image.unsqueeze(0)
             
         return self.model(image)
 

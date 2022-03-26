@@ -50,6 +50,21 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
         features = torch.as_tensor(state).float().to(self.device)
         label = self.pessimistic_classifier.predict(features) == 1
         return label.cpu().numpy()
+
+    def get_false_positive_rate(self):
+        """ Fraction of the negative data that is classified as positive. """ 
+
+        negative_examples = self.construct_feature_matrix(self.negative_examples)
+        
+        if len(negative_examples) > 0:
+            optimistic_pred = self.optimistic_classifier.predict(negative_examples).cpu().numpy()
+            pessimistic_pred = self.pessimistic_classifier.predict(negative_examples).cpu().numpy()
+
+            return np.array(
+                optimistic_pred.mean(), pessimistic_pred.mean()
+            )
+
+        return np.array([1., 1.])
     
     def add_positive_examples(self, observations, infos):
         assert len(observations) == len(infos)
@@ -93,14 +108,14 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
                                                         threshold=self.optimistic_threshold,
                                                         n_input_channels=self.n_input_channels)
             self.optimistic_classifier.fit(X, Y)
-
-            training_predictions = self.optimistic_classifier.predict(X)
-            positive_training_examples = X[training_predictions == 1]
-            negative_training_examples = X[training_predictions != 1]
             
             # When pessimistic_relabel is True, we train the pessimistic classifier on the 
             # training predictions of the optimistic classifier. When false, we use the default labels.
             if self.pessimistic_relabel:
+                training_predictions = self.optimistic_classifier.predict(X)
+                positive_training_examples = X[training_predictions == 1]
+                negative_training_examples = X[training_predictions != 1]
+                
                 X_pessimistic = torch.cat(
                     (positive_training_examples,
                     negative_training_examples), 

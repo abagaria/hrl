@@ -14,6 +14,7 @@ from hrl.salient_event.salient_event import SalientEvent
 from .classifier.sift_classifier import SiftInitiationClassifier
 from .classifier.position_classifier import PositionInitiationClassifier
 from .classifier.fixed_conv_classifier import FixedConvInitiationClassifier
+from .classifier.ensemble_init_classifier import EnsembleInitiationClassifier
 from .classifier.single_conv_init_classifier import SingleConvInitiationClassifier
 from .classifier.double_conv_init_classifier import DoubleConvInitiationClassifier
 
@@ -115,7 +116,10 @@ class ModelFreeOption(object):
             return DoubleConvInitiationClassifier(device,
                 pessimistic_relabel=self.use_pessimistic_relabel)
         if self.classifier_type == "epistemic-cnn":
-            return
+            return EnsembleInitiationClassifier(
+                ensemble_size=5,
+                device=device,
+            )
         raise NotImplementedError(self.classifier_type)
 
     # ------------------------------------------------------------
@@ -167,6 +171,9 @@ class ModelFreeOption(object):
         
         if isinstance(state, atari_wrappers.LazyFrames):
             return state._frames[-1].squeeze()
+
+        if isinstance(state, np.ndarray):
+            return state.squeeze()
     
     def failure_condition(self, info, check_falling=False):
         targets_start_state = self.target_salient_event.target_pos[0] == 77.\

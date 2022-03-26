@@ -30,6 +30,9 @@ class PositionInitiationClassifier(InitiationClassifier):
         return self.optimistic_classifier is not None and \
             self.pessimistic_classifier is not None
 
+    def get_false_positive_rate(self):  # TODO: Implement this
+        return np.array([0., 0.])
+
     def add_positive_examples(self, images, positions):
         assert len(images) == len(positions)
 
