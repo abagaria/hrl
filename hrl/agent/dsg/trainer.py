@@ -11,10 +11,13 @@ import networkx.algorithms.shortest_paths as shortest_paths
 
 from scipy import special
 from pfrl.wrappers import atari_wrappers
+
+from hrl.agent.dsc.utils import info_to_pos
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
+from hrl.agent.dsg.utils import visualize_consolidation_probabilities
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
 from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
 
@@ -78,11 +81,33 @@ class DSGTrainer:
     # Run loops
     # ---------------------------------------------------
 
+    def should_expand(self, episode, method="fraction"):
+        assert method in ("fraction", "frequency"), method
+
+        if self.disable_graph_expansion:
+            return False
+        
+        if method == "frequency":
+            return episode % self.expansion_freq == 0
+        
+        # When we have connected most of the graph, then its time to expand again
+        s0 = self.init_salient_event.target_obs
+        i0 = self.init_salient_event.target_info
+
+        candidate_events = [event for event in self.salient_events if not event(i0)]
+        
+        n_total = len(candidate_events)
+        n_unconnected = len(self._get_unconnected_events(s0, i0))
+        n_connected = n_total - n_unconnected
+        assert n_total >= n_unconnected, f"{n_total, n_unconnected}"
+
+        return (n_total <= 4) or (n_connected / n_total) > 0.5
+
     def run_loop(self, start_episode, num_episodes):
         for episode in range(start_episode, start_episode + num_episodes):
             print("=" * 80); print(f"Episode: {episode} Step: {self.env.T}"); print("=" * 80)
 
-            if (not self.disable_graph_expansion) and (episode % self.expansion_freq == 0):
+            if self.should_expand(episode):
                 self.graph_expansion_run_loop(episode, self.expansion_duration)
             elif len(self.salient_events) > 0:
                 self.graph_consolidation_run_loop(episode)
@@ -264,6 +289,8 @@ class DSGTrainer:
                                                            episode,
                                                            self.dsc_agent.experiment_name,
                                                            self.dsc_agent.seed)
+
+        visualize_consolidation_probabilities(self, episode, self.dsc_agent.experiment_name, self.dsc_agent.seed)
 
         # self.rnd_agent.plot_value(episode=episode)
 
@@ -645,7 +672,7 @@ class DSGTrainer:
         for sir, idx in zip(sir_triples, trajectory_idx):
             intrinsic_reward = sir[2]
             assert isinstance(intrinsic_reward, float), intrinsic_reward
-            if intrinsic_reward > rnd_mean + (2 * rnd_std):
+            if intrinsic_reward > rnd_mean + (6. * rnd_std):
                 filtered_triples.append(sir)
                 filtered_trajectory_idx.append(idx)
         return filtered_triples, filtered_trajectory_idx
@@ -688,13 +715,31 @@ class DSGTrainer:
             distances = [event.distance(info) for event in self.salient_events]
             return any([distance < 5. for distance in distances])
 
+        def is_inside_option(state, info):
+            # Only considering root options because their classifiers tend to be tighter
+            root_options = [option for option in self.dsc_agent.mature_options if option.parent is None]
+            
+            # Only consider options which don't tend to predict true everywhere
+            fp_cond = lambda clf: (clf.get_false_positive_rate() < 0.7).all()
+            filtered_options = [option for option in root_options if fp_cond(option.initiation_classifier)]
+
+            # Combine the prediction of the optimistic and pessimitic classifiers to be conservative
+            combined_pred = lambda o: o.is_init_true(state, info) and o.pessimistic_is_init_true(state, info)
+            
+            for option in filtered_options:
+                if combined_pred(option):
+                    print(f"Rejecting {info_to_pos(info)} because of {option}")
+                    return True
+            return False
+
         def should_reject(obs, info):
             regions = get_regions_in_first_screen() if self.use_strict_regions else get_lineant_regions_in_first_screen()
             return is_death_state(info) or \
                    is_inside_another_event(info) or \
                    is_close_to_another_event(info) or \
                    (is_jumping(info) and self.reject_jumping_states) or \
-                   self.should_reject_new_event(info, regions)
+                   is_inside_option(obs, info)
+                #    or self.should_reject_new_event(info, regions)
         
         if len(observations) > 3:
             accepted_triples = [(obs, reward, info) for obs, reward, info in 
