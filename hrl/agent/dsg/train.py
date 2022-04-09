@@ -14,7 +14,7 @@ from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.dsg.dsg import SkillGraphAgent
 from hrl.agent.dsg.trainer import DSGTrainer
 from hrl.agent.dsc.utils import default_pos_to_info
-from hrl.salient_event.salient_event import SalientEvent
+from hrl.salient_event.salient_event import SalientEvent, BOVWSalientEvent
 from hrl.montezuma.info_wrapper import MontezumaInfoWrapper, Reshape
 
 
@@ -52,7 +52,8 @@ def get_exploration_agent(rnd_base_dir):
     from hrl.agent.bonus_based_exploration.run_experiment import create_exploration_agent as create_agent
 
     _gin_files = [
-        os.path.expanduser("~/git-repos/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
+        #os.path.expanduser("~/git-repos/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
+        os.path.expanduser("~/Documents/Research/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
     ]
 
     run_experiment.load_gin_configs(_gin_files, [])
@@ -144,6 +145,7 @@ if __name__ == "__main__":
     s0, _ = env.reset()
     p0 = env.get_current_position()
 
+    '''
     goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
     
     gpos = (123, 148)
@@ -173,6 +175,11 @@ if __name__ == "__main__":
     predefined_events = []
     if args.use_predefined_events:
         predefined_events = [beta1, beta2, beta3, beta4, beta5, beta6]
+    '''
+    # Let initial salient event be SalientEvent rather than BOVWSalientEvent?
+    beta0 = SalientEvent(s0, default_pos_to_info(p0), tol=2.)
+    pfrl.utils.set_random_seed(args.seed)
+    predefined_events = []
 
     dsc_agent = RobustDSC(env,
                           args.gestation_period,

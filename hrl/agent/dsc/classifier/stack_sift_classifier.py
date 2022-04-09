@@ -4,6 +4,7 @@ import pickle
 import itertools
 from collections import deque
 
+import cv2
 #import cudasift
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,7 +14,7 @@ from hrl.agent.dsc.datastructures import TrainingExample
 from hrl.agent.dsc.classifier.init_classifier import InitiationClassifier
     
 
-class BOVWClassifier:
+class StackBOVWClassifier:
     """
     bag of visual words (BOVW) classifier
     used for image classification
@@ -24,6 +25,8 @@ class BOVWClassifier:
         self.num_clusters = num_clusters
         self.kmeans_cluster = None
         self.svm_classifier = None
+        self.num_keypoints = 25
+        self.sift_detector = cv2.SIFT_create(nfeatures=self.num_keypoints)
         #self.sift_data = cudasift.PySiftData(100)
         self.sift_threshold = sift_threshold
     
@@ -97,10 +100,23 @@ class BOVWClassifier:
             a list of SIFT features
         """
         descriptors = []
-        for image in images:   
-            #cudasift.ExtractKeypoints(image, self.sift_data, thresh=7)
-            df, descriptor = self.sift_data.to_data_frame()
-            descriptors.append(descriptor[:len(df), :])
+        images = [[frame.squeeze() for frame in stacked_image] for stacked_image in images]
+        for stacked_image in images:
+            keypoints = self.sift_detector.detect(stacked_image)
+            keypoints, stacked_descriptors = self.sift_detector.compute(stacked_image, keypoints)
+            stacked_descriptors = [desc[:self.num_keypoints] for desc in stacked_descriptors]
+            stacked_descriptors = np.concatenate(stacked_descriptors, axis=1)
+            descriptors.append(stacked_descriptors)
+        '''
+        for stacked_image in images:
+            stacked_descriptors = []
+            for image in stacked_image:
+                cudasift.ExtractKeypoints(image, self.sift_data, thresh=7)
+                df, descriptor = self.sift_data.to_data_frame()
+                stacked_descriptors.append(descriptor[:len(df), :])
+            stacked_descriptors = np.concatenate(stacked_descriptors, axis=1)
+            descriptors.append(stacked_descriptors)
+        '''
         return descriptors
     
     def train_kmeans(self, sift_features):
@@ -324,3 +340,4 @@ class SiftInitiationClassifier(InitiationClassifier):
 
         plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option_name}_init_clf_episode_{episode}.png")
         plt.close()
+

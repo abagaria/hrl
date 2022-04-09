@@ -70,6 +70,16 @@ class SkillGraphAgent:
         if self.is_state_inside_vertex(state, info, goal_salient_event):
             return state, info, done, reset, True
 
+        '''
+        - Nodes and vertices refer to the same thing
+        - Nodes correspond to options or salient events
+        - Store state in info to make as few changes as possible
+        - Dopamine state is a single frame (84, 84, 1) 
+        - pfrl state is a lazy frame object - state._frames will get a list of 4 frames
+        - Here states are lazy frames - np.array(lazy) duplicates and returns a (4,84,84) - look at double_conv_init.py to see how to manage mem 
+        efficiently
+        - planner_goal_vertex and dsc_goal_vertex are only salient events for now
+        '''
         planner_goal_vertex, dsc_goal_vertex = self.get_goal_vertices_for_rollout(state, info, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 

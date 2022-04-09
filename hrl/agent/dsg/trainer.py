@@ -13,7 +13,7 @@ from pfrl.wrappers import atari_wrappers
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
 from hrl.agent.dsc.utils import pos_to_info
-from hrl.salient_event.salient_event import SalientEvent
+from hrl.salient_event.salient_event import SalientEvent, BOVWSalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
 from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
@@ -124,8 +124,17 @@ class DSGTrainer:
             )
 
             if intrinsic_subgoals or extrinsic_subgoals:
+                '''
                 new_events = self.convert_discovered_goals_to_salient_events(
                     extrinsic_subgoals+intrinsic_subgoals
+                )
+                '''
+                # States here are dopamine states - convert into pfrl lazy frames before constructing BOVW salient events
+                pfrl_observations = [self.dopamine2pfrl(exploration_inits[i], exploration_observations[i]) for i in range(len(exploration_observations))]
+                new_events = self.convert_discovered_goals_to_bovw_salient_events(
+                    extrinsic_subgoals + intrinsic_subgoals,
+                    extrinsic_trajectory_idx + intrinsic_trajectory_idx,
+                    pfrl_observations
                 )
         
                 if self.make_off_policy_update:
@@ -473,7 +482,7 @@ class DSGTrainer:
                 ]
             )
 
-        f_observations, f_rewards, f_infos = self.filter_exploration_trajectory(observations, rewards, infos)
+        f_observations, f_rewards, f_infos, f_state_idxs = self.filter_exploration_trajectory(observations, rewards, infos)
 
         if len(f_observations) > 0:
 
@@ -484,47 +493,47 @@ class DSGTrainer:
 
             # TODO: we should be indexing into the unfiltered observations
             best_intrinsic_state = frame2state(f_observations, i)
-            best_intrinsic_sir_triple = best_intrinsic_state, f_infos[i], f_rewards[i]
+            best_intrinsic_sir_tuple = best_intrinsic_state, f_infos[i], f_rewards[i], f_state_idxs[i]
 
             pos_extrinsic_idx = [j for j in range(len(f_rewards)) if f_rewards[j] > 0]
-            best_extrinsic_sir_triples = [(frame2state(f_observations, j), f_infos[j],\
-                                        f_rewards[j]) for j in pos_extrinsic_idx]
+            best_extrinsic_sir_tuples = [(frame2state(f_observations, j), f_infos[j],\
+                                        f_rewards[j], f_state_idxs[j]) for j in pos_extrinsic_idx]
 
-            return intrinsic_score, best_intrinsic_sir_triple, best_extrinsic_sir_triples
+            return intrinsic_score, best_intrinsic_sir_tuple, best_extrinsic_sir_tuples
         
         return -np.inf, [], []
 
     def new_subgoal_extractor(self, observations, rewards, infos):
         """ Given unfiltered dopamine trajectories (represented as lists of lists), 
         return the following:
-        1. (s, i, r) triple corresponding to the highest intrinsic reward
-        2. (s, i, r) triple corresponding to positive extrinsic rewards
+        1. (s, i, r, state_idx) tuple corresponding to the highest intrinsic reward
+        2. (s, i, r, state_idx) tuple corresponding to positive extrinsic rewards
         3. Trajectory index corresponding to the highest intrinsic reward
         4. Trajectory indices corresponding to positive extrinsic rewards
         """
-        extrinsic_triples = []
+        extrinsic_tuples = []
         best_intrinsic_score = -np.inf
-        best_intrinsic_triple = None
+        best_intrinsic_tuple = None
         best_intrinsic_trajectory_idx = None
         extrinsic_trajectory_idx = []
 
         for i, (obs_traj, reward_traj, info_traj) in enumerate(zip(observations, rewards, infos)):
-            intrinsic_score, best_int_triple, ext_triples = self.score_exploration_trajectory(
+            intrinsic_score, best_int_tuple, ext_tuples = self.score_exploration_trajectory(
                 obs_traj, reward_traj, info_traj
             )
             
             if intrinsic_score > best_intrinsic_score:
                 best_intrinsic_score = intrinsic_score
-                best_intrinsic_triple = best_int_triple
+                best_intrinsic_tuple = best_int_tuple
                 best_intrinsic_trajectory_idx = i
             
-            if len(ext_triples) > 0:
-                extrinsic_triples.extend(ext_triples)
+            if len(ext_tuples) > 0:
+                extrinsic_tuples.extend(ext_tuples)
                 extrinsic_trajectory_idx.append(i)
 
-        intrinsic_triples = [best_intrinsic_triple] if best_intrinsic_triple else []
+        intrinsic_tuples = [best_intrinsic_tuple] if best_intrinsic_tuple else []
 
-        return intrinsic_triples, extrinsic_triples, \
+        return intrinsic_tuples, extrinsic_tuples, \
                [best_intrinsic_trajectory_idx], extrinsic_trajectory_idx
     
     def should_reject_new_event(self, info, regions):
@@ -574,14 +583,15 @@ class DSGTrainer:
                    self.should_reject_new_event(info, regions)
         
         if len(observations) > 3:
-            accepted_triples = [(obs, reward, info) for obs, reward, info in 
-                                zip(observations, rewards, infos) if not should_reject(obs, info)]
+            accepted_tuples = [(obs, reward, info, state_idx) for state_idx, (obs, reward, info) in 
+                                enumerate(zip(observations, rewards, infos)) if not should_reject(obs, info)]
             
-            accepted_observations = [triple[0] for triple in accepted_triples]
-            accepted_rewards = [triple[1] for triple in accepted_triples]
-            accepted_infos = [triple[2] for triple in accepted_triples]
+            accepted_observations = [a_tuple[0] for a_tuple in accepted_tuples]
+            accepted_rewards = [a_tuple[1] for a_tuple in accepted_tuples]
+            accepted_infos = [a_tuple[2] for a_tuple in accepted_tuples]
+            accepted_state_idxs = [a_tuple[3] for a_tuple in accepted_tuples]
 
-            return accepted_observations, accepted_rewards, accepted_infos
+            return accepted_observations, accepted_rewards, accepted_infos, accepted_state_idxs
             
         return [], [], []
 
@@ -595,6 +605,24 @@ class DSGTrainer:
         for obs, info, reward in discovered_goals:
             event = SalientEvent(obs, info, tol=2.)
             print("Accepted New Salient Event: ", event)
+            added_events.append(event)
+
+            # Add the discovered event only if we are not in gc experiment mode
+            if len(self.predefined_events) == 0:
+                self.add_salient_event(event)
+
+        return added_events
+
+    def convert_discovered_goals_to_bovw_salient_events(self, discovered_goals, goal_traj_idxs, trajectories):
+        """ Convert a list of discovered goal states to bovw salient events. """
+        added_events = []
+        for i, (obs, info, reward, state_idx) in enumerate(discovered_goals):
+            goal_traj_idx = goal_traj_idxs[i]
+            goal_traj = trajectories[goal_traj_idx]
+            train_data = [state._frames for state in goal_traj]
+            train_labels = [1 if state_idx - 2 <= i < state_idx + 2 else 0 for i in range(len(train_data))]
+            event = BOVWSalientEvent(obs, info, train_data, train_labels, tol=2.)
+            print("Accepted New BOVW Salient Event: ", event)
             added_events.append(event)
 
             # Add the discovered event only if we are not in gc experiment mode

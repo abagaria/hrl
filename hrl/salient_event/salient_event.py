@@ -4,7 +4,7 @@ from collections import deque
 from pfrl.wrappers import atari_wrappers
 from hrl.agent.dsc.utils import info_to_pos
 from hrl.agent.dsc.datastructures import TrainingExample
-
+from hrl.agent.dsc.classifier.stack_sift_classifier import StackBOVWClassifier
 
 class SalientEvent:
     def __init__(self, target_obs, target_info, tol):
@@ -70,3 +70,19 @@ class SalientEvent:
         x_dist = abs(pos[0] - self.target_info["player_x"])
         y_dist = abs(pos[1] - self.target_info["player_y"])
         return np.sqrt(x_dist**2 + y_dist**2)
+
+'''
+Override __call__() method
+Train classifier
+Train kmeans using negative + positive data
+'''
+class BOVWSalientEvent(SalientEvent):
+    def __init__(self, target_obs, target_info, train_data, train_labels, tol):
+        SalientEvent.__init__(self, target_obs, target_info, tol)
+        self.bovw_classifier = StackBOVWClassifier()
+        self.bovw_classifier.fit(train_data, train_labels)
+
+    def __call__(self, info):
+        state = info["state"] # state should be a pfrl.LazyFrame
+        assert(isinstance(state, atari_wrappers.LazyFrames))
+        return self.bovw_classifier.predict([state._frames]) in [1, 3]

@@ -15,12 +15,14 @@ class MontezumaInfoWrapper(gym.Wrapper):
         s0 = self.env.reset(**kwargs)
         self.num_lives = self.get_num_lives(self.get_current_ram())
         info = self.get_current_info(info={})
+        info["state"] = s0
         return s0, info
 
     def step(self, action):
         self.T += 1
         obs, reward, done, info = self.env.step(action)
         info = self.get_current_info(info=info)
+        info["state"] = obs
         self.num_lives = info["lives"]
         return obs, reward, done, info
 

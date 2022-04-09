@@ -2,6 +2,7 @@ import os
 import ipdb
 import numpy as np
 
+from pfrl.wrappers import atari_wrappers
 from dopamine.discrete_domains.run_experiment import Runner
 from dopamine.discrete_domains import atari_lib
 from absl import logging
@@ -72,6 +73,16 @@ class RNDAgent(Runner):
             reward = max(min(reward, 1),-1)
 
             info = self.env_wrapper.get_current_info(info={}, update_lives=True)
+            dop_frame_stack = observations[-4:]
+            n_pad_frames = 4 - len(dop_frame_stack)
+            pad_frames = [dop_frame_stack[0] for _ in range(n_pad_frames)]
+            dop_frame_stack = pad_frames + dop_frame_stack
+            assert len(dop_frame_stack) == 4, len(dop_frame_stack)
+
+            dop_frame_stack = [frame.transpose(2, 0, 1) for frame in dop_frame_stack]
+            pfrl_frame_stack = atari_wrappers.LazyFrames(dop_frame_stack, stack_axis=0)
+            info["state"] = pfrl_frame_stack
+
             visited_infos.append(info)
             self.info_buffer.add(
                 info['player_x'],
