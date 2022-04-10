@@ -101,6 +101,9 @@ if __name__ == "__main__":
     parser.add_argument("--goal_selection_epsilon", type=float, default=0.2, help="Random prob with which we select connected goals")
     parser.add_argument("--boltzmann_temperature", type=float, default=2.)
     parser.add_argument("--create_sparse_graph", action="store_true", default=False)
+    parser.add_argument("--use_empirical_distances", action="store_true", default=False)
+    parser.add_argument("--noisy_net_sigma", type=float, default=0.5)
+    parser.add_argument("--expansion_fraction_threshold", type=float, default=0.5)
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
@@ -196,9 +199,14 @@ if __name__ == "__main__":
                           args.sift_threshold,
                           args.initiation_classifier_type,
                           args.use_full_negative_trajectory,
-                          args.use_pessimistic_relabel)
+                          args.use_pessimistic_relabel,
+                          args.noisy_net_sigma)
 
-    dsg_agent = SkillGraphAgent(dsc_agent, exploration_agent, args.distance_metric, args.min_n_points_for_expansion)
+    dsg_agent = SkillGraphAgent(dsc_agent,
+                                exploration_agent,
+                                args.distance_metric,
+                                args.min_n_points_for_expansion,
+                                args.use_empirical_distances)
     
     trainer = DSGTrainer(env, dsc_agent, dsg_agent, exploration_agent,
                          args.n_consolidation_episodes, 
@@ -212,7 +220,9 @@ if __name__ == "__main__":
                          make_off_policy_update=args.make_off_policy_updates,
                          goal_selection_epsilon=args.goal_selection_epsilon,
                          boltzmann_temperature=args.boltzmann_temperature,
-                         create_sparse_graph=args.create_sparse_graph)
+                         create_sparse_graph=args.create_sparse_graph,
+                         use_empirical_distances=args.use_empirical_distances,
+                         expansion_fraction_threshold=args.expansion_fraction_threshold)
 
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
@@ -224,12 +234,18 @@ if __name__ == "__main__":
         trainer.graph_expansion_run_loop(warmup_iteration * args.n_expansion_episodes,
                                          num_episodes=args.n_expansion_episodes)
     trainer.create_sparse_graph = args.create_sparse_graph
-
+    
     # After getting some easy goals, lets pre-train RND for a bit
-    for current_episode in range(warmup_iteration * args.n_expansion_episodes,
-                                (warmup_iteration * args.n_expansion_episodes) + 50):
+    pretrain_start_episode = (warmup_iteration + 1) * args.n_expansion_episodes
+
+    for current_episode in range(pretrain_start_episode, pretrain_start_episode + 50):
         state, info = trainer.env.reset()
-        trainer.exploration_rollout(state, current_episode)
+        _, obs_traj, _, _, info_traj = trainer.exploration_rollout(state, current_episode)
+        
+        if trainer.use_empirical_distances:
+            dsg_agent.update_empirical_distance_estimates(
+                info_traj, trainer.salient_events
+            )
 
     # Full run loop that alternates between expansion and consolidation
     trainer.run_loop(current_episode + 1, int(1e5))    
