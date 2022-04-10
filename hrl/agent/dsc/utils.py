@@ -27,7 +27,9 @@ def default_pos_to_info(pos):
         player_x=pos[0],
         player_y=pos[1],
         has_key=False,
-        room_number=1
+        room_number=1,
+        dead=False,
+        falling=False
     )
 
 def make_meshgrid(x, y, h=1.):
@@ -102,7 +104,7 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-    plt.title(f"{option.name} Initiation Set")
+    plt.title(f"{option.name} targeting {option.target_salient_event}")
     plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option.name}_{episode}_initiation_classifier.png")
     plt.close()
 
