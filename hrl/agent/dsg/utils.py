@@ -185,6 +185,27 @@ def visualize_consolidation_probabilities(dsg_trainer,
     plt.close()
 
 
+def plot_distance_table(node_distances, salient_events, episode, experiment_name, seed):
+    def dict2matrix(distances, events):
+        N = len(events)
+        max_int = np.iinfo(np.int32).max
+        matrix = np.ones((N, N), dtype=np.int32) * max_int
+        for i, e1 in enumerate(events):
+            for j, e2 in enumerate(events):
+                matrix[i][j] = distances[e1][e2]
+        return matrix
+
+    distance_matrix = dict2matrix(node_distances, salient_events)
+    labels = [f"{event.target_pos[0], event.target_pos[1]}" for event in salient_events] 
+    fig, ax = plt.subplots(figsize=(30, 30))
+    fig.patch.set_visible(False); ax.axis('off'); ax.axis('tight')
+
+    ax.table(rowLabels=labels, colLabels=labels, cellText=distance_matrix, loc='center')
+    fig.tight_layout()
+    plt.savefig(f"plots/{experiment_name}/{seed}/value_function_plots/distance_table_episode_{episode}.png")
+    plt.close()
+
+
 def get_regions_in_first_screen():
     # region -> f(info) -> bool
     return dict(
