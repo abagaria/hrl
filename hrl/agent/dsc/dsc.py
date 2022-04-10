@@ -17,7 +17,8 @@ class RobustDSC(object):
                  use_pos_for_init,
                  p_her, max_num_options, seed, log_filename,
                  num_kmeans_clusters, sift_threshold,
-                 classifier_type, use_full_neg_traj, use_pessimistic_relabel):
+                 classifier_type, use_full_neg_traj, use_pessimistic_relabel,
+                 noisy_net_sigma):
 
         self.mdp = mdp
         self.seed = seed
@@ -41,6 +42,7 @@ class RobustDSC(object):
         self.init_salient_event = init_event
         self.num_kmeans_clusters = num_kmeans_clusters
         self.sift_threshold = sift_threshold
+        self.noisy_net_sigma = noisy_net_sigma
         self.classifier_type = classifier_type
         self.use_full_neg_traj = use_full_neg_traj
         self.use_pessimistic_relabel = use_pessimistic_relabel
@@ -103,10 +105,13 @@ class RobustDSC(object):
 
         while not done and not reset and not reached and not interrupt_handle(state, info):
             selected_option = self.act(state, info, goal_salient_event.target_info)
-            next_state, done, reset, visited_positions, goal_pos, info = selected_option.rollout(state,
-                                                                                                 info,
-                                                                                                 goal_salient_event,
-                                                                                                 eval_mode=eval_mode)
+            next_state, done, reset, _, goal_pos, info, transitions = selected_option.rollout(
+                                                                                state,
+                                                                                info,
+                                                                                goal_salient_event,
+                                                                                eval_mode=eval_mode
+                                                                            )
+            infos = [transition[-1] for transition in transitions]  # these do not contain the start info
             finished = self.manage_chain_after_option_rollout(selected_option, episode)
 
             reward, reached = self.global_option.rf(self.mdp.get_current_position(),
@@ -114,18 +119,18 @@ class RobustDSC(object):
 
             state = next_state
             episode_reward += reward
-            episode_length += len(visited_positions)
+            episode_length += len(infos)
             if finished: learned_options.append(selected_option)
 
             rollout_trajectory.append({
                 "goal": goal_pos,
-                "trajectory": visited_positions,
+                "trajectory": infos,
                 "option": selected_option.option_idx,
             })
 
-        # Was returning `rollout_trajectory, episode_reward, episode_length` as well
+        # Was returning `episode_reward, episode_length` as well
 
-        return state, info, done, reset, learned_options
+        return state, info, done, reset, learned_options, rollout_trajectory
 
     def run_loop(self, goal_salient_event, num_steps):
         step = 0
@@ -266,7 +271,8 @@ class RobustDSC(object):
                                  sift_threshold=self.sift_threshold,
                                  classifier_type=self.classifier_type,
                                  use_full_neg_traj=self.use_full_neg_traj,
-                                 use_pessimistic_relabel=self.use_pessimistic_relabel)
+                                 use_pessimistic_relabel=self.use_pessimistic_relabel,
+                                 noisy_net_sigma=self.noisy_net_sigma)
         self.current_option_idx += 1
         return option
 
@@ -298,7 +304,8 @@ class RobustDSC(object):
                                  sift_threshold=self.sift_threshold,
                                  classifier_type=self.classifier_type,
                                  use_full_neg_traj=self.use_full_neg_traj,
-                                 use_pessimistic_relabel=self.use_pessimistic_relabel)
+                                 use_pessimistic_relabel=self.use_pessimistic_relabel,
+                                 noisy_net_sigma=self.noisy_net_sigma)
         return option
 
     def create_child_option(self, parent):
