@@ -1,11 +1,12 @@
 import ipdb
 import torch
-import random
+import itertools
 import numpy as np
 from copy import deepcopy
 from collections import deque
 from scipy.spatial import distance
 from pfrl.wrappers import atari_wrappers
+from scipy.spatial.distance import cdist
 
 from . import utils
 from .datastructures import TrainingExample
@@ -27,7 +28,8 @@ class ModelFreeOption(object):
                  replay_original_goal_on_pos,
                  max_num_options, use_pos_for_init, chain_id,
                  p_her, num_kmeans_clusters, sift_threshold,
-                 classifier_type, use_full_neg_traj, use_pessimistic_relabel):
+                 classifier_type, use_full_neg_traj, use_pessimistic_relabel,
+                 noisy_net_sigma, use_hacky_init=False):
         self.env = env  # TODO: remove as class var and input to rollout()
         self.name = name
         self.parent = parent
@@ -39,6 +41,8 @@ class ModelFreeOption(object):
         self.use_pos_for_init = use_pos_for_init
         self.p_her = p_her
         self.classifier_type = classifier_type
+        self.noisy_net_sigma = noisy_net_sigma
+        self.use_hacky_init = use_hacky_init
         
         self.use_oracle_rf = use_oracle_rf
         self.use_rf_on_pos_traj = use_rf_on_pos_traj
@@ -76,11 +80,12 @@ class ModelFreeOption(object):
 
     def _get_model_free_solver(self):
         if self.global_init:
+            print(f"Creating rainbow with sigma={self.noisy_net_sigma}")
             return Rainbow(n_actions=self.env.action_space.n,
                             n_atoms=51,
                             v_min=-10.,
                             v_max=+10.,
-                            noisy_net_sigma=0.5,
+                            noisy_net_sigma=self.noisy_net_sigma,
                             lr=6.25e-5,
                             n_steps=3,
                             betasteps=self.n_training_steps / 4,
@@ -154,7 +159,15 @@ class ModelFreeOption(object):
             return False
 
         x = self.extract_init_features(state, info)
-        return self.initiation_classifier.pessimistic_predict(x)
+        
+        classifier_decision = self.initiation_classifier.pessimistic_predict(x)
+
+        if self.use_hacky_init:
+            distances_to_positives = self.get_distance_to_positive_examples(state, info)
+            distance_decision = (distances_to_positives < 10).mean() > 0.1  # close to at least 10% of the positive examples
+            return classifier_decision and distance_decision
+
+        return classifier_decision
 
     def is_term_true(self, state, info):
         if self.failure_condition(info, check_falling=True):
@@ -179,7 +192,15 @@ class ModelFreeOption(object):
         targets_start_state = self.target_salient_event.target_pos[0] == 77.\
                           and self.target_salient_event.target_pos[1] == 235.
         death_cond = (info['falling'] or info['dead']) if check_falling else info['dead']
-        return death_cond and not targets_start_state 
+        return death_cond and not targets_start_state
+        
+    def get_distance_to_positive_examples(self, state, info):
+        ipdb.set_trace()
+        pos = utils.info_to_pos(info)
+        positives = itertools.chain.from_iterable(self.initiation_classifier.positive_examples)
+        positive_positions = np.array([eg.pos for eg in positives])
+        distances = cdist(pos[None, ...], positive_positions)
+        return distances
 
     # ------------------------------------------------------------
     # Control Loop Methods
@@ -306,9 +327,9 @@ class ModelFreeOption(object):
         if not eval_mode:
             self.update_option_after_rollout(state, info, goal, goal_info, option_transitions, 
                                              visited_states, visited_infos, reached)
-            print(f"Updated {self.name} on {len(visited_infos)} transitions")
+            print(f"Updated {self.name} on {len(option_transitions)} transitions")
 
-        return state, done, reset, visited_infos, goal_info, info
+        return state, done, reset, visited_infos, goal_info, info, option_transitions
 
     def update_option_after_rollout(self, state, info, goal, goal_info,
                                     option_transitions, visited_states, visited_infos, reached_term):
