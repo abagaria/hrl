@@ -1,7 +1,9 @@
 import ipdb
+import time
 import torch
 import scipy
 import random
+import itertools
 import numpy as np
 from scipy.special import softmax
 from collections import defaultdict
@@ -14,12 +16,14 @@ from ..dsc.chain import SkillChain
 
 
 class SkillGraphAgent:
-    def __init__(self, dsc_agent, exploration_agent, distance_metric, min_n_points_for_expansion):
+    def __init__(self, dsc_agent, exploration_agent, distance_metric,
+                min_n_points_for_expansion, use_empirical_distances):
         assert isinstance(dsc_agent, RobustDSC)
-        assert distance_metric in ("euclidean", "vf", "ucb"), distance_metric
+        assert distance_metric in ("euclidean", "vf", "ucb", "empirical"), distance_metric
 
         self.dsc_agent = dsc_agent
         self.distance_metric = distance_metric
+        self.use_empirical_distances = use_empirical_distances
         self.min_n_points_for_expansion = min_n_points_for_expansion
         
         self.planner = PlanGraph()
@@ -30,6 +34,9 @@ class SkillGraphAgent:
 
         # Map goal to success curve
         self.gc_successes = defaultdict(list)
+
+        # src-node -> dest-node -> n_steps
+        self.node_distances = defaultdict(lambda: defaultdict(lambda: np.iinfo(np.int32).max))
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -64,31 +71,36 @@ class SkillGraphAgent:
         assert isinstance(episode, int)
         assert isinstance(eval_mode, bool)
 
+        traj = [info]
         done = False
         reset = False
 
         if self.is_state_inside_vertex(state, info, goal_salient_event):
-            return state, info, done, reset, True
+            return state, info, done, reset, True, traj
 
         planner_goal_vertex, dsc_goal_vertex = self.get_goal_vertices_for_rollout(state, info, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 
         if not planner_goal_vertex(info):
-            state, info, done, reset = self.run_sub_loop(state, info, planner_goal_vertex, goal_salient_event, episode, eval_mode)
+            state, info, done, reset, traj1 = self.run_sub_loop(state, info, planner_goal_vertex, goal_salient_event, episode, eval_mode)
             self.gc_successes[tuple(planner_goal_vertex.target_pos)].append(planner_goal_vertex(info))
+            if traj1: traj.extend(traj1)
 
         if not dsc_goal_vertex(info) and not done and not reset:
-            state, info, done, reset = self.run_sub_loop(state, info, dsc_goal_vertex, goal_salient_event, episode, eval_mode)
+            state, info, done, reset, traj1 = self.run_sub_loop(state, info, dsc_goal_vertex, goal_salient_event, episode, eval_mode)
             self.gc_successes[tuple(dsc_goal_vertex.target_pos)].append(dsc_goal_vertex(info))
+            if traj1: traj.extend(traj1)
 
         if not goal_salient_event(info) and not done and not reset:
-            state, info, done, reset = self.run_sub_loop(state, info, goal_salient_event, goal_salient_event, episode, eval_mode)
+            state, info, done, reset, traj1 = self.run_sub_loop(state, info, goal_salient_event, goal_salient_event, episode, eval_mode)
             self.gc_successes[tuple(goal_salient_event.target_pos)].append(goal_salient_event(info))
+            if traj1: traj.extend(traj1)
 
-        return state, info, done, reset, self.is_state_inside_vertex(state, info, goal_salient_event)
+        return state, info, done, reset, self.is_state_inside_vertex(state, info, goal_salient_event), traj
 
     def run_sub_loop(self, state, info, goal_vertex, goal_salient_event, episode, eval_mode):
 
+        traj = []
         done = False
         reset = False
         
@@ -97,7 +109,7 @@ class SkillGraphAgent:
 
         if planner_condition(state, info, goal_vertex) and not self.is_state_inside_vertex(state, info, goal_salient_event):
             print(f"[Planner] Rolling out from {info} targeting {goal_vertex}")
-            state, info, done, reset = self.planner_rollout_inside_graph(state=state,
+            state, info, done, reset, traj = self.planner_rollout_inside_graph(state=state,
                                                                          info=info,
                                                                          goal_vertex=goal_vertex,
                                                                          goal_salient_event=goal_salient_event,
@@ -105,12 +117,12 @@ class SkillGraphAgent:
                                                                          eval_mode=eval_mode)
 
         elif not self.is_state_inside_vertex(state, info, goal_salient_event):
-            state, info, done, reset = self.dsc_outside_graph(state, info,
+            state, info, done, reset, traj = self.dsc_outside_graph(state, info,
                                                               episode=episode,
                                                               goal_salient_event=goal_salient_event,
                                                               dsc_goal_vertex=goal_vertex)
 
-        return state, info, done, reset
+        return state, info, done, reset, traj
 
     def planner_rollout_inside_graph(self, *, state, info, goal_vertex,
                                      goal_salient_event, episode_number, eval_mode):
@@ -135,20 +147,23 @@ class SkillGraphAgent:
         option = None
         reached = False
 
+        rollout_trajectory = []
+
         while not reached and not done and not reset:
             option = self.act(state, info, goal_vertex, sampled_goal=goal_info)
 
             # TODO: goal_salient_event or goal_vertex? Whats the difference?
-            state, info, done, reset, _, _ = self.perform_option_rollout(state,
-                                                                         info, 
-                                                                         option,
-                                                                         episode_number,
-                                                                         eval_mode,
-                                                                         goal_vertex)
-
+            state, info, done, reset, _, _, infos = self.perform_option_rollout(
+                                                                        state,
+                                                                        info, 
+                                                                        option,
+                                                                        episode_number,
+                                                                        eval_mode,
+                                                                        goal_vertex)
+            rollout_trajectory.extend(infos)
             reached = inside(state, info) or outside(state, info)
 
-        return state, info, done, reset
+        return state, info, done, reset, rollout_trajectory
 
     def dsc_outside_graph(self, state, info, episode, goal_salient_event, dsc_goal_vertex):
 
@@ -163,15 +178,17 @@ class SkillGraphAgent:
 
         # Deliberately did not add `eval_mode` to the DSC rollout b/c we usually do this when we
         # want to fall off the graph, and it is always good to do some exploration when outside the graph
-        state, info, done, reset, new_options = self.dsc_agent.dsc_rollout(state, info, 
-                                                                           dsc_goal_vertex,
-                                                                           episode, eval_mode=False,
-                                                                           interrupt_handle=dsc_interrupt_handle)
+        state, info, done, reset, new_options, traj = self.dsc_agent.dsc_rollout(state, info, 
+                                                                                 dsc_goal_vertex,
+                                                                                 episode, eval_mode=False,
+                                                                                 interrupt_handle=dsc_interrupt_handle)
 
         for new_option in new_options:
             self.add_newly_created_option_to_plan_graph(new_option)
 
-        return state, info, done, reset
+        visited_infos = list(itertools.chain.from_iterable([exp["trajectory"] for exp in traj]))
+
+        return state, info, done, reset, visited_infos
 
     # -----------------------------–––––––--------------
     # Graph Expansion
@@ -291,10 +308,12 @@ class SkillGraphAgent:
     def perform_option_rollout(self, state, info, option, episode, eval_mode, goal_salient_event):
         assert isinstance(option, ModelFreeOption)
 
-        state, done, reset, visited_positions, goal_pos, info = option.rollout(state,
-                                                                               info,
-                                                                               goal_salient_event,
-                                                                               eval_mode)
+        state, done, reset, visited_infos, goal_pos, info, transitions = option.rollout(
+                                                                            state,
+                                                                            info,
+                                                                            goal_salient_event,
+                                                                            eval_mode
+                                                                        )
         
         finished_learning = self.dsc_agent.manage_chain_after_option_rollout(option, episode)
 
@@ -307,7 +326,10 @@ class SkillGraphAgent:
         # Modify the edge weight associated with the executed option
         self.modify_edge_weight(executed_option=option, final_state=state, final_info=info)
 
-        return state, info, done, reset, visited_positions, goal_pos
+        # Grab all the visited info dicts from option execution
+        option_infos = [transition[-1] for transition in transitions]
+
+        return state, info, done, reset, visited_infos, goal_pos, option_infos
 
     # -----------------------------–––––––--------------
     # Distance functions
@@ -340,6 +362,39 @@ class SkillGraphAgent:
                 return beta
         
         ipdb.set_trace()
+
+    def update_empirical_distance_estimates(self, infos, events):
+        
+        def reverse_enum(x):
+            return reversed(list(enumerate(x)))
+
+        def state_to_event(info, events):
+            for event in events:
+                if event(info) and not info['dead'] and not info['falling']:
+                    return event
+
+        def states_to_event_traj(infos, events):
+            event_traj = []
+            for info in infos:
+                event = state_to_event(info, events)
+                event_traj.append(event)    
+            return event_traj
+
+        t0 = time.time()
+        
+        event_traj = states_to_event_traj(infos, events)
+
+        for i, e_i in reverse_enum(event_traj):
+            
+            if e_i is None:
+                continue
+
+            for j, e_j in reverse_enum(event_traj[:i+1]):
+                if e_i and e_j:
+                    distance = min(i - j, self.node_distances[e_j][e_i])
+                    self.node_distances[e_j][e_i] = distance
+
+        print(f"Took {time.time() - t0}s to update distance table with events {set(event_traj)}")
 
     def choose_closest_source_target_vertex_pair(self, state, info, goal_salient_event, choose_among_events):
         candidate_vertices_to_fall_from = self.planner.get_reachable_nodes_from_source_state(state, info)
@@ -385,7 +440,7 @@ class SkillGraphAgent:
             return src_vertices[min_array[0]], dest_vertices[min_array[1]]
 
     def get_distance_matrix(self, src_vertices, dest_vertices, metric="euclidean"):
-        assert metric in ("euclidean", "vf", "ucb"), metric
+        assert metric in ("euclidean", "vf", "ucb", "empirical"), metric
 
         def sample(vertex, key):
             assert key in ('obs', 'pos')
@@ -416,6 +471,19 @@ class SkillGraphAgent:
         def euclidean_distances(positionsA, positionsB):
             return scipy.spatial.distance.cdist(positionsA, positionsB)
 
+        def empirical_distances(events1, events2):
+            N = len(events1)
+            M = len(events2)
+            max_int = np.iinfo(np.int32).max
+            matrix = np.ones((N, M), dtype=np.int32) * max_int
+            for i, e1 in enumerate(events1):
+                for j, e2 in enumerate(events2):
+                    matrix[i][j] = self.node_distances[e1][e2]
+            return matrix
+        
+        if metric == "empirical":
+            return empirical_distances(src_vertices, dest_vertices)
+
         attribute = 'pos' if metric == "euclidean" else 'obs'
         src_observations = [sample(v, attribute) for v in src_vertices]
         dst_observations = [sample(v, attribute) for v in dest_vertices]
@@ -428,6 +496,26 @@ class SkillGraphAgent:
                                           dst_observations,
                                           self.dsc_agent.global_option.value_function,
                                           n_dst_observations)
+
+    def evaluate_distance_metric_accuracy(self, vertices, metric):
+        assert len(vertices) > 0
+
+        n_correct = 0
+
+        for vertex in vertices:
+            pred_closest = self.get_closest_pair_of_vertices(
+                src_vertices=[v for v in vertices if v != vertex],
+                dest_vertices=[vertex],
+                metric=metric
+            )[0]
+            ground_truth_closest = self.closest_node_lut(vertex)
+            assert isinstance(vertex, SalientEvent)
+            assert isinstance(pred_closest, SalientEvent)
+            assert isinstance(ground_truth_closest, SalientEvent)
+            if pred_closest == ground_truth_closest:
+                n_correct += 1
+
+        return n_correct / len(vertices)
 
     # -----------------------------–––––––--------------
     # Maintaining the graph
