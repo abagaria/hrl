@@ -77,12 +77,14 @@ Train classifier
 Train kmeans using negative + positive data
 '''
 class BOVWSalientEvent(SalientEvent):
-    def __init__(self, target_obs, target_info, train_data, train_labels, tol):
+    def __init__(self, target_obs, target_info, kmeans_data, train_data, train_labels, tol):
         SalientEvent.__init__(self, target_obs, target_info, tol)
         self.bovw_classifier = StackBOVWClassifier()
-        self.bovw_classifier.fit(train_data, train_labels)
+        self.bovw_classifier.fit(kmeans_data, train_data, train_labels)
 
     def __call__(self, info):
         state = info["state"] # state should be a pfrl.LazyFrame
         assert(isinstance(state, atari_wrappers.LazyFrames))
-        return self.bovw_classifier.predict([state._frames]) in [1, 3]
+        pred = self.bovw_classifier.predict([state._frames])
+        return pred in [1, 3]
+        #return self.bovw_classifier.predict([state._frames]) in [1, 3]

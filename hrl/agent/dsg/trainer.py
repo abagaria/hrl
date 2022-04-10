@@ -17,7 +17,7 @@ from hrl.salient_event.salient_event import SalientEvent, BOVWSalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
 from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
-
+from hrl.plot import plot_salient_event_classifier
 
 class DSGTrainer:
     def __init__(self, env, dsc, dsg, rnd,
@@ -113,6 +113,12 @@ class DSGTrainer:
                     exploration_extrinsic_rewards.append(rewards)
                     exploration_visited_infos.append(visited_infos)
 
+            # Plot SalientEvent term sets
+            if episode != 0 and episode % 10 == 0:
+                for salient_event in self.salient_events:
+                    player_x, player_y = salient_event.target_info['player_x'], salient_event.target_info['player_y']
+                    plot_salient_event_classifier(f"term_plots/ep{episode}_{player_x}_{player_y}", salient_event, exploration_visited_infos)
+
         # Examine *all* exploration trajectories and extract potential salient events
         if len(exploration_observations) > 0:
 
@@ -134,7 +140,8 @@ class DSGTrainer:
                 new_events = self.convert_discovered_goals_to_bovw_salient_events(
                     extrinsic_subgoals + intrinsic_subgoals,
                     extrinsic_trajectory_idx + intrinsic_trajectory_idx,
-                    pfrl_observations
+                    pfrl_observations,
+                    exploration_visited_infos
                 )
         
                 if self.make_off_policy_update:
@@ -593,7 +600,7 @@ class DSGTrainer:
 
             return accepted_observations, accepted_rewards, accepted_infos, accepted_state_idxs
             
-        return [], [], []
+        return [], [], [], []
 
     def get_intrinsic_values(self, observations):
         assert isinstance(observations, np.ndarray)
@@ -613,17 +620,37 @@ class DSGTrainer:
 
         return added_events
 
-    def convert_discovered_goals_to_bovw_salient_events(self, discovered_goals, goal_traj_idxs, trajectories):
+    def convert_discovered_goals_to_bovw_salient_events(self, discovered_goals, goal_traj_idxs, trajectories, infos):
         """ Convert a list of discovered goal states to bovw salient events. """
         added_events = []
         for i, (obs, info, reward, state_idx) in enumerate(discovered_goals):
+            kmeans_data = [state._frames for traj in trajectories for state in traj]
+            #print("num of kmeans data states: ", len(kmeans_data))
+
             goal_traj_idx = goal_traj_idxs[i]
             goal_traj = trajectories[goal_traj_idx]
-            train_data = [state._frames for state in goal_traj]
-            train_labels = [1 if state_idx - 2 <= i < state_idx + 2 else 0 for i in range(len(train_data))]
-            event = BOVWSalientEvent(obs, info, train_data, train_labels, tol=2.)
+
+            pos_start = state_idx - 1
+            pos_end = state_idx + 1
+            pos_states = goal_traj[pos_start:pos_end + 1]
+            pos_states = [state._frames for state in pos_states]
+
+            subgoal_neg_states = [goal_traj[i] for i in range(len(goal_traj)) if i < pos_start or i > pos_end]
+            subgoal_neg_states = [state._frames for state in subgoal_neg_states]
+
+            non_subgoal_neg_trajs = trajectories[goal_traj_idx+1:goal_traj_idx+5]
+            non_subgoal_neg_states = [state._frames for traj in non_subgoal_neg_trajs for state in traj]
+
+            train_data = pos_states + subgoal_neg_states + non_subgoal_neg_states
+            train_labels = [1 for _ in range(len(pos_states))] \
+                + [0 for _ in range(len(subgoal_neg_states))] \
+                + [2 for _ in range(len(non_subgoal_neg_states))]
+
+            event = BOVWSalientEvent(obs, info, kmeans_data, train_data, train_labels, tol=2.)
             print("Accepted New BOVW Salient Event: ", event)
             added_events.append(event)
+
+            plot_salient_event_classifier(f"term_plots/train_{info['player_x']}_{info['player_y']}", event, infos[goal_traj_idx:goal_traj_idx+3])
 
             # Add the discovered event only if we are not in gc experiment mode
             if len(self.predefined_events) == 0:

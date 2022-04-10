@@ -120,6 +120,8 @@ if __name__ == "__main__":
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/accepted_events")
     create_log_dir(f"plots/{args.experiment_name}/{args.seed}/rejected_events")
 
+    create_log_dir(f"term_plots")
+
     with open(f"logs/{args.experiment_name}/{args.seed}/hyperparameters.txt", "w+") as _args_file:
         json.dump(args.__dict__, _args_file, indent=2)
 
@@ -177,7 +179,9 @@ if __name__ == "__main__":
         predefined_events = [beta1, beta2, beta3, beta4, beta5, beta6]
     '''
     # Let initial salient event be SalientEvent rather than BOVWSalientEvent?
-    beta0 = SalientEvent(s0, default_pos_to_info(p0), tol=2.)
+    info = default_pos_to_info(p0)
+    info["state"] = s0
+    beta0 = SalientEvent(s0, info, tol=2.)
     pfrl.utils.set_random_seed(args.seed)
     predefined_events = []
 

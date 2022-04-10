@@ -21,7 +21,7 @@ class StackBOVWClassifier:
     args:
         num_clusters: number of clusters to use for kmeans clustering
     """
-    def __init__(self, num_clusters=55, sift_threshold=7):
+    def __init__(self, num_clusters=110, sift_threshold=7):
         self.num_clusters = num_clusters
         self.kmeans_cluster = None
         self.svm_classifier = None
@@ -33,7 +33,7 @@ class StackBOVWClassifier:
     def is_initialized(self):
         return self.kmeans_cluster is not None and self.svm_classifier is not None
 
-    def fit(self, X=None, Y=None, svm_type='svc', gamma='scale', nu=0.1):
+    def fit(self, kmeans_data, X=None, Y=None, svm_type='svc', gamma=0.001, nu=0.1):
         """
         train the classifier in 3 steps
         1. train the kmeans classifier based on the SIFT features of images
@@ -47,19 +47,28 @@ class StackBOVWClassifier:
         X = list(X)  # in case X, Y are numpy arrays
         Y = list(Y)
 
+        # train kmeans clustering first
+        sift_features = self.get_sift_features(images=kmeans_data)
+        self.train_kmeans(sift_features=sift_features)
+
         # get sift features
         sift_features = self.get_sift_features(images=X)
-        # train kmeans
-        self.train_kmeans(sift_features=sift_features)
         # get histogram
-        hist_features = self.histogram_from_sift(sift_features=sift_features)
+        hists_features = self.histogram_from_sift(sift_features=sift_features)
+        feat_matrix = np.array([np.reshape(hist_features, (-1,)) for hist_features in hists_features])
+
+        state = X[0][0].reshape(84, 84, 1)
+        state = cv2.cvtColor(state, cv2.COLOR_GRAY2BGR)
+        keypoints, descriptors = self.sift_detector.detectAndCompute(state, None)
+        sift_image = cv2.drawKeypoints(state, keypoints, state)
+        cv2.imwrite(f"sift_plots/sift.png", sift_image)
+
         # train svm
         if svm_type == 'svc':
-            class_weight = 'balanced' if len(X) > 10 else None
-            self.svm_classifier = svm.SVC(class_weight=class_weight, random_state=0)
+            self.svm_classifier = svm.SVC(kernel='rbf', gamma=gamma, class_weight='balanced')
         elif svm_type == 'one_class_svm':
             self.svm_classifier = svm.OneClassSVM(gamma=gamma, nu=nu)
-        self.svm_classifier.fit(hist_features, Y)
+        self.svm_classifier.fit(feat_matrix, Y)
 
     def predict(self, X):
         """
@@ -72,9 +81,10 @@ class StackBOVWClassifier:
 
         # preprocess the images
         sift_features = self.get_sift_features(images=X)  # get sift features
-        hist_features = self.histogram_from_sift(sift_features=sift_features)  # get histogram
+        hists_features = self.histogram_from_sift(sift_features=sift_features)  # get histogram
+        feat_matrix = np.array([np.reshape(hist_features, (-1,)) for hist_features in hists_features])
 
-        return self.svm_classifier.predict(hist_features)
+        return self.svm_classifier.predict(feat_matrix)
     
     def save(self, save_path):
         """
@@ -100,8 +110,10 @@ class StackBOVWClassifier:
             a list of SIFT features
         """
         descriptors = []
-        images = [[frame.squeeze() for frame in stacked_image] for stacked_image in images]
+        images = [[cv2.normalize(src=frame, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U).squeeze() for frame in stacked_image] for stacked_image in images]
+        #images = [[frame.squeeze() for frame in stacked_image] for stacked_image in images]
         for stacked_image in images:
+            stacked_image = [stacked_image[-1]]
             keypoints = self.sift_detector.detect(stacked_image)
             keypoints, stacked_descriptors = self.sift_detector.compute(stacked_image, keypoints)
             stacked_descriptors = [desc[:self.num_keypoints] for desc in stacked_descriptors]
@@ -175,7 +187,7 @@ class StackBOVWClassifier:
         predicted_clusters = np.split(predicted_cluster_of_all_images, indices_or_sections=idx_num_descriptors)
         predicted_clusters.pop()  # remove the last element, which is empty due to np.split
         
-        hist_features = np.array([np.bincount(predicted_cluster, minlength=self.num_clusters) for predicted_cluster in predicted_clusters])
+        hist_features = [np.bincount(predicted_cluster, minlength=self.num_clusters) for predicted_cluster in predicted_clusters]
         return hist_features
 
 
