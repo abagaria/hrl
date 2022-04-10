@@ -2,20 +2,27 @@ import gym
 import ipdb
 import numpy as np
 from gym import spaces
-from collections import deque
 
-
+# TODO: This only works for the 1st room
 START_POSITION = (77, 235)
 
 
 class MontezumaInfoWrapper(gym.Wrapper):
-    def __init__(self, env):
+    def __init__(self,
+                env,
+                use_persistent_death_flag=True,
+                use_persistent_falling_flag=False):
         self.T = 0
         self.num_lives = None
         self.death_flag = False
+        self.falling_flag = False
+        self.falling_time = None
+        self.use_persistent_death_flag = use_persistent_death_flag
+        self.use_persistent_falling_flag = use_persistent_falling_flag
         gym.Wrapper.__init__(self, env)
     
     def reset(self, **kwargs):
+        self.falling_time = None
         s0 = self.env.reset(**kwargs)
         self.num_lives = self.get_num_lives(self.get_current_ram())
         info = self.get_current_info(info={})
@@ -32,7 +39,6 @@ class MontezumaInfoWrapper(gym.Wrapper):
         ram = self.get_current_ram()
     
         info["lives"] = self.get_num_lives(ram)
-        info["falling"] = self.get_is_falling(ram)
         info["player_x"] = self.get_player_x(ram)
         info["player_y"] = self.get_player_y(ram)
         info["has_key"] = self.get_has_key(ram)
@@ -42,18 +48,39 @@ class MontezumaInfoWrapper(gym.Wrapper):
         # Did the player die in the current frame
         # (commented out portion is the animation flag from RAM, which is imperfect)
         current_death = int(info["lives"] < self.num_lives) # or (self.getByte(ram, 'b7') > 0)
+        current_falling = self.get_is_falling(ram)
 
         # Raise the death flag
         if current_death:
             self.death_flag = True
+
+        if current_falling:
+            self.falling_flag = True
+            self.falling_time = self.T
 
         # This takes the variable length of the death animation into account: 
         # Lower the death flag if the player has respawned at the start location
         if self.death_flag and self.get_current_position() == START_POSITION:
             self.death_flag = False
 
-        # Finally, report the death cond in the info dict
-        info["dead"] = self.death_flag
+        # Lower the falling flag when the player has returned to the start position
+        # Sometimes the falling signal goes up and the player doesn't die, in those cases
+        # we don't want the falling flag to remain high for the entire episode
+        if self.falling_flag and \
+            (self.get_current_position() == START_POSITION or \
+             self.falling_time - self.T >= 20 or \
+             self.death_flag):
+            self.falling_flag = False
+
+        if self.use_persistent_death_flag:
+            info["dead"] = self.death_flag
+        else:
+            info["dead"] = current_death
+
+        if self.use_persistent_falling_flag:
+            info["falling"] = self.falling_flag
+        else:
+            info["falling"] = current_falling
 
         if update_lives:
             self.num_lives = info["lives"]
