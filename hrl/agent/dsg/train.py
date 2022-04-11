@@ -143,6 +143,22 @@ if __name__ == "__main__":
             k=4, channel_order="chw"   
         )
     )
+    '''
+    env = pfrl.wrappers.ContinuingTimeLimit(
+        exploration_agent._environment, args.max_frames_per_episode
+    )
+    env = Reshape(
+        env,
+        channel_order="chw"
+    )
+    env = atari_wrappers.wrap_deepmind(
+        env,
+        episode_life=False,
+        clip_rewards=False,
+        frame_stack=True,
+    )
+    env = MontezumaInfoWrapper(env)
+    '''
 
     s0, _ = env.reset()
     p0 = env.get_current_position()

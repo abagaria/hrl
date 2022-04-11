@@ -5,6 +5,7 @@ from pfrl.wrappers import atari_wrappers
 from hrl.agent.dsc.utils import info_to_pos
 from hrl.agent.dsc.datastructures import TrainingExample
 from hrl.agent.dsc.classifier.stack_sift_classifier import StackBOVWClassifier
+from hrl.agent.dsc.classifier.rand_cnn_classifier import RandCNNClassifier
 
 class SalientEvent:
     def __init__(self, target_obs, target_info, tol):
@@ -20,6 +21,7 @@ class SalientEvent:
         # Logging
         self.n_expansion_attempts = 0
         self.n_expansions_completed = 0
+        self.pos_infos = []
 
     @property
     def target_pos(self):
@@ -71,20 +73,29 @@ class SalientEvent:
         y_dist = abs(pos[1] - self.target_info["player_y"])
         return np.sqrt(x_dist**2 + y_dist**2)
 
-'''
-Override __call__() method
-Train classifier
-Train kmeans using negative + positive data
-'''
 class BOVWSalientEvent(SalientEvent):
-    def __init__(self, target_obs, target_info, kmeans_data, train_data, train_labels, tol):
+    def __init__(self, target_obs, target_info, pos_info, kmeans_data, train_data, train_labels, tol):
         SalientEvent.__init__(self, target_obs, target_info, tol)
-        self.bovw_classifier = StackBOVWClassifier()
-        self.bovw_classifier.fit(kmeans_data, train_data, train_labels)
+        self.classifier = StackBOVWClassifier()
+        self.classifier.fit(kmeans_data, train_data, train_labels)
+        self.pos_infos = pos_info
 
     def __call__(self, info):
         state = info["state"] # state should be a pfrl.LazyFrame
         assert(isinstance(state, atari_wrappers.LazyFrames))
-        pred = self.bovw_classifier.predict([state._frames])
+        pred = self.classifier.predict([state._frames])
         return pred in [1, 3]
         #return self.bovw_classifier.predict([state._frames]) in [1, 3]
+
+class CNNSalientEvent(SalientEvent):
+    def __init__(self, target_obs, target_info, pos_info, train_data, train_labels, tol):
+        SalientEvent.__init__(self, target_obs, target_info, tol)
+        self.classifier = RandCNNClassifier()
+        self.classifier.fit(train_data, train_labels)
+        self.pos_infos = pos_info
+
+    def __call__(self, info):
+        state = info["state"] # state should be a pfrl.LazyFrame
+        assert(isinstance(state, atari_wrappers.LazyFrames))
+        pred = self.classifier.predict([state._frames])
+        return pred in [1, 3]
