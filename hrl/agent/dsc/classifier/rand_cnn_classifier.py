@@ -9,6 +9,10 @@ import torch.nn as nn
 from torch.nn import init
 from sklearn import svm
     
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.reshape(input.size(0), -1)
+
 class RandCNNClassifier:
     """
     Randomly-initialized CNN classifier
@@ -19,19 +23,28 @@ class RandCNNClassifier:
     def __init__(self, batch_size=32):
         self.batch_size = batch_size
 
-	# Initialize 2 conv layers
+	# Initialize conv layers
         self.model = nn.Sequential(
             nn.Conv2d(
                 in_channels=1,
                 out_channels=32,
                 kernel_size=8,
                 stride=4),
+            nn.MaxPool2d(
+                kernel_size=2,
+                stride=1),
             nn.LeakyReLU(),
             nn.Conv2d(
                 in_channels=32,
                 out_channels=64,
                 kernel_size=4,
                 stride=2),
+            nn.MaxPool2d(
+                kernel_size=2,
+                stride=1),
+            nn.LeakyReLU(),
+            Flatten(),
+            nn.Linear(3136, 512)
         )
         self.model.cuda()
 

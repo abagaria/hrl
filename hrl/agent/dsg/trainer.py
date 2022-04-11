@@ -629,8 +629,8 @@ class DSGTrainer:
             goal_traj_idx = goal_traj_idxs[i]
             goal_traj = trajectories[goal_traj_idx]
 
-            pos_start = state_idx - 4
-            pos_end = state_idx + 4
+            pos_start = state_idx - 6
+            pos_end = state_idx + 6
             pos_states = goal_traj[pos_start:pos_end + 1]
             pos_states = [state._frames for state in pos_states]
             pos_infos = infos[goal_traj_idx][pos_start:pos_end + 1]
@@ -638,7 +638,7 @@ class DSGTrainer:
             subgoal_neg_states = [goal_traj[i] for i in range(len(goal_traj)) if i < pos_start or i > pos_end]
             subgoal_neg_states = [state._frames for state in subgoal_neg_states]
 
-            non_subgoal_neg_trajs = trajectories[goal_traj_idx+1:goal_traj_idx+3]
+            non_subgoal_neg_trajs = trajectories[goal_traj_idx+1:goal_traj_idx+4]
             non_subgoal_neg_states = [state._frames for traj in non_subgoal_neg_trajs for state in traj]
 
             train_data = pos_states + subgoal_neg_states + non_subgoal_neg_states
