@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -6,7 +7,7 @@ import ipdb
 from hrl.agent.td3.replay_buffer import ReplayBuffer
 from hrl.agent.td3.model import Actor, Critic, NormActor
 from hrl.agent.td3.utils import *
-from hrl.experiments.distance_learning_network import DistanceNetwork
+from hrl.experiments.distance_learning_network import DistanceLearner
 
 
 # Adapted author implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
@@ -19,6 +20,7 @@ class TD3(object):
             state_dim,
             action_dim,
             max_action,
+            distance_function_quantile,
             use_output_normalization=True,
             discount=0.99,
             tau=0.005,
@@ -30,11 +32,8 @@ class TD3(object):
             lr_c=3e-4, lr_a=3e-4,
             device=torch.device("cuda"),
             name="Global-TD3-Agent",
-            store_extra_info=True,
-            use_distance_function_as_reward=False,
-            learn_distance_function_online=False,
-            distance_model_path="",
-    ):
+            store_extra_info=True    
+        ):
 
         self.critic_learning_rate = lr_c
         self.actor_learning_rate = lr_a
@@ -72,35 +71,7 @@ class TD3(object):
 
         self.T = 0
 
-        self.use_distance_metric_as_reward = use_distance_function_as_reward
-        if self.use_distance_metric_as_reward:
-            self.learn_distance_metric_online = learn_distance_function_online
-            self.setup_distance_function(distance_model_path, state_dim)
-
-    def setup_distance_function(self, distance_model_path, state_dim):
-        self.max_distance = 1000# TODO: Make this automatically determined based on episode timeout
-        self.distance_function = DistanceNetwork(input_dim=2 * state_dim, output_dim=1)
-        if self.learn_distance_metric_online:
-            self.distance_optimizer = torch.optim.Adam(self.distance_function.parameters(), lr=3e-4)
-        else:
-            checkpoint = torch.load(distance_model_path)
-            self.distance_function.load_state_dict(checkpoint['model'])
-        self.distance_function.to(self.device)
-
-    @torch.no_grad()
-    def reward_function(self, s, goal):
-        assert isinstance(s, np.ndarray)
-        assert isinstance(goal, np.ndarray)
-        # input is batched
-        assert len(s.shape) == 2, s.shape
-        assert len(goal.shape) == 2, goal.shape
-
-        sg = np.concatenate((s, goal), axis=1)
-        sg = torch.as_tensor(sg).float().to(self.device)
-        distances = self.distance_function(sg).squeeze()
-        distances[distances < 0] = 0
-        rewards = -distances / self.max_distance
-        return rewards.cpu().numpy()
+        self.distance_function = DistanceLearner(state_dim, batch_size, learning_rate=3e-4, device=device, quantile=distance_function_quantile)
 
     def act(self, state, evaluation_mode=False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
@@ -136,7 +107,11 @@ class TD3(object):
         self.replay_buffer.add(state, action, reward, next_state, is_terminal, info=info)
 
         if len(self.replay_buffer) > self.batch_size:
+            # update TD3 agent
             self.train(self.replay_buffer, self.batch_size)
+
+            # update distance function
+            self.distance_function.train_loop(self.replay_buffer.sample_state_pairs(self.batch_size))
 
     def compute_extra_info(self, state, next_state):
         s = state[np.newaxis, ...]
@@ -149,7 +124,7 @@ class TD3(object):
             next_action=next_action
         )
 
-    def train(self, replay_buffer, batch_size=100):
+    def train(self, replay_buffer, batch_size):
         self.T += 1
 
         # Sample replay buffer - result is tensors
@@ -243,34 +218,21 @@ class TD3(object):
         for transition in trajectory:
             self.step(*transition)
 
-    def assign_episode_rewards_from_distance_function(self, env, episode_trajectory):
-        episode_start_state = episode_trajectory[0][0]
-        next_states = [transition[3] for transition in episode_trajectory]
-        goal_state = np.concatenate((env.goal_state, episode_start_state[2:]))
-        goal_state = goal_state[np.newaxis, ...]
-        goal_states = np.repeat(goal_state, len(next_states), axis=0)
-        next_states = np.array(next_states)
-        rewards = self.reward_function(next_states, goal_states)
-
-        episode_trajectory = [(s, a, r, ns, done, info) for r, (s, a, _, ns, done, info) in zip(rewards, episode_trajectory)]
-        return episode_trajectory
-
     def rollout(self, env, state, episode):
         """ Single episode of interaction with the env followed by experience replay. """
         done = False
         reset = False
         reached = False
-
         episode_length = 0
         episode_reward = 0.
         episode_trajectory = []
 
+        goal_state = self.select_goal_state()
+
         while not done and not reset and not reached:
             action = self.act(state)
             next_state, reward, done, info = env.step(action)
-            
             reset = info.get("needs_reset", False)
-
             episode_trajectory.append((state,
                                        action,
                                        np.sign(reward), 
@@ -281,21 +243,54 @@ class TD3(object):
             self.T += 1
             episode_length += 1
             episode_reward += reward
-
             state = next_state
         
-        if self.use_distance_metric_as_reward:
-            if self.learn_distance_metric_online:
-                self.update_distance_learner()
-
-            episode_trajectory = self.assign_episode_rewards_from_distance_function(env, episode_trajectory)
-            episode_reward = sum(transition[2] for transition in episode_trajectory)
-
+        # update TD3 policy
+        episode_reward = sum(transition[2] for transition in episode_trajectory)
+        episode_trajectory = self.assign_episode_rewards_from_distance_function(goal_state, episode_trajectory)
         self.experience_replay(episode_trajectory)
-        self.log_progress(env, episode, episode_reward, episode_length)
-        
+
+        # update distance function
+        states = [transition[0] for transition in episode_trajectory]
+        self.distance_function.experience_replay(states)
+
+        # log progress
+        distance_reward = sum(transition[2] for transition in episode_trajectory)
+        self.log_progress(env, episode, episode_reward, distance_reward, episode_length, goal_state)
         return episode_reward, episode_length
 
-    def log_progress(self, env, episode, episode_reward, episode_length):
-        start = env.get_position(env.init_state).round(decimals=2)
-        print(f"Episode: {episode}, Starting at {start}, Reward: {episode_reward}, Length: {episode_length}")
+    def log_progress(self, env, episode, episode_reward, distance_reward, episode_length, goal_state):
+        goal_state = goal_state.round(decimals=2)
+        print(f"Episode: {episode}, Goal: {goal_state}")
+        print(f"True Reward: {episode_reward}, Distance Reward: {distance_reward}, Length: {episode_length}")
+
+    def distance_reward_function(self, s, goal):
+        assert isinstance(s, np.ndarray)
+        assert isinstance(goal, np.ndarray)
+        # input is batched
+        assert len(s.shape) == 2, s.shape
+        assert len(goal.shape) == 2, goal.shape
+
+        ipdb.set_trace()
+        sg = np.concatenate((s, goal), axis=1)
+        sg = torch.as_tensor(sg).float().to(self.device)
+        distances = self.distance_function.forward(sg)
+        distances[distances < 0] = 0
+        rewards = -distances / self.max_distance
+        return rewards.cpu().numpy()
+
+    def select_goal_state(self):
+        """Get state with largest x value"""
+        ipdb.set_trace()
+        ind = np.argmax(self.replay_buffer.state, axis=0)[0]
+        return self.replay_buffer.state[ind]
+
+    def assign_episode_rewards_from_distance_function(self, goal_state, episode_trajectory):
+        next_states = [transition[3] for transition in episode_trajectory]
+        goal_state = goal_state[np.newaxis, ...]
+        goal_states = np.repeat(goal_state, len(next_states), axis=0)
+        next_states = np.array(next_states)
+        rewards = self.distance_reward_function(next_states, goal_states)
+
+        episode_trajectory = [(s, a, r, ns, done, info) for r, (s, a, _, ns, done, info) in zip(rewards, episode_trajectory)]
+        return episode_trajectory

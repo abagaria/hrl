@@ -47,8 +47,7 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
 
-    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
-    plt.colorbar()
+    plt.scatter(states[:, 0], c=qvalues)
     file_name = f"value_function_episode_{episode}"
     plt.savefig(f"plots/{experiment_name}/{seed}/{file_name}.png")
     plt.close()

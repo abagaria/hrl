@@ -15,31 +15,8 @@ from hrl.wrappers.environments.ant_maze_env import AntMazeEnv
 from hrl.agent.td3.utils import make_chunked_value_function_plot, make_reward_function_plot
 
 
-def make_env(name, start, goal, dense_reward, seed, horizon=1000):
-    if "reacher" not in name.lower():
-        env = gym.make(name)
-    else:
-        gym_mujoco_kwargs = {
-            'maze_id': 'Reacher',
-            'n_bins': 0,
-            'observe_blocks': False,
-            'put_spin_near_agent': False,
-            'top_down_view': False,
-            'manual_collision': True,
-            'maze_size_scaling': 3,
-            'color_str': ""
-        }
-        env = AntMazeEnv(**gym_mujoco_kwargs)
-
-    goal_reward = 0. if dense_reward else 1.
-
-    env = D4RLAntMazeWrapper(env,
-                            start_state=start,
-                            goal_state=goal,
-                            use_dense_reward=dense_reward,
-                            goal_reward=goal_reward,
-                            step_reward=0.)
-
+def make_env(name, seed, horizon=1000):
+    env = gym.make(name, exclude_current_positions_from_observation=False)
     env = pfrl.wrappers.CastObservationToFloat32(env)
     env = pfrl.wrappers.ContinuingTimeLimit(env, max_episode_steps=horizon)
     env.env.seed(seed)
@@ -52,19 +29,11 @@ if __name__ == "__main__":
     parser.add_argument("--gpu_id", type=int)
     parser.add_argument("--experiment_name", type=str)
     parser.add_argument("--environment_name", type=str)
+    parser.add_argument("--quantile", type=float)
     parser.add_argument("--num_training_episodes", type=int, default=1000)
-    parser.add_argument("--use_random_starts", action="store_true", default=False)
-    parser.add_argument("--plot_value_function", action="store_true", default=False)
-    parser.add_argument("--plot_reward_function", action="store_true", default=False)
-    parser.add_argument("--use_dense_rewards", action="store_true", default=False)
-    parser.add_argument("--save_replay_buffer", action="store_true", default=False)
-    parser.add_argument("--use_distance_function_as_reward", action="store_true", default=False)
-    parser.add_argument("--learn_online_distance_function", action="store_true", default=False)
-    parser.add_argument("--distance_model_path", type=str, default="")
-    parser.add_argument("--start_pos", type=float, nargs=2, default=[0., 0.])
-    parser.add_argument("--save_policy", action="store_true", default=False)
     args = parser.parse_args()
 
+    args.experiment_name += f"_quantile_{args.quantile}"
     create_log_dir("logs")
     create_log_dir(f"logs/{args.experiment_name}")
     create_log_dir(f"logs/{args.experiment_name}/{args.seed}")
@@ -80,10 +49,7 @@ if __name__ == "__main__":
     _buffer_log_file = f"logs/{args.experiment_name}/{args.seed}/td3_replay_buffer.pkl"
 
     env = make_env(args.environment_name,
-                   start=np.array([0., 0.]),
-                   goal=np.array([0., 8.]),
-                   seed=args.seed,
-                   dense_reward=args.use_dense_rewards)
+                   seed=args.seed)
     
     pfrl.utils.set_random_seed(args.seed)
 
@@ -93,19 +59,14 @@ if __name__ == "__main__":
     agent = TD3(obs_size,
                 action_size,
                 max_action=1.,
+                distance_function_quantile=args.quantile,
                 use_output_normalization=False,
                 device=torch.device(
                     f"cuda:{args.gpu_id}" if args.gpu_id > -1 else "cpu"
                 ),
-                store_extra_info=args.save_replay_buffer,
-                use_distance_function_as_reward=args.use_distance_function_as_reward,
-                learn_distance_function_online=args.learn_online_distance_function,
-                distance_model_path=args.distance_model_path
+                store_extra_info=False
     )
 
-    # with open(f"logs/ant_load_policy/0/model_600.pkl", 'rb') as f:
-    #     agent = pickle.load(f)
-    
 
     t0 = time.time()
     
@@ -113,18 +74,8 @@ if __name__ == "__main__":
     _log_rewards = []
 
     for current_episode in range(args.num_training_episodes):
-        env.reset()
-        # TODO: Don't reset env manually
-        env.set_xy(args.start_pos)
-
-        if args.use_random_starts:
-            env.set_xy(
-                env.sample_random_state(
-                    reject_cond=env.is_goal_region
-                )
-            )
+        s0 = env.reset().astype(np.float32, copy=False)
         
-        s0 = env.cur_state.astype(np.float32, copy=False)
         episode_reward, episode_length = agent.rollout(env, s0, current_episode)
 
         _log_steps.append(episode_length)
@@ -137,23 +88,8 @@ if __name__ == "__main__":
             }
             pickle.dump(episode_metrics, f)
 
-        if args.plot_value_function and current_episode % 20 == 0:
-            make_chunked_value_function_plot(agent,
-                                            current_episode,
-                                            args.seed,
-                                            args.experiment_name)
-        
-        if args.plot_reward_function and current_episode % 20 == 0:
-            make_reward_function_plot(agent,
-                                            current_episode,
-                                            args.seed,
-                                            args.experiment_name)
-        
-        if args.save_replay_buffer and current_episode % 100 == 0:
-            agent.replay_buffer.save(_buffer_log_file)
-
-        if args.save_policy and current_episode % 100 == 0:
-            with open(f"logs/{args.experiment_name}/{args.seed}/model.pkl", "wb") as f:
-                pickle.dump(agent, f)
+        if current_episode % 20 == 0:
+            agent.distance_function.plot(f"plots/{args.experiment_name}/{args.seed}/episode_{current_episode}_distance_function.png")
+            
 
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")
