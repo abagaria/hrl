@@ -58,8 +58,11 @@ if __name__ == "__main__":
     parser.add_argument("--plot_reward_function", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     parser.add_argument("--save_replay_buffer", action="store_true", default=False)
-    parser.add_argument("--use_learned_distance_metric", action="store_true", default=False)
+    parser.add_argument("--use_distance_function_as_reward", action="store_true", default=False)
+    parser.add_argument("--learn_online_distance_function", action="store_true", default=False)
     parser.add_argument("--distance_model_path", type=str, default="")
+    parser.add_argument("--start_pos", type=float, nargs=2, default=[0., 0.])
+    parser.add_argument("--save_policy", action="store_true", default=False)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -95,9 +98,14 @@ if __name__ == "__main__":
                     f"cuda:{args.gpu_id}" if args.gpu_id > -1 else "cpu"
                 ),
                 store_extra_info=args.save_replay_buffer,
-                use_distance_function=args.use_learned_distance_metric,
-                model_path=args.distance_model_path
+                use_distance_function_as_reward=args.use_distance_function_as_reward,
+                learn_distance_function_online=args.learn_online_distance_function,
+                distance_model_path=args.distance_model_path
     )
+
+    # with open(f"logs/ant_load_policy/0/model_600.pkl", 'rb') as f:
+    #     agent = pickle.load(f)
+    
 
     t0 = time.time()
     
@@ -107,7 +115,7 @@ if __name__ == "__main__":
     for current_episode in range(args.num_training_episodes):
         env.reset()
         # TODO: Don't reset env manually
-        env.set_xy([8, 0])
+        env.set_xy(args.start_pos)
 
         if args.use_random_starts:
             env.set_xy(
@@ -129,13 +137,13 @@ if __name__ == "__main__":
             }
             pickle.dump(episode_metrics, f)
 
-        if args.plot_value_function and current_episode % 10 == 0:
+        if args.plot_value_function and current_episode % 20 == 0:
             make_chunked_value_function_plot(agent,
                                             current_episode,
                                             args.seed,
                                             args.experiment_name)
         
-        if args.plot_reward_function and current_episode % 10 == 0:
+        if args.plot_reward_function and current_episode % 20 == 0:
             make_reward_function_plot(agent,
                                             current_episode,
                                             args.seed,
@@ -143,5 +151,9 @@ if __name__ == "__main__":
         
         if args.save_replay_buffer and current_episode % 100 == 0:
             agent.replay_buffer.save(_buffer_log_file)
+
+        if args.save_policy and current_episode % 100 == 0:
+            with open(f"logs/{args.experiment_name}/{args.seed}/model.pkl", "wb") as f:
+                pickle.dump(agent, f)
 
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")

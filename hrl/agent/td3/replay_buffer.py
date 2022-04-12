@@ -71,7 +71,7 @@ class ReplayBuffer(object):
 			action=self.action[:self.size],
 			reward=self.reward[:self.size],
 			next_state=self.next_state[:self.size],
-			info=self.info[:self.size]
+			done=self.done[:self.size]
 		)
 		with open(filename, "wb+") as f:
 			pickle.dump(save_dict, f)

@@ -16,9 +16,13 @@ from hrl.experiments.distance_learning_network import DistanceNetwork
 class TD3(object):
     def __init__(
             self,
+            actor,
+            critic,
             state_dim,
             action_dim,
             max_action,
+            random_action_freq,
+            sample_random_action,
             use_output_normalization=True,
             discount=0.99,
             tau=0.005,
@@ -30,30 +34,26 @@ class TD3(object):
             lr_c=3e-4, lr_a=3e-4,
             device=torch.device("cuda"),
             name="Global-TD3-Agent",
-            store_extra_info=True,
-            use_distance_function_as_reward=False,
-            learn_distance_function_online=False,
-            distance_model_path="",
+            store_extra_info=True
     ):
-
+        if use_output_normalization:
+            assert max_action == 1., "Haven't fixed max-action for output-norm yet"
+            
         self.critic_learning_rate = lr_c
         self.actor_learning_rate = lr_a
 
-        if use_output_normalization:
-            assert max_action == 1., "Haven't fixed max-action for output-norm yet"
-            self.actor = NormActor(state_dim, action_dim).to(device)
-        else:
-            self.actor = Actor(state_dim, action_dim, max_action).to(device)
-
+        self.actor = actor
         self.target_actor = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.actor_learning_rate)
 
-        self.critic = Critic(state_dim, action_dim).to(device)
+        self.critic = critic
         self.target_critic = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
 
         self.replay_buffer = ReplayBuffer(state_dim, action_dim, device=device)
 
+        self.random_action_freq = random_action_freq
+        self.sample_random_action = sample_random_action
         self.max_action = max_action
         self.action_dim = action_dim
         self.gamma = discount
@@ -72,21 +72,6 @@ class TD3(object):
 
         self.T = 0
 
-        self.use_distance_metric_as_reward = use_distance_function_as_reward
-        if self.use_distance_metric_as_reward:
-            self.learn_distance_metric_online = learn_distance_function_online
-            self.setup_distance_function(distance_model_path, state_dim)
-
-    def setup_distance_function(self, distance_model_path, state_dim):
-        self.max_distance = 1000# TODO: Make this automatically determined based on episode timeout
-        self.distance_function = DistanceNetwork(input_dim=2 * state_dim, output_dim=1)
-        if self.learn_distance_metric_online:
-            self.distance_optimizer = torch.optim.Adam(self.distance_function.parameters(), lr=3e-4)
-        else:
-            checkpoint = torch.load(distance_model_path)
-            self.distance_function.load_state_dict(checkpoint['model'])
-        self.distance_function.to(self.device)
-
     @torch.no_grad()
     def reward_function(self, s, goal):
         assert isinstance(s, np.ndarray)
@@ -102,17 +87,16 @@ class TD3(object):
         rewards = -distances / self.max_distance
         return rewards.cpu().numpy()
 
-    def act(self, state, evaluation_mode=False):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-        selected_action = self.actor(state)
-
-        if self.use_output_normalization:
-            selected_action = self.normalize_actions(selected_action)
-
-        selected_action = selected_action.cpu().data.numpy().flatten()
-        noise = np.random.normal(0, self.max_action * self.epsilon, size=self.action_dim)
-        if not evaluation_mode:
-            selected_action += noise
+    def act(self, state):
+        if np.random.uniform() < self.random_action_freq:
+            selected_action = self.sample_random_action()
+        else:
+            state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+            selected_action = self.actor(state)
+            if self.use_output_normalization:
+                selected_action = self.normalize_actions(selected_action)
+            selected_action = selected_action.cpu().data.numpy().flatten()
+        
         return selected_action.clip(-self.max_action, self.max_action)
 
     def normalize_actions(self, actions):
@@ -135,8 +119,9 @@ class TD3(object):
         info = self.compute_extra_info(state, next_state) if self.store_extra_info else None
         self.replay_buffer.add(state, action, reward, next_state, is_terminal, info=info)
 
-        if len(self.replay_buffer) > self.batch_size:
-            self.train(self.replay_buffer, self.batch_size)
+        # turn off training
+        # if len(self.replay_buffer) > self.batch_size:
+        #     self.train(self.replay_buffer, self.batch_size)
 
     def compute_extra_info(self, state, next_state):
         s = state[np.newaxis, ...]
@@ -243,18 +228,6 @@ class TD3(object):
         for transition in trajectory:
             self.step(*transition)
 
-    def assign_episode_rewards_from_distance_function(self, env, episode_trajectory):
-        episode_start_state = episode_trajectory[0][0]
-        next_states = [transition[3] for transition in episode_trajectory]
-        goal_state = np.concatenate((env.goal_state, episode_start_state[2:]))
-        goal_state = goal_state[np.newaxis, ...]
-        goal_states = np.repeat(goal_state, len(next_states), axis=0)
-        next_states = np.array(next_states)
-        rewards = self.reward_function(next_states, goal_states)
-
-        episode_trajectory = [(s, a, r, ns, done, info) for r, (s, a, _, ns, done, info) in zip(rewards, episode_trajectory)]
-        return episode_trajectory
-
     def rollout(self, env, state, episode):
         """ Single episode of interaction with the env followed by experience replay. """
         done = False
@@ -284,13 +257,6 @@ class TD3(object):
 
             state = next_state
         
-        if self.use_distance_metric_as_reward:
-            if self.learn_distance_metric_online:
-                self.update_distance_learner()
-
-            episode_trajectory = self.assign_episode_rewards_from_distance_function(env, episode_trajectory)
-            episode_reward = sum(transition[2] for transition in episode_trajectory)
-
         self.experience_replay(episode_trajectory)
         self.log_progress(env, episode, episode_reward, episode_length)
         
