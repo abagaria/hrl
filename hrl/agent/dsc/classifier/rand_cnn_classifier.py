@@ -28,7 +28,7 @@ class RandCNNClassifier:
             nn.Conv2d(
                 in_channels=1,
                 out_channels=32,
-                kernel_size=8,
+                kernel_size=5,
                 stride=4),
             nn.MaxPool2d(
                 kernel_size=2,
@@ -37,7 +37,7 @@ class RandCNNClassifier:
             nn.Conv2d(
                 in_channels=32,
                 out_channels=64,
-                kernel_size=4,
+                kernel_size=5,
                 stride=2),
             nn.MaxPool2d(
                 kernel_size=2,
@@ -115,11 +115,13 @@ class RandCNNClassifier:
         features = []
         for i in range(0, len(images), self.batch_size):
             batch_images = images[i:i+self.batch_size]
-            batch_images = [stack[-1] for stack in batch_images]
-            batch_images = np.stack(batch_images, axis=0)
+            batch_sz = len(batch_images)
+            flattened_images = [frame for frame_stack in batch_images for frame in frame_stack]
+            flattened_images = np.stack(flattened_images, axis=0) # flatten list of list of frames into list of single frames
 
-            batch_features = self.model(torch.from_numpy(batch_images).float().to("cuda:0"))
+            batch_features = self.model(torch.from_numpy(flattened_images).float().to("cuda:0"))
             batch_features = batch_features.cpu().numpy()
-            batch_features = [np.squeeze(x) for x in np.split(batch_features, np.size(batch_features, 0))]
+            batch_features = np.split(batch_features, indices_or_sections=batch_sz) # split list of single frames into list of frame stacks
+            #batch_features = [np.squeeze(x) for x in np.split(batch_features, np.size(batch_features, 0))]
             features.extend(batch_features)
         return features
