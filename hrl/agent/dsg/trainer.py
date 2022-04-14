@@ -1,4 +1,6 @@
 import gym
+import gzip
+from tqdm import tqdm
 import ipdb
 import time
 import random
@@ -18,6 +20,7 @@ from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
 from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
 from hrl.plot import plot_salient_event_classifier
+from hrl.montezuma.montezuma_state import MontezumeState
 
 class DSGTrainer:
     def __init__(self, env, dsc, dsg, rnd,
@@ -64,9 +67,41 @@ class DSGTrainer:
         self.enable_rnd_logging = enable_rnd_logging
         self.disable_graph_expansion = disable_graph_expansion
 
+        self.test_infos = self.load_trajs_infos("rainbow_rnd_expts_trajs.pkl.gz", skip=125)
+
     # ---------------------------------------------------
     # Run loops
     # ---------------------------------------------------
+
+    def load_trajs_infos(self, filepath, num_trajs=25, skip=0):
+        print(f"[+] Loading trajectories from file '{filepath}'")
+
+        trajs_infos = []
+        with gzip.open(filepath, 'rb') as f:
+            print(f"[+] Skipping {skip} trajectories...")
+            for _ in tqdm(range(skip)):
+                traj = pickle.load(f)
+
+            try:
+                for _ in range(num_trajs):
+                    pkl_traj = pickle.load(f)
+                    traj = []
+                    infos = []
+                    for ram, frame in pkl_traj: # frame.shape is (84, 84, 1) -> same as dopamine
+                        traj.append(frame)
+                        frame_stack = self.stack_to_lz(traj[-4:])
+                        info = {
+                            'player_x': int(MontezumeState.getByte(ram, 'aa')),
+                            'player_y': int(MontezumeState.getByte(ram, 'ab')),
+                            'state': frame_stack
+                        }
+                        infos.append(info)
+                    trajs_infos.append(infos)
+                print(len(trajs_infos))
+                return trajs_infos
+                    
+            except EOFError:
+                pass 
 
     def run_loop(self, start_episode, num_episodes):
         for episode in range(start_episode, start_episode + num_episodes):
@@ -114,8 +149,10 @@ class DSGTrainer:
                     exploration_visited_infos.append(visited_infos)
 
             # Plot SalientEvent term sets
-            if episode != 0 and episode % 10 == 0:
+            if episode != 0 and episode % 70 == 0:
                 for salient_event in self.salient_events:
+                    if type(salient_event) is SalientEvent:
+                        continue
                     player_x, player_y = salient_event.target_info['player_x'], salient_event.target_info['player_y']
                     plot_salient_event_classifier(f"term_plots/ep{episode}_{player_x}_{player_y}", salient_event, exploration_visited_infos)
 
@@ -629,8 +666,8 @@ class DSGTrainer:
             goal_traj_idx = goal_traj_idxs[i]
             goal_traj = trajectories[goal_traj_idx]
 
-            pos_start = state_idx - 6
-            pos_end = state_idx + 6
+            pos_start = state_idx - 2
+            pos_end = state_idx + 2
             pos_states = goal_traj[pos_start:pos_end + 1]
             pos_states = [state._frames for state in pos_states]
             pos_infos = infos[goal_traj_idx][pos_start:pos_end + 1]
@@ -638,7 +675,7 @@ class DSGTrainer:
             subgoal_neg_states = [goal_traj[i] for i in range(len(goal_traj)) if i < pos_start or i > pos_end]
             subgoal_neg_states = [state._frames for state in subgoal_neg_states]
 
-            non_subgoal_neg_trajs = trajectories[goal_traj_idx+1:goal_traj_idx+4]
+            non_subgoal_neg_trajs = trajectories[goal_traj_idx+1:goal_traj_idx+6]
             non_subgoal_neg_states = [state._frames for traj in non_subgoal_neg_trajs for state in traj]
 
             train_data = pos_states + subgoal_neg_states + non_subgoal_neg_states
@@ -653,6 +690,7 @@ class DSGTrainer:
             added_events.append(event)
 
             plot_salient_event_classifier(f"term_plots/train_{info['player_x']}_{info['player_y']}", event, infos[goal_traj_idx:goal_traj_idx+5])
+            plot_salient_event_classifier(f"term_plots/test_{info['player_x']}_{info['player_y']}", event, self.test_infos)
 
             # Add the discovered event only if we are not in gc experiment mode
             if len(self.predefined_events) == 0:
