@@ -6,6 +6,7 @@ from hrl.agent.dsc.utils import info_to_pos
 from hrl.agent.dsc.datastructures import TrainingExample
 from hrl.agent.dsc.classifier.stack_sift_classifier import StackBOVWClassifier
 from hrl.agent.dsc.classifier.rand_cnn_classifier import RandCNNClassifier
+from hrl.agent.dsc.classifier.ensemble_cnn_classifier import EnsembleCNNClassifier
 
 class SalientEvent:
     def __init__(self, target_obs, target_info, tol):
@@ -91,6 +92,20 @@ class CNNSalientEvent(SalientEvent):
     def __init__(self, target_obs, target_info, pos_info, train_data, train_labels, tol):
         SalientEvent.__init__(self, target_obs, target_info, tol)
         self.classifier = RandCNNClassifier()
+        #self.classifier.fit(train_data, train_labels, gamma=0.000001)
+        self.classifier.fit(train_data, train_labels)
+        self.pos_infos = pos_info
+
+    def __call__(self, info):
+        state = info["state"] # state should be a pfrl.LazyFrame
+        assert(isinstance(state, atari_wrappers.LazyFrames))
+        pred = self.classifier.predict([state._frames])
+        return pred in [1, 3]
+
+class EnsembleCNNSalientEvent(SalientEvent):
+    def __init__(self, target_obs, target_info, pos_info, train_data, train_labels, tol):
+        SalientEvent.__init__(self, target_obs, target_info, tol)
+        self.classifier = EnsembleCNNClassifier()
         self.classifier.fit(train_data, train_labels)
         self.pos_infos = pos_info
 

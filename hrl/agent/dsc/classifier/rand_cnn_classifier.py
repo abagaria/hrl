@@ -28,8 +28,8 @@ class RandCNNClassifier:
             nn.Conv2d(
                 in_channels=1,
                 out_channels=32,
-                kernel_size=5,
-                stride=4),
+                kernel_size=8,
+                stride=3),
             nn.MaxPool2d(
                 kernel_size=2,
                 stride=1),
@@ -37,14 +37,14 @@ class RandCNNClassifier:
             nn.Conv2d(
                 in_channels=32,
                 out_channels=64,
-                kernel_size=5,
+                kernel_size=4,
                 stride=2),
             nn.MaxPool2d(
                 kernel_size=2,
                 stride=1),
             nn.LeakyReLU(),
             Flatten(),
-            nn.Linear(3136, 512)
+            nn.Linear(6400, 512)
         )
         self.model.cuda()
 

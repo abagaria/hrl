@@ -15,7 +15,7 @@ from pfrl.wrappers import atari_wrappers
 from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
 from hrl.agent.dsc.utils import pos_to_info
-from hrl.salient_event.salient_event import SalientEvent, BOVWSalientEvent, CNNSalientEvent
+from hrl.salient_event.salient_event import SalientEvent, BOVWSalientEvent, CNNSalientEvent, EnsembleCNNSalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities
 from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
@@ -662,12 +662,14 @@ class DSGTrainer:
         added_events = []
         for i, (obs, info, reward, state_idx) in enumerate(discovered_goals):
             #kmeans_data = [state._frames for traj in trajectories for state in traj]
+            subgoal_state_window = 2
+            num_non_subgoal_trajs = 4
 
             goal_traj_idx = goal_traj_idxs[i]
             goal_traj = trajectories[goal_traj_idx]
 
-            pos_start = state_idx - 2
-            pos_end = state_idx + 2
+            pos_start = state_idx - subgoal_state_window
+            pos_end = state_idx + subgoal_state_window
             pos_states = goal_traj[pos_start:pos_end + 1]
             pos_states = [state._frames for state in pos_states]
             pos_infos = infos[goal_traj_idx][pos_start:pos_end + 1]
@@ -675,7 +677,10 @@ class DSGTrainer:
             subgoal_neg_states = [goal_traj[i] for i in range(len(goal_traj)) if i < pos_start or i > pos_end]
             subgoal_neg_states = [state._frames for state in subgoal_neg_states]
 
-            non_subgoal_neg_trajs = trajectories[goal_traj_idx+1:goal_traj_idx+6]
+            if goal_traj_idx <= num_non_subgoal_trajs:
+                non_subgoal_neg_trajs = trajectories[goal_traj_idx+1:goal_traj_idx+num_non_subgoal_trajs+1]
+            else:
+                non_subgoal_neg_trajs = trajectories[goal_traj_idx-num_non_subgoal_trajs:goal_traj_idx]
             non_subgoal_neg_states = [state._frames for traj in non_subgoal_neg_trajs for state in traj]
 
             train_data = pos_states + subgoal_neg_states + non_subgoal_neg_states
@@ -685,8 +690,9 @@ class DSGTrainer:
 
             #event = BOVWSalientEvent(obs, info, pos_infos, kmeans_data, train_data, train_labels, tol=2.)
             #print("Accepted New BOVW Salient Event: ", event)
-            event = CNNSalientEvent(obs, info, pos_infos, train_data, train_labels, tol=2.)
-            print("Accepted New CNN Salient Event: ", event)
+            #event = CNNSalientEvent(obs, info, pos_infos, train_data, train_labels, tol=2.)
+            event = EnsembleCNNSalientEvent(obs, info, pos_infos, train_data, train_labels, tol=2.)
+            print("Accepted New Ensemble CNN Salient Event: ", event)
             added_events.append(event)
 
             plot_salient_event_classifier(f"term_plots/train_{info['player_x']}_{info['player_y']}", event, infos[goal_traj_idx:goal_traj_idx+5])
