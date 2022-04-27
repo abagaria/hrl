@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
+import random
 
 import torch
 import torch.nn as nn
@@ -16,7 +17,7 @@ agent = TD3(state_dim=29,
             max_action=1.,
             use_output_normalization=False,
             device=torch.device("cpu"))
-agent_fname = '../antreacher_dense_save_rbuf_policy/0/td3_episode_500'
+agent_fname = 'antreacher_dense_save_rbuf_policy/0/td3_episode_500'
 load_agent(agent, agent_fname)
 
 ####################################################
@@ -89,6 +90,18 @@ class FQE:
         self.q_fitter = QFitter(self.state_dim, self.action_dim)
 
         self.learning_rate = learning_rate
+
+    def sample_batch(self, batch_size=500):
+        zero_r_idx = np.where(self.data['reward'] == 0)
+        data_idx = random.randint()
+
+        batch_data = {}
+        batch_data['state'] = data['state'][data_idx, :]
+        batch_data['action'] = data['action'][data_idx, :]
+        batch_data['reward'] = data['reward'][data_idx, :]
+        batch_data['next_state'] = data['next_state'][data_idx, :]
+
+        return batch_data
 
     def fit(self, num_iter=None, gamma=0.98):
         if num_iter is None:
