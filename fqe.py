@@ -8,7 +8,7 @@ import torch.nn as nn
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.agent.td3.utils import load as load_agent
 
-buffer_fname = '../td3_replay_buffer.pkl'
+buffer_fname = 'td3_replay_buffer.pkl'
 data = pickle.load(open(buffer_fname, 'rb'))
 
 agent = TD3(state_dim=29,
