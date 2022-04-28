@@ -135,6 +135,7 @@ class SkillChain:
         for option in completed_options:
             if self.should_expand_initiation_classifier(option):
                 option.is_last_option = True
+                option.expand_initiation_classifier(self.init_salient_event)
                 if self.should_complete_chain(option):
                     self._is_deemed_completed = True
                     return True

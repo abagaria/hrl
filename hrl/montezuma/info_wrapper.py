@@ -1,17 +1,17 @@
 import gym
 import ipdb
 import numpy as np
-from gym import spaces
+from .wrappers import Wrapper
 
 # TODO: This only works for the 1st room
 START_POSITION = (77, 235)
 
 
-class MontezumaInfoWrapper(gym.Wrapper):
+class MontezumaInfoWrapper(Wrapper):
     def __init__(self,
                 env,
                 use_persistent_death_flag=True,
-                use_persistent_falling_flag=False):
+                use_persistent_falling_flag=True):
         self.T = 0
         self.num_lives = None
         self.death_flag = False
@@ -19,7 +19,7 @@ class MontezumaInfoWrapper(gym.Wrapper):
         self.falling_time = None
         self.use_persistent_death_flag = use_persistent_death_flag
         self.use_persistent_falling_flag = use_persistent_falling_flag
-        gym.Wrapper.__init__(self, env)
+        Wrapper.__init__(self, env)
     
     def reset(self, **kwargs):
         self.falling_time = None
@@ -28,9 +28,9 @@ class MontezumaInfoWrapper(gym.Wrapper):
         info = self.get_current_info(info={})
         return s0, info
 
-    def step(self, action):
+    def step(self, action, clf):
         self.T += 1
-        obs, reward, done, info = self.env.step(action)
+        obs, reward, done, info = self.env.step(action, clf)
         info = self.get_current_info(info=info)
         self.num_lives = info["lives"]
         return obs, reward, done, info
@@ -132,19 +132,3 @@ class MontezumaInfoWrapper(gym.Wrapper):
         # Return the byte at the specified emulator RAM location
         idx = MontezumaInfoWrapper._getIndex(address)
         return ram[idx]
-
-class Reshape(gym.ObservationWrapper):
-    def __init__(self, env, channel_order="hwc"):
-        gym.ObservationWrapper.__init__(self, env)
-        self.width = 84
-        self.height = 84
-        shape = {
-            "hwc": (self.height, self.width, 1),
-            "chw": (1, self.height, self.width),
-        }
-        self.observation_space = spaces.Box(
-            low=0, high=255, shape=shape[channel_order], dtype=np.uint8
-        )
-
-    def observation(self, frame):
-        return frame.reshape(self.observation_space.low.shape)

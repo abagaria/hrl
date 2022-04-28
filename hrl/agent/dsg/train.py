@@ -15,19 +15,18 @@ from hrl.agent.dsg.dsg import SkillGraphAgent
 from hrl.agent.dsg.trainer import DSGTrainer
 from hrl.agent.dsc.utils import default_pos_to_info
 from hrl.salient_event.salient_event import SalientEvent
-from hrl.montezuma.info_wrapper import MontezumaInfoWrapper, Reshape
+from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
+from hrl.montezuma.wrappers import FrameStack, Reshape, ContinuingTimeLimit
+from hrl.montezuma.dopamine_env import AtariPreprocessing
 
 
-def make_env(env_name, seed, max_frames):
-    env = atari_wrappers.wrap_deepmind(
-        atari_wrappers.make_atari(env_name, max_frames=max_frames),
-        episode_life=False,
-        clip_rewards=False
-    )
-
-    env.seed(seed)
-
-    return MontezumaInfoWrapper(env)
+def set_env_persistent_flag(env, persistent_falling):
+    assert isinstance(env, MontezumaInfoWrapper), env
+    env.use_persistent_falling_flag = persistent_falling
+    inner_env = env.env.env.env.env
+    assert isinstance(inner_env, AtariPreprocessing), inner_env
+    inner_env.use_persistent_falling_flag = persistent_falling
+    print(f"Set persistent falling flag to {env.use_persistent_falling_flag} and {inner_env.use_persistent_falling_flag}")
 
 
 def load_goal_state(dir_path, file):
@@ -104,6 +103,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_empirical_distances", action="store_true", default=False)
     parser.add_argument("--noisy_net_sigma", type=float, default=0.5)
     parser.add_argument("--expansion_fraction_threshold", type=float, default=0.5)
+    parser.add_argument("--use_persistent_falling_flag", action="store_true", default=False)
+    parser.add_argument("--path_to_offline_data", type=str, help="For classifier testing", default="")
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
     args = parser.parse_args()
@@ -136,10 +137,11 @@ if __name__ == "__main__":
     exploration_agent = get_exploration_agent(_rnd_base_dir)
     
     env = MontezumaInfoWrapper(
-        atari_wrappers.FrameStack(
-            Reshape(
-                pfrl.wrappers.ContinuingTimeLimit(
-                    exploration_agent._environment, args.max_frames_per_episode
+            FrameStack(
+                Reshape(
+                    ContinuingTimeLimit(
+                        exploration_agent._environment,
+                        args.max_frames_per_episode
                 ),
                 channel_order="chw"
             ),
@@ -149,6 +151,8 @@ if __name__ == "__main__":
 
     s0, _ = env.reset()
     p0 = env.get_current_position()
+
+    set_env_persistent_flag(env, args.use_persistent_falling_flag)
 
     goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
     
@@ -200,7 +204,8 @@ if __name__ == "__main__":
                           args.initiation_classifier_type,
                           args.use_full_negative_trajectory,
                           args.use_pessimistic_relabel,
-                          args.noisy_net_sigma)
+                          args.noisy_net_sigma,
+                          args.path_to_offline_data)
 
     dsg_agent = SkillGraphAgent(dsc_agent,
                                 exploration_agent,

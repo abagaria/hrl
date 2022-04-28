@@ -1,12 +1,14 @@
 import os
-from re import L
-from importlib_metadata import itertools
-import pfrl
+import gzip
 import torch
 import scipy
+import pickle
+import itertools
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from collections import namedtuple
+from hrl.utils import chunked_inference
 from pfrl.wrappers import atari_wrappers
 from hrl.agent.rainbow.rainbow import Rainbow
 
@@ -30,6 +32,11 @@ def default_pos_to_info(pos):
         room_number=1,
         dead=False,
         falling=False
+    )
+
+def flatten(lol):
+    return list(
+        itertools.chain.from_iterable(lol)
     )
 
 def make_meshgrid(x, y, h=1.):
@@ -166,3 +173,109 @@ def make_chunked_goal_conditioned_value_function_plot(solver, options,
     plt.close()
 
     return values.max()
+
+
+MonteRAMState = namedtuple("MonteRAMState", ["player_x", "player_y", "screen", "has_key", "door_left_locked", "door_right_locked", "skull_x", "lives"])
+
+def get_byte(ram: np.ndarray, address: int) -> int:
+    """Return the byte at the specified emulator RAM location"""
+    assert isinstance(ram, np.ndarray) and ram.dtype == np.uint8 and isinstance(address, int), ram
+    return int(ram[address & 0x7f])
+
+def parse_ram(ram: np.ndarray) -> MonteRAMState:
+    """Get the current annotated Montezuma RAM state as a tuple
+
+    See RAM annotations:
+    https://docs.google.com/spreadsheets/d/1KU4KcPqUuhSZJ1N2IyhPW59yxsc4mI4oSiHDWA3HCK4
+    """
+    x = get_byte(ram, 0xaa)
+    y = get_byte(ram, 0xab)
+    screen = get_byte(ram, 0x83)
+
+    inventory = get_byte(ram, 0xc1)
+    key_mask = 0b00000010
+    has_key = bool(inventory & key_mask)
+
+    objects = get_byte(ram, 0xc2)
+    door_left_locked  = bool(objects & 0b1000)
+    door_right_locked = bool(objects & 0b0100)
+
+    skull_offset = 33
+    skull_x = get_byte(ram, 0xaf) + skull_offset
+    #skull_x = 0
+    lives = get_byte(ram, 0xba)
+
+    return MonteRAMState(x, y, screen, has_key, door_left_locked, door_right_locked, skull_x, lives)
+
+
+def load_saved_trajs(data_path, skip=0):
+    '''
+    Returns a generator for getting states.
+
+    Args:
+        skip (int): number of trajectories to skip
+
+    Returns:
+        (generator): generator to be called for trajectories
+    '''
+    print(f"[+] Loading trajectories from file '{data_path}'")
+    with gzip.open(data_path, 'rb') as f:
+        print(f"[+] Skipping {skip} trajectories...")
+        for _ in tqdm(range(skip)):
+            traj = pickle.load(f)
+
+        try:
+            while True:
+                traj = pickle.load(f)
+                yield traj
+        except EOFError:
+            pass
+
+
+def get_saved_trajectories(data_path, n_trajectories):
+    traj_generator = load_saved_trajs(data_path)
+
+    raw_ram_trajs, ram_trajs, frame_trajs = [], [], []
+
+    for i in range(n_trajectories):
+        traj = next(traj_generator)
+
+        raw_ram_traj, ram_traj, frame_traj = [], [], []
+        for ram, frame in traj:
+            raw_ram_traj.append(ram)
+            ram_traj.append(parse_ram(ram))
+            frame_traj.append(frame)
+        raw_ram_trajs.append(raw_ram_traj)
+        ram_trajs.append(ram_traj)
+        frame_trajs.append(frame_traj)
+    return raw_ram_trajs, ram_trajs, frame_trajs
+
+
+def plot_classifier_predictions(option, states, rams, episode, seed, experiment_name):
+   x_positions = [ram.player_x for ram in rams]
+   y_positions = [ram.player_y for ram in rams]
+
+   states = np.array(states).reshape(-1, 1, 84, 84)
+
+   classifier = option.initiation_classifier
+   f1 = lambda x: classifier.batched_optimistic_predict(x).squeeze()
+   f2 = lambda x: classifier.batched_pessimistic_predict(x).squeeze()
+
+   optimistic_predictions = chunked_inference(states, f1)
+   pessimistic_predictions = chunked_inference(states, f2)
+   
+   plt.figure(figsize=(16, 10))
+
+   plt.subplot(1, 2, 1)
+   plt.scatter(x_positions, y_positions, c=optimistic_predictions)
+   plt.colorbar()
+   plt.title(f"Optimistic Predictions")
+
+   plt.subplot(1, 2, 2)
+   plt.scatter(x_positions, y_positions, c=pessimistic_predictions)
+   plt.colorbar()
+   plt.title("Pesssimistic Predictions")
+
+   plt.suptitle(f"Subgoal: {option.target_salient_event}")
+   plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option}_init_clf_episode_{episode}.png")
+   plt.close()

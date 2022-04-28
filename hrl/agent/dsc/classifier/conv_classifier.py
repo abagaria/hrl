@@ -28,14 +28,15 @@ class ConvClassifier:
     @torch.no_grad()
     def predict(self, X):
         logits = self.model(X)
-        probabilities = F.sigmoid(logits)
+        probabilities = torch.sigmoid(logits)
         return probabilities > self.threshold
 
     def determine_pos_weight(self, y):
         n_negatives = len(y[y != 1])
         n_positives = len(y[y == 1])
-        pos_weight = (1. * n_negatives) / n_positives
-        return torch.as_tensor(pos_weight).float()
+        if n_positives > 0:
+            pos_weight = (1. * n_negatives) / n_positives
+            return torch.as_tensor(pos_weight).float()
 
     def should_train(self, y):
         enough_data = len(y) > self.batch_size
@@ -53,11 +54,14 @@ class ConvClassifier:
     def fit(self, X, y):
         if self.should_train(y):
             losses = []
-            pos_weight = self.determine_pos_weight(y)
-            n_gradient_steps = len(X) // self.batch_size
+            n_gradient_steps = 5 * (len(X) // self.batch_size)
 
             for _ in range(n_gradient_steps):
                 sampled_inputs, sampled_labels = self.sample(X, y)
+                pos_weight = self.determine_pos_weight(sampled_labels)
+
+                if not pos_weight:
+                    continue
 
                 logits = self.model(sampled_inputs)
                 loss = F.binary_cross_entropy_with_logits(logits.squeeze(),

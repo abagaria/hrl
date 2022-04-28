@@ -3,11 +3,11 @@ import ipdb
 import numpy as np
 
 from dopamine.discrete_domains.run_experiment import Runner
-from dopamine.discrete_domains import atari_lib
 from absl import logging
 import tensorflow.compat.v1 as tf
 
 from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
+from hrl.montezuma.dopamine_env import create_atari_environment
 from hrl.agent.bonus_based_exploration.helpers import ram_data_replay_buffer
 import matplotlib.pyplot as plt
 
@@ -15,7 +15,7 @@ class RNDAgent(Runner):
     def __init__(self,
                base_dir,
                create_agent_fn,
-               create_environment_fn=atari_lib.create_atari_environment):
+               create_environment_fn=create_atari_environment):
         tf.logging.info('Creating episode wise runner...')
         super(RNDAgent, self).__init__(
             base_dir=base_dir,

@@ -1,4 +1,3 @@
-import gym
 import ipdb
 import time
 import random
@@ -39,7 +38,6 @@ class DSGTrainer:
                  create_sparse_graph=False,
                  use_empirical_distances=False,
                  expansion_fraction_threshold=0.5):
-        assert isinstance(env, gym.Env)
         assert isinstance(dsc, RobustDSC)
         assert isinstance(dsg, SkillGraphAgent)
         assert isinstance(rnd, RNDAgent)
@@ -80,6 +78,7 @@ class DSGTrainer:
         self.rnd_log_filename = rnd_log_filename
         self.enable_rnd_logging = enable_rnd_logging
         self.disable_graph_expansion = disable_graph_expansion
+        self.deleted_events = []
 
         # Logging for distance function evaluations
         self.distance_classification_accuracies = []
@@ -140,7 +139,7 @@ class DSGTrainer:
             t0 = time.time()
             with open(self.dsc_agent.log_file, "wb+") as f:
                 pickle.dump(self.dsg_agent.gc_successes, f)
-            print(f"[Iteration={iteration}, Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
+            print(f"[Episode={episode} Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
 
             if iteration > 0 and iteration % 5 == 0:
                 visualize_graph_nodes_with_expansion_probabilities(self.dsg_agent,
@@ -154,7 +153,7 @@ class DSGTrainer:
                 plot_distance_table(self.dsg_agent.node_distances, self.salient_events, episode,
                                     self.dsc_agent.experiment_name, self.dsc_agent.seed)
             
-            iteration += 1
+            iteration += 1  
 
     def graph_expansion_run_loop(self, start_episode, num_episodes):
         exploration_inits = []
@@ -381,6 +380,9 @@ class DSGTrainer:
             if current_episode > 0 and current_episode % 10 == 0:
                 self.add_potential_edges_to_graph()
 
+            if current_episode > 0 and current_episode % 10 == 0:
+                self.delete_potential_nodes_from_graph()
+
         return state, info
 
     # ---------------------------------------------------
@@ -488,6 +490,8 @@ class DSGTrainer:
                 scores / 0.02,
                 axis=1
             )
+
+            print(f"Unconnected Events: {unconnected_events} | Probs: {probabilities}")
 
             selected_event = np.random.choice(unconnected_events, size=1, p=probabilities.squeeze())[0]
             assert isinstance(selected_event, SalientEvent), type(selected_event)
@@ -618,6 +622,74 @@ class DSGTrainer:
         t0 = time.time()
         [self.dsg_agent.add_potential_edges(o) for o in self.dsg_agent.planner.option_nodes]
         print(f"Took {time.time() - t0}s to add potential edges.")
+
+    def delete_potential_nodes_from_graph(self):
+        """ Delete nodes that are impossible to re-trigger. """
+        
+        def get_success_rate(event, window_length=50):
+            key = tuple(event.target_pos)
+            if key in self.dsg_agent.gc_successes:
+                curve = self.dsg_agent.gc_successes[key]
+                if len(curve) >= window_length:
+                    return np.mean(curve[-window_length:])
+
+        def get_num_attempts(event):
+            key = tuple(event.target_pos)
+            if key in self.dsg_agent.gc_successes:
+                curve = self.dsg_agent.gc_successes[key]
+                return len(curve)
+            return 0
+
+        def get_close_events(source_events, distance_threshold=20):
+            close_events = []
+            for src_event in source_events:
+                for target_event in self.salient_events:
+                    distance = self.dsg_agent.node_distances[src_event][target_event]
+                    if distance < distance_threshold:
+                        close_events.append(target_event)
+            return close_events
+
+        # 1. Compute success rate of all salient events
+        success_rates = [get_success_rate(beta) for beta in self.salient_events]
+
+        # 2. Grab the salient events with success rate above 30%
+        good_events = [event for i, event in enumerate(self.salient_events) if success_rates[i] and success_rates[i] > .3]
+
+        # 3. Grab the salient events that are "close" to the salient events from (2)
+        close_to_good_events = list(set(get_close_events(good_events)))
+
+        # 4. Check the success rates of the events from (3)
+        close_event_n_successes = [len(n.effect_set) for n in close_to_good_events]
+        close_event_n_attempts = [get_num_attempts(n) for n in close_to_good_events]
+
+        assert len(close_to_good_events) == len(close_event_n_successes) == len(close_event_n_attempts)
+
+        # 5. Grab the salient events whose n_successes is lower than 5
+        bad_events = [
+            event for event, n_successes, n_attempts in \
+            zip(close_to_good_events, close_event_n_successes, close_event_n_attempts) \
+            if n_successes < 5 and n_attempts > 200
+        ]
+
+        # 6. Log deleted events
+        if bad_events:
+            self.deleted_events.extend(bad_events)
+
+        # 7. Delete the salient events from (5) from the graph
+        for event in bad_events:
+            print(f"Removing {event} from the list of salient events.")
+            self.salient_events.remove(event)
+            self.dsg_agent.salient_events.remove(event)
+        
+        # for chain in self.dsc_agent.chains:
+        #     if chain.target_salient_event in bad_events:
+        #         print(f"Removing {chain} targeting {chain.target_salient_event}")
+        #         self.dsc_agent.chains.remove(chain)
+        
+        # for option in self.dsc_agent.new_options:
+        #     if option.target_salient_event in bad_events:
+        #         print(f"Removing {option} targeting {option.target_salient_event}")
+        #         self.dsc_agent.new_options.remove(option)
 
     # ---------------------------------------------------
     # Skill graph expansion
@@ -778,16 +850,23 @@ class DSGTrainer:
             pos = info_to_pos(info)
             return (25 < pos[0] < 121) and (pos[1] < 160)
 
+        def is_not_on_floor(info):  # TODO Hack
+            pos = info_to_pos(info)
+            return pos[1] not in (148, 192, 235)
+
         def is_inside_another_event(info):
             return any([event(info) for event in self.salient_events])
 
         def is_close_to_another_event(info):
             distances = [event.distance(info) for event in self.salient_events]
-            return any([distance < 5. for distance in distances])
+            return any([distance < 11. for distance in distances])
 
         def is_inside_option(state, info):
-            # Only considering root options because their classifiers tend to be tighter
-            root_options = [option for option in self.dsc_agent.mature_options if option.parent is None]
+            # # Only considering root options because their classifiers tend to be tighter
+            if self.dsc_agent.use_pos_for_init:
+                root_options = self.dsc_agent.mature_options
+            else:
+                root_options = [option for option in self.dsc_agent.mature_options if option.parent is None]
 
             # Only consider options that don't target the start state salient event
             root_options = [option for option in root_options if option.target_salient_event != self.init_salient_event]
@@ -812,7 +891,8 @@ class DSGTrainer:
                    is_close_to_another_event(info) or \
                    (is_jumping(info) and self.reject_jumping_states) or \
                    is_inside_option(obs, info) or\
-                   is_in_bad_region(info)
+                   is_in_bad_region(info) #or\
+                #    is_not_on_floor(info)
                 #    or self.should_reject_new_event(info, regions)
         
         if len(observations) > 3:

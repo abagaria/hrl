@@ -696,9 +696,8 @@ class SkillGraphAgent:
 
         self.update_chain_init_descendants()
 
-        # TODO: Expansion classifier
-        # if chain.should_expand_initiation_classifier(newly_created_option):
-        #     newly_created_option.expand_initiation_classifier(chain.init_salient_event)
+        if chain.should_expand_initiation_classifier(newly_created_option):
+            newly_created_option.expand_initiation_classifier(chain.init_salient_event)
 
         if chain.should_complete_chain(newly_created_option):
             chain.set_chain_completed()

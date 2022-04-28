@@ -18,7 +18,7 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
                  pessimistic_threshold=0.75,
                  n_input_channels=1,
                  pessimistic_relabel=False,
-                 maxlen=100):
+                 maxlen=1000):
         self.device = device
         self.n_input_channels = n_input_channels
         self.pessimistic_relabel = pessimistic_relabel
@@ -34,6 +34,24 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
     def is_initialized(self):
         return self.optimistic_classifier.is_trained and \
                self.pessimistic_classifier.is_trained
+
+    @torch.no_grad()
+    def batched_optimistic_predict(self, X):
+        assert isinstance(self.optimistic_classifier, ConvClassifier)
+        assert self.optimistic_classifier.is_trained
+        if isinstance(X, np.ndarray):
+            X = torch.as_tensor(X).float().to(self.device)
+        optimistic_predictions = self.optimistic_classifier.predict(X)
+        return optimistic_predictions.cpu().numpy()
+
+    @torch.no_grad()
+    def batched_pessimistic_predict(self, X):
+        assert isinstance(self.pessimistic_classifier, ConvClassifier)
+        assert self.pessimistic_classifier.is_trained
+        if isinstance(X, np.ndarray):
+            X = torch.as_tensor(X).float().to(self.device)
+        pessimistic_predictions = self.pessimistic_classifier.predict(X)
+        return pessimistic_predictions.cpu().numpy()
 
     def optimistic_predict(self, state):
         assert isinstance(state, np.ndarray)
@@ -137,7 +155,7 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
 
                 self.pessimistic_classifier.fit(X_pessimistic, Y_pessimistic)
 
-    def plot_training_predictions(self, option_name, episode, experiment_name, seed):
+    def plot_training_predictions(self, option_name, episode, experiment_name, seed, goal=None):
         """ Plot the predictions on the traininng data. """
         if not self.is_initialized():
             return
@@ -159,6 +177,7 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
         positive_positions = self.extract_positions(self.positive_examples)
         negative_positions = self.extract_positions(self.negative_examples)
 
+        plt.figure(figsize=(16, 10))
         plt.subplot(1, 2, 1)
         plt.scatter(positive_positions[:, 0], positive_positions[:, 1],
                     c=optimistic_positive_predictions, marker="+", label="positive data")
@@ -180,6 +199,9 @@ class DoubleConvInitiationClassifier(InitiationClassifier):
         plt.colorbar()
         plt.legend()
         plt.title("Pessimistic classifier")
+        
+        if goal:
+            plt.suptitle(f"Targeting {goal}")
 
         plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option_name}_init_clf_episode_{episode}.png")
         plt.close()

@@ -77,6 +77,7 @@ class ModelFreeOption(object):
         print(f"Created model-free option {self.name} with option_idx={self.option_idx}")
 
         self.is_last_option = self.option_idx == max_num_options
+        self.expansion_classifier = None
 
     def _get_model_free_solver(self):
         if self.global_init:
@@ -161,15 +162,18 @@ class ModelFreeOption(object):
         x = self.extract_init_features(state, info)
         
         classifier_decision = self.initiation_classifier.pessimistic_predict(x)
+        expansion_decision = self.expansion_classifier(info) if self.expansion_classifier else False
+        combined_decision = classifier_decision or expansion_decision
 
         if self.use_hacky_init:
             distances_to_positives = self.get_distance_to_positive_examples(state, info)
             distance_decision = (distances_to_positives < 10).mean() > 0.1  # close to at least 10% of the positive examples
-            return classifier_decision and distance_decision
+            return combined_decision and distance_decision
 
-        return classifier_decision
+        return combined_decision
 
     def is_term_true(self, state, info):
+
         if self.failure_condition(info, check_falling=True):
             return False
 
@@ -201,6 +205,10 @@ class ModelFreeOption(object):
         positive_positions = np.array([eg.pos for eg in positives])
         distances = cdist(pos[None, ...], positive_positions)
         return distances
+
+    def expand_initiation_classifier(self, classifier):  # TODO: add support
+        print(f"Expanding {self.name}'s pessimistic classifier to include {classifier}")
+        self.expansion_classifier = classifier
 
     # ------------------------------------------------------------
     # Control Loop Methods
@@ -284,12 +292,14 @@ class ModelFreeOption(object):
         if not self.global_init:
             goal, goal_info = self.get_goal_for_rollout()
 
+        clf = lambda s, i: self.local_rf(s, i, utils.info_to_pos(goal_info), dsc_goal_salient_event)[1]
+        
         print(f"Rolling out {self.name}, from {utils.info_to_pos(info)} targeting {goal_info}")
 
         while not done and not reached and not reset and num_steps < self.timeout:
 
             action = self.act(state, goal)
-            next_state, reward, done, info = self.env.step(action)
+            next_state, reward, done, info = self.env.step(action, clf)
             reset = info.get("needs_reset", False)
             
             reward, reached = self.local_rf(

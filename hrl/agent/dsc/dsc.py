@@ -18,7 +18,7 @@ class RobustDSC(object):
                  p_her, max_num_options, seed, log_filename,
                  num_kmeans_clusters, sift_threshold,
                  classifier_type, use_full_neg_traj, use_pessimistic_relabel,
-                 noisy_net_sigma):
+                 noisy_net_sigma, rnd_data_path):
 
         self.mdp = mdp
         self.seed = seed
@@ -55,6 +55,15 @@ class RobustDSC(object):
         self.current_option_idx = 1
 
         self.log_file = log_filename
+        self.rnd_data_path = rnd_data_path
+
+        if rnd_data_path:
+            _, ram_trajectories, frame_trajectories = get_saved_trajectories(
+                rnd_data_path, n_trajectories=75
+            )
+
+            self.rnd_rams = flatten(ram_trajectories)
+            self.rnd_frames = flatten(frame_trajectories)
 
     # ------------------------------------------------------------
     # Action selection methods
@@ -208,6 +217,13 @@ class RobustDSC(object):
             else:
                 option.initiation_classifier.plot_training_predictions(option.name, episode,
                                                                        self.experiment_name, self.seed)
+
+                if self.rnd_data_path and option.target_salient_event:
+                    plot_classifier_predictions(
+                        option, self.rnd_frames, self.rnd_rams,
+                        episode, self.seed, self.experiment_name
+                    )
+
             return True
 
         return False
