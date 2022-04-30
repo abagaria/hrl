@@ -81,8 +81,8 @@ if __name__ == "__main__":
     _buffer_log_file = f"logs/{args.experiment_name}/{args.seed}/td3_replay_buffer.pkl"
 
     env = make_env(args.environment_name,
-                   start=np.array([0., 0.]),
-                   goal=np.array([0., 8.]),
+                   start=np.array([8., 0.]),
+                   goal=np.array([0., 0.]),
                    seed=args.seed,
                    dense_reward=args.use_dense_rewards)
     
