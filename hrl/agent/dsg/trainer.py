@@ -16,6 +16,7 @@ from .dsg import SkillGraphAgent
 from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
+from hrl.agent.dsc.utils import plot_classifier_predictions
 from hrl.agent.dsg.utils import visualize_consolidation_probabilities
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities, plot_distance_table
 from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
@@ -152,6 +153,14 @@ class DSGTrainer:
 
                 plot_distance_table(self.dsg_agent.node_distances, self.salient_events, episode,
                                     self.dsc_agent.experiment_name, self.dsc_agent.seed)
+
+                if self.dsc_agent.rnd_data_path:
+                    for option in self.dsc_agent.mature_options:
+                        plot_classifier_predictions(
+                            option, self.dsc_agent.rnd_frames,
+                            self.dsc_agent.rnd_rams, episode, 
+                            self.dsc_agent.seed, self.dsc_agent.experiment_name
+                        )
             
             iteration += 1  
 
@@ -884,16 +893,23 @@ class DSGTrainer:
                     return True
             return False
 
+        # def should_reject(obs, info):
+        #     regions = get_regions_in_first_screen() if self.use_strict_regions else get_lineant_regions_in_first_screen()
+        #     return is_death_state(info) or \
+        #            is_inside_another_event(info) or \
+        #            is_close_to_another_event(info) or \
+        #            (is_jumping(info) and self.reject_jumping_states) or \
+        #            is_inside_option(obs, info) or\
+        #            is_in_bad_region(info) #or\
+        #         #    is_not_on_floor(info)
+                #    or self.should_reject_new_event(info, regions)
+        
         def should_reject(obs, info):
-            regions = get_regions_in_first_screen() if self.use_strict_regions else get_lineant_regions_in_first_screen()
-            return is_death_state(info) or \
+            return info["uncontrollable"] or \
+                   info["buggy_state"] or\
                    is_inside_another_event(info) or \
                    is_close_to_another_event(info) or \
-                   (is_jumping(info) and self.reject_jumping_states) or \
-                   is_inside_option(obs, info) or\
-                   is_in_bad_region(info) #or\
-                #    is_not_on_floor(info)
-                #    or self.should_reject_new_event(info, regions)
+                   is_inside_option(obs, info)
         
         if len(observations) > 3:
             accepted_triples = [(obs, reward, info) for obs, reward, info in 

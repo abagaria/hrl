@@ -20,15 +20,6 @@ from hrl.montezuma.wrappers import FrameStack, Reshape, ContinuingTimeLimit
 from hrl.montezuma.dopamine_env import AtariPreprocessing
 
 
-def set_env_persistent_flag(env, persistent_falling):
-    assert isinstance(env, MontezumaInfoWrapper), env
-    env.use_persistent_falling_flag = persistent_falling
-    inner_env = env.env.env.env.env
-    assert isinstance(inner_env, AtariPreprocessing), inner_env
-    inner_env.use_persistent_falling_flag = persistent_falling
-    print(f"Set persistent falling flag to {env.use_persistent_falling_flag} and {inner_env.use_persistent_falling_flag}")
-
-
 def load_goal_state(dir_path, file):
     file_name = os.path.join(dir_path, file)
     with open(file_name, "rb") as f:
@@ -103,7 +94,6 @@ if __name__ == "__main__":
     parser.add_argument("--use_empirical_distances", action="store_true", default=False)
     parser.add_argument("--noisy_net_sigma", type=float, default=0.5)
     parser.add_argument("--expansion_fraction_threshold", type=float, default=0.5)
-    parser.add_argument("--use_persistent_falling_flag", action="store_true", default=False)
     parser.add_argument("--path_to_offline_data", type=str, help="For classifier testing", default="")
     parser.add_argument("--purpose", type=str, default="", help="Optional notes about the current experiment")
 
@@ -151,8 +141,6 @@ if __name__ == "__main__":
 
     s0, _ = env.reset()
     p0 = env.get_current_position()
-
-    set_env_persistent_flag(env, args.use_persistent_falling_flag)
 
     goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
     
