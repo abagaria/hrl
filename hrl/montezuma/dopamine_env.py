@@ -383,12 +383,7 @@ class AtariPreprocessing(object):
 
     self.T = 0
     self.num_lives = None
-    self.death_flag = False
-    self.falling_flag = False
-    self.falling_time = None
     self.n_reached_interrupts = 0
-    self.use_persistent_death_flag = True
-    self.use_persistent_falling_flag = True
 
   @property
   def observation_space(self):
@@ -420,8 +415,6 @@ class AtariPreprocessing(object):
         environment.
     """
     self.environment.reset()
-    self.falling_time = None
-    self.falling_flag = False
     self.num_lives = self.get_num_lives(self.get_current_ram()) 
     self.lives = self.environment.ale.lives()
     self._fetch_grayscale_observation(self.screen_buffer[0])
@@ -544,40 +537,10 @@ class AtariPreprocessing(object):
     info["has_key"] = self.get_has_key(ram)
     info["room_number"] = self.get_room_number(ram)
     info["jumping"] = self.get_is_jumping(ram)
-
-    # Did the player die in the current frame
-    # (commented out portion is the animation flag from RAM, which is imperfect)
-    current_death = int(info["lives"] < self.num_lives) # or (self.getByte(ram, 'b7') > 0)
-    current_falling = self.get_is_falling(ram)
-
-    # Raise the death flag
-    if current_death:
-      self.death_flag = True
-
-    if current_falling:
-      self.falling_flag = True
-      self.falling_time = self.T
-
-    # This takes the variable length of the death animation into account: 
-    # Lower the death flag if the player has respawned at the start location
-    if self.death_flag and self.get_current_position() == START_POSITION:
-      self.death_flag = False
-
-    # Lower the falling flag when the player has returned to the start position
-    # Sometimes the falling signal goes up and the player doesn't die, in those cases
-    # we don't want the falling flag to remain high for the entire episode
-    if self.falling_flag and (self.get_current_position() == START_POSITION or self.falling_time - self.T >= 20 or self.death_flag):
-      self.falling_flag = False
-
-    if self.use_persistent_death_flag:
-      info["dead"] = self.death_flag
-    else:
-      info["dead"] = current_death
-
-    if self.use_persistent_falling_flag:
-      info["falling"] = self.falling_flag
-    else:
-      info["falling"] = current_falling
+    info["dead"] = self.get_is_player_dead(ram)
+    info["falling"] = self.get_is_falling(ram)
+    info["uncontrollable"] = self.get_is_in_non_controllable_state(ram)
+    info["buggy_state"] = self.get_is_climbing_imaginary_ladder(ram)
 
     if update_lives:
       self.num_lives = info["lives"]
@@ -623,3 +586,41 @@ class AtariPreprocessing(object):
       row = int(row, 16) - 8
       col = int(col, 16)
       return row*16+col
+
+  def get_player_status(self, ram):
+        status = self.getByte(ram, '9e')
+        status_codes = {
+            0x00: 'standing',
+            0x2A: 'running',
+            0x3E: 'on-ladder',
+            0x52: 'climbing-ladder',
+            0x7B: 'on-rope',
+            0x90: 'climbing-rope',
+            0xA5: 'mid-air',
+            0xBA: 'dead',  # dive 1
+            0xC9: 'dead',  # dive 2
+            0xC8: 'dead',  # dissolve 1
+            0xDD: 'dead',  # dissolve 2
+            0xFD: 'dead',  # smoke 1
+            0xE7: 'dead',  # smoke 2
+        }
+        return status_codes[status]
+
+  def get_is_player_dead(self, ram):
+    player_status = self.get_player_status(ram)
+    dead = player_status == "dead"
+    time_to_spawn = self.getByte(ram, "b7")
+    respawning = time_to_spawn > 0
+    return dead or respawning
+
+  def get_is_in_non_controllable_state(self, ram):
+    player_status = self.get_player_status(ram)
+    return self.get_is_jumping(ram) or \
+      player_status in ("mid-air") or \
+      self.get_is_falling(ram) or \
+      self.get_is_player_dead(ram)
+
+  def get_is_climbing_imaginary_ladder(self, ram):
+    imaginary = self.get_player_x(ram) == 128
+    ladder = self.get_player_status(ram) == "climbing-ladder"
+    return imaginary and ladder
