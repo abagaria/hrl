@@ -18,6 +18,7 @@ from .classifier.fixed_conv_classifier import FixedConvInitiationClassifier
 from .classifier.ensemble_init_classifier import EnsembleInitiationClassifier
 from .classifier.single_conv_init_classifier import SingleConvInitiationClassifier
 from .classifier.double_conv_init_classifier import DoubleConvInitiationClassifier
+from .classifier.conv_init_classifier import ConvInitiationClassifier
 
 
 class ModelFreeOption(object):
@@ -116,6 +117,10 @@ class ModelFreeOption(object):
                 gamma=6e-7,
                 nu=2.5e-4
             )
+        if self.classifier_type == "cnn":
+            return ConvInitiationClassifier(device,
+                pessimistic_relabel=self.use_pessimistic_relabel
+            )
         if self.classifier_type == "single-cnn":
             return SingleConvInitiationClassifier(device)
         if self.classifier_type == "double-cnn":
@@ -195,7 +200,7 @@ class ModelFreeOption(object):
     def failure_condition(self, info, check_falling=False):
         targets_start_state = self.target_salient_event.target_pos[0] == 77.\
                           and self.target_salient_event.target_pos[1] == 235.
-        death_cond = (info['falling'] or info['dead']) if check_falling else info['dead']
+        death_cond = info['uncontrollable'] if check_falling else info['dead']
         return death_cond and not targets_start_state
         
     def get_distance_to_positive_examples(self, state, info):

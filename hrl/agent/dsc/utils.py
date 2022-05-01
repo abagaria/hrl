@@ -252,12 +252,16 @@ def get_saved_trajectories(data_path, n_trajectories):
 
 
 def plot_classifier_predictions(option, states, rams, episode, seed, experiment_name):
+   if not option.initiation_classifier.is_initialized() or option.target_salient_event is None:
+       return
+
    x_positions = [ram.player_x for ram in rams]
    y_positions = [ram.player_y for ram in rams]
 
    states = np.array(states).reshape(-1, 1, 84, 84)
 
    classifier = option.initiation_classifier
+   
    f1 = lambda x: classifier.batched_optimistic_predict(x).squeeze()
    f2 = lambda x: classifier.batched_pessimistic_predict(x).squeeze()
 
