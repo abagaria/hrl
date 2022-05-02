@@ -133,7 +133,7 @@ if __name__ == '__main__':
                 use_output_normalization=False,
                 device=torch.device(args.device))
     agent_fname = 'antreacher_dense_save_rbuf_policy/0/td3_episode_500'
-    load_agent(agent, agent_fname)
+    load_agent(agent, agent_fname, args.device)
 
     ####################################################
     # # Reduce data size for fast testing
