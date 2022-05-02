@@ -13,8 +13,9 @@ from hrl.agent.dq_demonstrations.supervised_categorical_double import Supervised
 
 class SupervisedRainbow:
     def __init__(self, n_actions, n_atoms, v_min, v_max, noisy_net_sigma, lr,
-                n_steps, betasteps, replay_start_size, replay_buffer_size, gpu,
-                goal_conditioned, use_custom_batch_states=True):
+                n_steps, betasteps, replay_start_size, replay_buffer_size, 
+                demonstration_buffer_size, gpu, goal_conditioned, 
+                use_custom_batch_states=True):
         self.n_actions = n_actions
         n_channels = 4 + int(goal_conditioned)
         self.goal_conditioned = goal_conditioned
@@ -24,11 +25,11 @@ class SupervisedRainbow:
         pnn.to_factorized_noisy(self.q_func, sigma_scale=noisy_net_sigma)
 
         explorer = explorers.Greedy()
-        opt = torch.optim.Adam(self.q_func, sigma_scale=noisy_net_sigma)
+        opt = torch.optim.Adam(self.q_func.parameters(), lr, eps=1.5e-4)
 
         self.rbuf = CombinedPrioritizedReplayBuffer(
             replay_buffer_size,
-            demonstration_capacity=replay_buffer_size,
+            demonstration_capacity=demonstration_buffer_size,
             alpha=0.5,
             beta0=0.4,
             betasteps=betasteps,
@@ -157,7 +158,7 @@ class SupervisedRainbow:
             episode_length += 1
             episode_reward += reward
 
-            state += next_state
+            state = next_state
 
         self.experience_replay(episode_trajectory)
         max_reward_so_far = max(episode_reward, max_reward_so_far)

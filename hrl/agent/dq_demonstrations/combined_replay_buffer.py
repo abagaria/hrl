@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar
 import collections
 from pfrl.replay_buffers import PrioritizedReplayBuffer
 from pfrl.collections.prioritized import TreeQueue, PrioritizedBuffer
@@ -7,7 +7,10 @@ import numpy as np
 
 # tuple<value, index, tree>
 NodeInfo = Tuple[float, int, int]
+Node = List[Any]
 T = TypeVar("T")
+V = TypeVar("V")
+Aggregator = Callable[[Sequence[V]], V]
 
 def _find(index_left: int, index_right: int, node: None, pos: float) -> int:
     if index_right - index_left == 1:
@@ -24,10 +27,59 @@ def _find(index_left: int, index_right: int, node: None, pos: float) -> int:
         else:
             return _find(index_center, index_right, node_right, pos - left_value)
 
+def _reduce(node: Node, op: Aggregator):
+    assert node
+    left_node, right_node, _ = node
+    parent_value = []
+    if left_node:
+        parent_value.append(left_node[2][0])
+    if right_node:
+        parent_value.append(right_node[2][0])
+    if parent_value:
+        node[2] = (op(parent_value), node[2][1], node[2][2])
+    else:
+        del node[:]
+
+def _expand(node: Node) -> None:
+    if not node:
+        node[:] = [], [], (0.0, [], [])
+
+def _write(
+    index_left: int,
+    index_right: int,
+    node: Node,
+    key: int,
+    value: Optional[V],
+    op: Aggregator,
+) -> Optional[V]:
+    if index_right - index_left == 1:
+        if node:
+            ret = node[2]
+        else:
+            ret = None
+        if value is None:
+            del node[:]
+        else:
+            node[:] = None, None, value
+    else:
+        _expand(node)
+        node_left, node_right, _ = node
+        index_center = (index_left + index_right) // 2
+        if key < index_center:
+            ret = _write(index_left, index_center, node_left, key, value, op)
+        else:
+            ret = _write(index_center, index_right, node_right, key, value, op)
+        _reduce(node, op)
+    return ret
+
 class CombinedSumTreeQueue(TreeQueue[NodeInfo]):
 
     def __init__(self):
         super().__init__(op=sum)
+
+    def _write(self, ix: int, val: Optional[V]) -> Optional[V]:
+        ixl, ixr = self.bounds
+        return _write(ixl, ixr, self.root, ix, val, self.op)
 
     def sum(self):
         if self.length == 0:
@@ -74,6 +126,10 @@ class CombinedSumTreeQueue(TreeQueue[NodeInfo]):
 class CombinedMinTreeQueue(TreeQueue[NodeInfo]):
     def __init__(self):
         super().__init__(op=min)
+    
+    def _write(self, ix: int, val: Optional[V]) -> Optional[V]:
+        ixl, ixr = self.bounds
+        return _write(ixl, ixr, self.root, ix, val, self.op)
 
     def min(self) -> float:
         if self.length == 0:
