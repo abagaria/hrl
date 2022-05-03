@@ -161,19 +161,19 @@ if __name__ == '__main__':
     if not os.path.exists('saved_results/{}/'.format(args.exp_name)):
         os.makedirs('saved_results/{}/'.format(args.exp_name))
 
-    print('Created folder')
+    print('Created folder.')
     fqe = FQE(data,
               agent.actor,
               learning_rate=args.learning_rate,
               exp_name=args.exp_name,
               device=args.device)
-    print('Created fqe')
+    print('Created fqe.')
     fqe.fit(args.num_iter,
             gamma=args.gamma,
             batch_size=args.batch_size,
             num_epochs=args.num_epochs,
             save_interval=args.save_interval)
-    print('Fitted fqe')
+    print('Fitted fqe.')
 
     with open('saved_results/{}/args.txt'.format(args.exp_name), 'w') as f:
         for arg in vars(args):
@@ -182,4 +182,4 @@ if __name__ == '__main__':
         t1 = time.time()
         f.write("\n")
         f.write("Runtime: {0:.2f} minutes.".format((t1-t0)/60))
-    print('End of code')
+    print('End of code.')
