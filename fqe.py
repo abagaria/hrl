@@ -182,3 +182,4 @@ if __name__ == '__main__':
         t1 = time.time()
         f.write("\n")
         f.write("Runtime: {0:.2f} minutes.".format((t1-t0)/60))
+    print('End of code')
