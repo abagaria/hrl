@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pickle
 import random
 import os
+import time
 
 import torch
 import torch.nn as nn
@@ -111,6 +112,7 @@ class FQE:
 
 
 if __name__ == '__main__':
+    t0 = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', type=str, default='tmp')
     parser.add_argument('--save_interval', type=int, default=np.inf)
@@ -133,7 +135,7 @@ if __name__ == '__main__':
                 use_output_normalization=False,
                 device=torch.device(args.device))
     agent_fname = 'antreacher_dense_save_rbuf_policy/0/td3_episode_500'
-    load_agent(agent, agent_fname, args.device)
+    load_agent(agent, agent_fname)
 
     ####################################################
     # # Reduce data size for fast testing
@@ -159,18 +161,24 @@ if __name__ == '__main__':
     if not os.path.exists('saved_results/{}/'.format(args.exp_name)):
         os.makedirs('saved_results/{}/'.format(args.exp_name))
 
+    print('Created folder')
     fqe = FQE(data,
               agent.actor,
               learning_rate=args.learning_rate,
               exp_name=args.exp_name,
               device=args.device)
+    print('Created fqe')
     fqe.fit(args.num_iter,
             gamma=args.gamma,
             batch_size=args.batch_size,
             num_epochs=args.num_epochs,
             save_interval=args.save_interval)
+    print('Fitted fqe')
 
     with open('saved_results/{}/args.txt'.format(args.exp_name), 'w') as f:
         for arg in vars(args):
             f.write("{}: {}".format(arg, getattr(args, arg)))
             f.write("\n")
+        t1 = time.time()
+        f.write("\n")
+        f.write("Runtime: {0:.2f} minutes".format((t1-t0)/60))

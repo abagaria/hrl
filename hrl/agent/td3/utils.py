@@ -13,13 +13,13 @@ def save(td3_agent, filename):
     torch.save(td3_agent.actor_optimizer.state_dict(), filename + "_actor_optimizer")
 
 
-def load(td3_agent, filename, device):
-    td3_agent.critic.load_state_dict(torch.load(filename + "_critic", map_location=torch.device(device)))
-    td3_agent.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer", map_location=torch.device(device)))
+def load(td3_agent, filename):
+    td3_agent.critic.load_state_dict(torch.load(filename + "_critic", map_location=torch.device(td3_agent.device)))
+    td3_agent.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer", map_location=torch.device(td3_agent.device)))
     td3_agent.critic_target = copy.deepcopy(td3_agent.critic)
 
-    td3_agent.actor.load_state_dict(torch.load(filename + "_actor", map_location=torch.device(device)))
-    td3_agent.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer", map_location=torch.device(device)))
+    td3_agent.actor.load_state_dict(torch.load(filename + "_actor", map_location=torch.device(td3_agent.device)))
+    td3_agent.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer", map_location=torch.device(td3_agent.device)))
     td3_agent.actor_target = copy.deepcopy(td3_agent.actor)
 
 
