@@ -93,9 +93,9 @@ class FQE:
         done = torch.from_numpy(data["done"].astype(np.float32))
         target_q = reward
         next_action = self.pi_eval(state)
+        print('hi')
         next_state_action = torch.cat(
             (torch.from_numpy(self.data["next_state"].astype(np.float32)), next_action), dim=1)
-        print('hi')
         self.loss_func = nn.MSELoss()
         self.optimizer = torch.optim.SGD(self.q_fitter.parameters(), lr=self.learning_rate)
         for iter in range(num_iter):
