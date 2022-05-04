@@ -182,4 +182,5 @@ if __name__ == '__main__':
             f.write("\n")
         t1 = time.time()
         f.write("\n")
-        f.write("Runtime: {0:.2f} minutes.".format((t1-t0)/60))
+        f.write("Runtime: {0:.2f} minutes.".format((t1-t0)/60))k
+    print('done')
