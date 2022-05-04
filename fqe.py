@@ -112,6 +112,7 @@ class FQE:
 
 
 if __name__ == '__main__':
+    print('start')
     t0 = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', type=str, default='tmp')
