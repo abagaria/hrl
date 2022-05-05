@@ -35,7 +35,6 @@ def chunked_policy_prediction(policy, states, action_dim, chunk_size=100):
     actions = torch.zeros((data_size, action_dim))
     num_whole_chunks = data_size // chunk_size
     for i in range(num_whole_chunks):
-        print(i)
         actions[i*chunk_size:(i+1)*chunk_size-1, :] = policy(states[i*chunk_size:(i+1)*chunk_size-1, :])
     pdb.set_trace()
     if data_size % chunk_size != 0:
@@ -56,6 +55,7 @@ class FQE:
                  learning_rate=0.01,
                  device='cpu',
                  exp_name="tmp"):
+        pdb.set_trace()
         self.pi_eval = pi_eval
         self.state_dim = data["state"].shape[1]
         self.action_dim = data["action"].shape[1]
