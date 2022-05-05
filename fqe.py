@@ -54,7 +54,6 @@ class FQE:
                  learning_rate=0.01,
                  device='cpu',
                  exp_name="tmp"):
-        pdb.set_trace()
         self.pi_eval = pi_eval
         self.state_dim = data["state"].shape[1]
         self.action_dim = data["action"].shape[1]
@@ -72,7 +71,7 @@ class FQE:
         self.state = torch.from_numpy(data["state"].astype(np.float32)).to(device)
         self.state_action = torch.from_numpy(np.concatenate((data["state"], data["action"]), axis=1).astype(np.float32)).to(device)
         self.done = torch.from_numpy(data["done"].astype(np.float32)).to(device)
-        next_action = chunked_policy_prediction(self.pi_eval, self.state, device, self.action_dim)
+        next_action = chunked_policy_prediction(self.pi_eval, self.state, self.action_dim, device)
         self.next_state_action = torch.cat(
             (torch.from_numpy(data["next_state"].astype(np.float32)), next_action), dim=1).to(device)
 
