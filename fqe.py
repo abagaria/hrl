@@ -56,6 +56,7 @@ class FQE:
                  learning_rate=0.01,
                  device='cpu',
                  exp_name="tmp"):
+        pdb.set_trace()
         self.pi_eval = pi_eval
         self.state_dim = data["state"].shape[1]
         self.action_dim = data["action"].shape[1]
