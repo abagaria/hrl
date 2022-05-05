@@ -11,7 +11,7 @@ import torch.nn as nn
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.agent.td3.utils import load as load_agent
 
-import pdb()
+import pdb
 
 import argparse
 
