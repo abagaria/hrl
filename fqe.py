@@ -73,7 +73,7 @@ class FQE:
         self.done = torch.from_numpy(data["done"].astype(np.float32)).to(device)
         next_action = chunked_policy_prediction(self.pi_eval, self.state, self.action_dim, device)
         self.next_state_action = torch.cat(
-            (torch.from_numpy(data["next_state"].astype(np.float32)), next_action), dim=1).to(device)
+            (torch.from_numpy(data["next_state"].astype(np.float32)).to(device), next_action), dim=1).to(device)
 
     def optimize_model(self, gamma, batch_size, num_batches):
 
