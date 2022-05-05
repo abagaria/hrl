@@ -30,7 +30,7 @@ class QFitter(nn.Module):
         value = self.linear_relu_stack(x)
         return value
 
-def chunked_policy_prediction(policy, states, action_dim, chunk_size=1000):
+def chunked_policy_prediction(policy, states, action_dim, chunk_size=100):
     data_size = states.size(dim=0)
     actions = torch.zeros((data_size, action_dim))
     num_whole_chunks = data_size // chunk_size
@@ -54,7 +54,6 @@ class FQE:
                  learning_rate=0.01,
                  device='cpu',
                  exp_name="tmp"):
-        pdb.set_trace()
         self.pi_eval = pi_eval
         self.state_dim = data["state"].shape[1]
         self.action_dim = data["action"].shape[1]
@@ -71,6 +70,7 @@ class FQE:
         self.reward = torch.from_numpy(data["reward"].astype(np.float32)).view(-1, 1)
         self.state = torch.from_numpy(data["state"].astype(np.float32))
         self.state_action = torch.from_numpy(np.concatenate((data["state"], data["action"]), axis=1).astype(np.float32))
+        pdb.set_trace()
         self.done = torch.from_numpy(data["done"].astype(np.float32))
         next_action = chunked_policy_prediction(self.pi_eval, self.state, self.action_dim)
         self.next_state_action = torch.cat(
