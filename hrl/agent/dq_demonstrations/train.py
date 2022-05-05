@@ -10,6 +10,7 @@ from hrl.utils import create_log_dir
 from hrl.agent.dq_demonstrations.supervised_rainbow import SupervisedRainbow
 from pfrl.wrappers import atari_wrappers
 from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
+from hrl.agent.dq_demonstrations.dataloader import load_trajectory
 
 def make_env(env_name, seed, terminal_on_loss_of_life=False):
     env = atari_wrappers.wrap_deepmind(
@@ -72,13 +73,16 @@ if __name__ == "__main__":
         goal_conditioned=args.goal_conditioned
     )
 
+    data_dir = os.path.expanduser("~/Documents/research/code/montezuma/atari_v1")
+    trajectory = load_trajectory(data_dir, 1)
+    rainbow_agent.add_demonstration_trajectory(trajectory)
+
     t0 = time.time()
     current_step_number = 0
     max_episodic_reward = 0
     current_episode_number = 0
 
     while current_step_number < args.num_training_steps:
-
 
         s0,_ = env.reset()
 
