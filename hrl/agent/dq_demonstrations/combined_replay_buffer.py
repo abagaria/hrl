@@ -185,8 +185,13 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
         return len(self.data[0])
 
     def append(self, value: T, priority: Optional[float] = None, is_demonstration = False):
-        if self.capacity is not None and len(self) == self.capacity:
-            self.popleft()
+        # check if experience and if experience buffer is full
+        if not is_demonstration and (self.capacity is not None and self.experience_buffer_size() == self.capacity):
+            self.popleft(remove_experience=True)
+        # check if demonstration and if demonstration buffer is full
+        if is_demonstration and (self.demonstration_capacity is not None and self.demonstration_buffer_size() == self.demonstration_capacity):
+            self.popleft(remove_experience=False)
+
         if priority is None:
             # Append with the highest priority
             priority = self.max_priority
@@ -196,7 +201,7 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
             priority += self.experience_priority_bonus
         if is_demonstration:
             tree_index = 1
-            buffer_index = self.expert_idx
+            buffer_index = self.demonstration_idx
         else:
             tree_index = 0
             buffer_index = self.experience_idx
@@ -215,7 +220,6 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
             self.experience_idx = (self.experience_idx + 1) % self.capacity
 
     def popleft(self, remove_experience) -> T:
-        assert len(self) > 0
         if remove_experience:
             tree_index = 0
         else:
@@ -232,14 +236,18 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
                 popped_sum.append(sum_pop)
                 popped_min.append(min_pop)
         for pop in popped_sum:
+            print(pop)
             self.priority_sums.append(pop)
         for pop in popped_min:
+            print(pop)
             self.priority_mins.append(pop)
         if remove_experience:
-            self.experience_front = (self.experience_idx + 1) % self.capacity
+            self.experience_front = (self.experience_front + 1) % self.capacity
+            return self.data[0].popleft()
         else:
-            self.expert
-        return self.data[0].popleft()
+            self.demonstration_front = (self.demonstration_front + 1) % self.demonstration_capacity
+            return self.data[1].popleft()
+        
 
     def _get_true_index(self, index, tree_index):
         if tree_index == 1:
@@ -253,6 +261,7 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
         indices, node_info, min_prob = self._sample_indices_and_probabilities(
             n, uniform_ratio=uniform_ratio
         )
+
         self.sampled_indices = indices
         self.flag_wait_priority = True
 
@@ -266,6 +275,39 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
             sampled.append(self.data[tree_indices[i]][true_indices[i]])
 
         return sampled, probabilities, min_prob
+
+    def _sample_indices_and_probabilities(self, 
+            n: int, uniform_ratio: float
+    ) -> Tuple[List[int], List[float], float]:
+        total_priority: float = self.priority_sums.sum()
+        min_prob = self.priority_mins.min() / total_priority
+        indices = []
+        priorities = []
+        if uniform_ratio > 0:
+            # Mix uniform samples and prioritized samples
+            n_uniform = np.random.binomial(n, uniform_ratio)
+            un_indices, un_priorities = self.priority_sums.uniform_sample(
+                n_uniform, remove=self.wait_priority_after_sampling
+            )
+            indices.extend(un_indices)
+            priorities.extend(un_priorities)
+            n -= n_uniform
+            min_prob = uniform_ratio/(self.experience_buffer_size() + self.demonstration_buffer_size()) + (1 - uniform_ratio)*min_prob
+
+        pr_indices, pr_priorities = self.priority_sums.prioritized_sample(
+            n, remove=self.wait_priority_after_sampling
+        )
+        indices.extend(pr_indices)
+        priorities.extend(pr_priorities)
+
+        print(priorities)
+
+        probs = []
+        for pri in priorities:
+            prob = uniform_ratio / (self.experience_buffer_size() + self.demonstration_buffer_size()) + (1 - uniform_ratio) * pri[0]/total_priority
+            probs.append((prob, pri[1], pri[2]))
+
+        return indices, probs, min_prob
 
 class CombinedPrioritizedReplayBuffer(PrioritizedReplayBuffer):
 
