@@ -32,7 +32,7 @@ class QFitter(nn.Module):
 
 def chunked_policy_prediction(policy, states, action_dim, device, chunk_size=100):
     data_size = states.size(dim=0)
-    actions = torch.zeros((data_size, action_dim)).to()
+    actions = torch.zeros(data_size, action_dim).to(device)
     num_whole_chunks = data_size // chunk_size
     for i in range(num_whole_chunks):
         actions[i*chunk_size:(i+1)*chunk_size-1, :] = policy(states[i*chunk_size:(i+1)*chunk_size-1, :])
