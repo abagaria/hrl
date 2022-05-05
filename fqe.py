@@ -30,14 +30,12 @@ class QFitter(nn.Module):
         value = self.linear_relu_stack(x)
         return value
 
-def chunked_policy_prediction(policy, states, action_dim, chunk_size=100):
+def chunked_policy_prediction(policy, states, action_dim, device, chunk_size=100):
     data_size = states.size(dim=0)
-    actions = torch.zeros((data_size, action_dim))
+    actions = torch.zeros((data_size, action_dim)).to()
     num_whole_chunks = data_size // chunk_size
     for i in range(num_whole_chunks):
-        # actions[i*chunk_size:(i+1)*chunk_size-1, :] = policy(states[i*chunk_size:(i+1)*chunk_size-1, :])
-        a = policy(states[i*chunk_size:(i+1)*chunk_size-1, :])
-    pdb.set_trace()
+        actions[i*chunk_size:(i+1)*chunk_size-1, :] = policy(states[i*chunk_size:(i+1)*chunk_size-1, :])
     if data_size % chunk_size != 0:
         actions[num_whole_chunks*chunk_size:, :] = policy(states[num_whole_chunks*chunk_size:, :])
     return actions
@@ -70,13 +68,13 @@ class FQE:
         self.loss_func = nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.q_fitter.parameters(), lr=self.learning_rate)
 
-        self.reward = torch.from_numpy(data["reward"].astype(np.float32)).view(-1, 1)
-        self.state = torch.from_numpy(data["state"].astype(np.float32))
-        self.state_action = torch.from_numpy(np.concatenate((data["state"], data["action"]), axis=1).astype(np.float32))
-        self.done = torch.from_numpy(data["done"].astype(np.float32))
-        next_action = chunked_policy_prediction(self.pi_eval, self.state, self.action_dim)
+        self.reward = torch.from_numpy(data["reward"].astype(np.float32)).view(-1, 1).to(device)
+        self.state = torch.from_numpy(data["state"].astype(np.float32)).to(device)
+        self.state_action = torch.from_numpy(np.concatenate((data["state"], data["action"]), axis=1).astype(np.float32)).to(device)
+        self.done = torch.from_numpy(data["done"].astype(np.float32)).to(device)
+        next_action = chunked_policy_prediction(self.pi_eval, self.state, device, self.action_dim)
         self.next_state_action = torch.cat(
-            (torch.from_numpy(data["next_state"].astype(np.float32)), next_action), dim=1)
+            (torch.from_numpy(data["next_state"].astype(np.float32)), next_action), dim=1).to(device)
 
     def optimize_model(self, gamma, batch_size, num_batches):
 
