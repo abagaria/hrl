@@ -11,6 +11,8 @@ import torch.nn as nn
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.agent.td3.utils import load as load_agent
 
+import pdb()
+
 import argparse
 
 class QFitter(nn.Module):
@@ -52,6 +54,7 @@ class FQE:
                  learning_rate=0.01,
                  device='cpu',
                  exp_name="tmp"):
+        pdb.set_trace()
         self.pi_eval = pi_eval
         self.state_dim = data["state"].shape[1]
         self.action_dim = data["action"].shape[1]
