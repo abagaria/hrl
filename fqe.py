@@ -96,7 +96,7 @@ class FQE:
         next_state_action = torch.cat(
             (torch.from_numpy(self.data["next_state"].astype(np.float32)), next_action), dim=1)
         self.loss_func = nn.MSELoss()
-        self.optimizer = torch.optim.SGD(self.q_fitter.parameters(), lr=self.learning_rate)
+        self.optimizer = torch.optim.Adam(self.q_fitter.parameters(), lr=self.learning_rate)
         for iter in range(num_iter):
             print('Iteration: {}'.format(iter))
             optimize_model(self.data, target_q, self.q_fitter, self.loss_func, self.optimizer, batch_size, num_epochs)
