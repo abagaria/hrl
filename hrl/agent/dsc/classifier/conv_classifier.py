@@ -3,6 +3,7 @@ import random
 import numpy as np
 import torch.nn.functional as F
 
+from torch.utils.data import Dataset, DataLoader
 from hrl.agent.dsc.classifier.ensemble_models import ImageCNN
 
 
@@ -52,29 +53,55 @@ class ConvClassifier:
         return torch.as_tensor(input_samples).to(self.device),\
                torch.as_tensor(label_samples).to(self.device)
 
-    def fit(self, X, y):
+    def fit(self, X, y, n_epochs=3):
+        dataset = ClassifierDataset(X, y)
+        dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+
         if self.should_train(y):
             losses = []
-            n_gradient_steps = 5 * (len(X) // self.batch_size)
 
-            for _ in range(n_gradient_steps):
-                sampled_inputs, sampled_labels = self.sample(X, y)
-                pos_weight = self.determine_pos_weight(sampled_labels)
-
-                if not pos_weight:
-                    continue
-
-                logits = self.model(sampled_inputs)
-                loss = F.binary_cross_entropy_with_logits(logits.squeeze(),
-                                                          sampled_labels,
-                                                          pos_weight=pos_weight)
-
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-                losses.append(loss.item())
+            for _ in range(n_epochs):
+                epoch_loss = self._train(dataloader)                
+                losses.append(epoch_loss)
             
             self.is_trained = True
 
             mean_loss = np.mean(losses)
+            print(mean_loss)
             self.losses.append(mean_loss)
+
+    def _train(self, loader):
+        """ Single epoch of training. """
+        batch_losses = []
+
+        for sampled_inputs, sampled_labels in loader:
+            pos_weight = self.determine_pos_weight(sampled_labels)
+
+            if not pos_weight:
+                continue
+
+            logits = self.model(sampled_inputs)
+            loss = F.binary_cross_entropy_with_logits(logits.squeeze(),
+                                                      sampled_labels,
+                                                      pos_weight=pos_weight) 
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            batch_losses.append(loss.item())
+        
+        return np.mean(batch_losses)
+
+
+class ClassifierDataset(Dataset):
+    def __init__(self, states, labels):
+        self.states = states
+        self.labels = labels
+        super().__init__()
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, i):
+        return self.states[i], self.labels[i]
