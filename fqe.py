@@ -40,8 +40,6 @@ def chunked_policy_prediction(policy, states, action_dim, device, chunk_size=100
         actions[num_whole_chunks*chunk_size:, :] = policy(states[num_whole_chunks*chunk_size:, :])
     return actions
 
-
-
 def generate_sample_idx(data, batch_size=50):
     zero_r_idx = np.where(data['reward'] == 1)
     sample_idx = list(zero_r_idx[0]) + random.sample(range(len(data["state"])), batch_size - len(zero_r_idx[0]))
@@ -75,8 +73,9 @@ class FQE:
         self.next_state_action = torch.cat(
             (torch.from_numpy(data["next_state"].astype(np.float32)).to(device), next_action), dim=1).to(device)
 
-    def optimize_model(self, gamma, batch_size, num_batches):
-
+    def optimize_model(self, gamma, batch_size, num_batches, save_fname=None):
+        if save_fname is not None:
+            loss_list = []
         for idx_batch in range(num_batches):
             # Sample a batch with the transitions reaching the goal
             sample_idx = generate_sample_idx(data, batch_size=batch_size)
@@ -90,6 +89,8 @@ class FQE:
 
             # Calculate the loss
             loss = self.loss_func(q_pred, target_q)
+            if save_fname is not None:
+                loss_list.append(loss.item())
 
             # Backward propagation: caluclate gradients
             loss.backward()
@@ -103,10 +104,16 @@ class FQE:
             if idx_batch % 10 == 0 or idx_batch == num_batches - 1:
                 print('Batch {}: loss = {}'.format(idx_batch, loss.item()))
 
+            if save_fname is not None:
+                with open(save_fname, 'wb') as f:
+                    pickle.dump(loss_list, f)
+
+
     def fit(self, num_iter, gamma, batch_size, num_batches, save_interval=np.inf):
         for iteration in range(num_iter):
             print('Iteration: {}'.format(iteration))
-            self.optimize_model(gamma, batch_size, num_batches)
+            loss_save_fname = 'saved_results/{}/loss_iter_{}.pkl'.format(self.exp_name, iteration)
+            self.optimize_model(gamma, batch_size, num_batches, save_fname=loss_save_fname)
             if (save_interval < np.inf and iteration % save_interval == 0) or iteration == num_iter-1:
                 torch.save(self.q_fitter.state_dict(), "saved_results/{}/weights_{}".format(self.exp_name, iteration))
 
@@ -135,6 +142,8 @@ if __name__ == '__main__':
     data = pickle.load(open(buffer_fname, 'rb'))
     data["reward"] += 1
     data["done"] = (data["reward"] == 1).astype(float)
+
+    exp_name = "{}_gamma_{}_lr_{}".format(args.exp_name, args.gamma, args.learning_rate)
 
     agent = TD3(state_dim=29,
                 action_dim=8,
@@ -165,13 +174,13 @@ if __name__ == '__main__':
     # loss_func = nn.MSELoss()
     # optimizer = torch.optim.SGD(q_fitter.parameters(), lr=learning_rate)
 
-    if not os.path.exists('saved_results/{}/'.format(args.exp_name)):
-        os.makedirs('saved_results/{}/'.format(args.exp_name))
+    if not os.path.exists('saved_results/{}/'.format(exp_name)):
+        os.makedirs('saved_results/{}/'.format(exp_name))
 
     fqe = FQE(data,
               agent.actor,
               learning_rate=args.learning_rate,
-              exp_name=args.exp_name,
+              exp_name=exp_name,
               device=args.device)
     fqe.fit(args.num_iter,
             gamma=args.gamma,
@@ -179,7 +188,7 @@ if __name__ == '__main__':
             num_batches=args.num_batches,
             save_interval=args.save_interval)
 
-    with open('saved_results/{}/args.txt'.format(args.exp_name), 'w') as f:
+    with open('saved_results/{}/args.txt'.format(exp_name), 'w') as f:
         for arg in vars(args):
             f.write("{}: {}".format(arg, getattr(args, arg)))
             f.write("\n")
