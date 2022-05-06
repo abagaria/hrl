@@ -388,6 +388,7 @@ class DSGTrainer:
 
             if current_episode > 0 and current_episode % 10 == 0:
                 self.add_potential_edges_to_graph()
+                [self.dsg_agent.modify_node_connections(o) for o in self.dsc_agent.mature_options]
 
             if current_episode > 0 and current_episode % 10 == 0:
                 self.delete_potential_nodes_from_graph()
@@ -707,12 +708,19 @@ class DSGTrainer:
     @staticmethod
     def stack_to_lz(frames):
         """ Convert a list of dopamine frames to a LazyFrames object. """
+        def _safe_transpose(x):  # Avoid transpose and use squeezes instead
+            x = x.squeeze(2)
+            return x[np.newaxis, ...]
+
         if len(frames) < 4:
             n_pad_frames = 4 - len(frames)
             pad_frames = [frames[0] for _ in range(n_pad_frames)]
             frames = pad_frames + frames
             assert len(frames) == 4, len(frames)
-        frames = [frame.transpose(2, 0, 1) for frame in frames]
+        
+        if frames[0].shape == (84, 84, 1):
+            frames = [_safe_transpose(frame) for frame in frames]
+
         return atari_wrappers.LazyFrames(frames, stack_axis=0)
 
     def extract_subgoals(self, observations, infos, extrinsic_rewards):
@@ -846,22 +854,6 @@ class DSGTrainer:
 
     def filter_exploration_trajectory(self, observations, rewards, infos):
         """ Given some observations, return the ones that pass our filtering rules. """
-        
-        def is_death_state(info):
-            return info['falling'] or info['dead']
-
-        def is_jumping(info):
-            return info['jumping']
-
-        def is_in_bad_region(info):  # TODO: Hack
-            """ States in the bottom ledge can be reached by falling (and the falling/death flags are unreliable).
-            So we are rejecting these for now and seeing how far we can get. """
-            pos = info_to_pos(info)
-            return (25 < pos[0] < 121) and (pos[1] < 160)
-
-        def is_not_on_floor(info):  # TODO Hack
-            pos = info_to_pos(info)
-            return pos[1] not in (148, 192, 235)
 
         def is_inside_another_event(info):
             return any([event(info) for event in self.salient_events])
@@ -870,8 +862,8 @@ class DSGTrainer:
             distances = [event.distance(info) for event in self.salient_events]
             return any([distance < 11. for distance in distances])
 
-        def is_inside_option(state, info):
-            # # Only considering root options because their classifiers tend to be tighter
+        def get_options_for_filtering():
+            # Only considering root options because their classifiers tend to be tighter
             if self.dsc_agent.use_pos_for_init:
                 root_options = self.dsc_agent.mature_options
             else:
@@ -883,43 +875,66 @@ class DSGTrainer:
             # Only consider options which don't tend to predict true everywhere
             fp_cond = lambda clf: (clf.get_false_positive_rate() < 0.7).all()
             filtered_options = [option for option in root_options if fp_cond(option.initiation_classifier)]
+            return filtered_options
 
-            # Combine the prediction of the optimistic and pessimitic classifiers to be conservative
-            combined_pred = lambda o: o.is_init_true(state, info) and o.pessimistic_is_init_true(state, info)
+        def apply_option_filtering_cond(states, rewards, infos):
+            t0 = time.time()
+            start_n_states = len(states)
+
+            if start_n_states == 0:
+                return [], [], []
+
+            options = get_options_for_filtering()
+
+            states = np.array(states).squeeze(3)  # (N, 84, 84, 1) --> (N, 84, 84)
+            assert states.shape == (start_n_states, 84, 84), states.shape
             
-            for option in filtered_options:
-                if combined_pred(option):
-                    print(f"Rejecting {info_to_pos(info)} because of {option}")
-                    return True
-            return False
+            for option in options:
 
-        # def should_reject(obs, info):
-        #     regions = get_regions_in_first_screen() if self.use_strict_regions else get_lineant_regions_in_first_screen()
-        #     return is_death_state(info) or \
-        #            is_inside_another_event(info) or \
-        #            is_close_to_another_event(info) or \
-        #            (is_jumping(info) and self.reject_jumping_states) or \
-        #            is_inside_option(obs, info) or\
-        #            is_in_bad_region(info) #or\
-        #         #    is_not_on_floor(info)
-                #    or self.should_reject_new_event(info, regions)
-        
+                if states.shape[0] > 0:
+                    if states.shape[0] == 1:
+                        ipdb.set_trace()
+                    inits = option.initiation_classifier.batched_pessimistic_predict(states)
+                    inits = inits.squeeze(1)  # (N, 1) --> (N,)
+                    print(f"Mean init: {inits.mean()} for {option}")
+                    accepted_idx = np.argwhere(inits != 1).squeeze(1)  # (N, 1) --> (M,)
+                    assert inits.shape == (states.shape[0],), inits.shape
+
+                    if len(accepted_idx) > 0:
+                        states = states[accepted_idx, ...]
+                        rewards = [rewards[i] for i in accepted_idx]
+                        infos = [infos[i] for i in accepted_idx]
+                    else: # If we ended up rejecting everything (M=0), return early
+                        return [], [], []
+
+            # (N, 84, 84) -> list of N frames of shape (1, 84, 84) (for stacking later)
+            filtered_states = [state[np.newaxis, ...] for state in states]
+            print(f"[option-filtering] Took {time.time()-t0}s to go from {start_n_states} --> {len(filtered_states)} states.")
+
+            assert len(filtered_states) == len(rewards) == len(infos), ipdb.set_trace()
+            return filtered_states, rewards, infos
+
         def should_reject(obs, info):
             return info["uncontrollable"] or \
                    info["buggy_state"] or\
                    is_inside_another_event(info) or \
-                   is_close_to_another_event(info) or \
-                   is_inside_option(obs, info)
+                   is_close_to_another_event(info)
         
         if len(observations) > 3:
-            accepted_triples = [(obs, reward, info) for obs, reward, info in 
+            first_pass_triples = [(obs, reward, info) for obs, reward, info in 
                                 zip(observations, rewards, infos) if not should_reject(obs, info)]
             
-            accepted_observations = [triple[0] for triple in accepted_triples]
-            accepted_rewards = [triple[1] for triple in accepted_triples]
-            accepted_infos = [triple[2] for triple in accepted_triples]
+            first_pass_observations = [triple[0] for triple in first_pass_triples]
+            first_pass_rewards = [triple[1] for triple in first_pass_triples]
+            first_pass_infos = [triple[2] for triple in first_pass_triples]
+            
+            if len(first_pass_observations) > 3:
+                
+                accepted_observations, accepted_rewards, accepted_infos = apply_option_filtering_cond(
+                    first_pass_observations, first_pass_rewards, first_pass_infos
+                )
 
-            return accepted_observations, accepted_rewards, accepted_infos
+                return accepted_observations, accepted_rewards, accepted_infos
             
         return [], [], []
 

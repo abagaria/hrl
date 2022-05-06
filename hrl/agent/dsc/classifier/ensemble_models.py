@@ -76,7 +76,8 @@ class SmallAtariCNN(nn.Module):
             h = self.activation(layer(h))
         try:
             h_flat = h.view(h.size(0), -1)
-        except:
+        except:  # Stay away from transpose() and view() if possible!
+            # h_flat = h.contiguous().view(h.size(0), -1)
             ipdb.set_trace()
         return self.activation(self.output(h_flat))
 
@@ -106,9 +107,10 @@ class ImageCNN(torch.nn.Module):
         # Add batch and channel dimensions to lone inputs
         if image.shape == (84, 84):
             image = image.unsqueeze(0).unsqueeze(0)
-
-        if image.shape == (1, 84, 84):
-            image = image.unsqueeze(0)
+        
+        # Add channel dimension if it is missing
+        elif image[0].shape == (84, 84):
+            image = image.unsqueeze(1)
             
         return self.model(image)
 

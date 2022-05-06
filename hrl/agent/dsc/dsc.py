@@ -59,7 +59,7 @@ class RobustDSC(object):
 
         if rnd_data_path:
             _, ram_trajectories, frame_trajectories = get_saved_trajectories(
-                rnd_data_path, n_trajectories=75
+                rnd_data_path, n_trajectories=100
             )
 
             self.rnd_rams = flatten(ram_trajectories)

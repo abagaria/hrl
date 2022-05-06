@@ -11,17 +11,15 @@ from hrl.agent.dsc.classifier.init_classifier import InitiationClassifier
 
 
 class ConvInitiationClassifier(InitiationClassifier):
-    """ Initiation classifier where the optimistic and the pessimistic clfs are their own CNNs."""
+    """ Initiation classifier where we train one CNN and use different optimistic/pessimistic thresholds."""
     def __init__(self,
                  device, 
                  optimistic_threshold=0.50,
                  pessimistic_threshold=0.75,
                  n_input_channels=1,
-                 pessimistic_relabel=False,
                  maxlen=1000):
         self.device = device
         self.n_input_channels = n_input_channels
-        self.pessimistic_relabel = pessimistic_relabel
         self.optimistic_threshold = optimistic_threshold
         self.pessimistic_threshold = pessimistic_threshold
         self.positive_examples = deque([], maxlen=maxlen)
@@ -123,35 +121,16 @@ class ConvInitiationClassifier(InitiationClassifier):
         X = torch.cat((positive_feature_matrix, negative_feature_matrix))
         Y = torch.cat((positive_labels, negative_labels))
 
-        if self.optimistic_classifier.should_train(Y):
-            self.optimistic_classifier = ConvClassifier(device=self.device,
-                                                        threshold=None,
-                                                        n_input_channels=self.n_input_channels)
-            self.optimistic_classifier.fit(X, Y)
-            
-            # When pessimistic_relabel is True, we train the pessimistic classifier on the 
-            # training predictions of the optimistic classifier. When false, we use the default labels.
-            if self.pessimistic_relabel:
-                training_predictions = self.optimistic_classifier.predict(X, threshold=0.5)
-                positive_training_examples = X[training_predictions == 1]
-                negative_training_examples = X[training_predictions != 1]
-                
-                X_pessimistic = torch.cat(
-                    (positive_training_examples,
-                    negative_training_examples), 
-                    dim=0
-                ).unsqueeze(1)
-                Y_pessimistic = torch.cat(
-                    (torch.ones(positive_training_examples.shape[0],),
-                    torch.zeros(negative_training_examples.shape[0],)),
-                    dim=0
-                )
-            else:
-                X_pessimistic = X
-                Y_pessimistic = Y
+        if self.classifier.should_train(Y):
+            # Re-train the common classifier from scratch
+            self.classifier = ConvClassifier(device=self.device,
+                                             threshold=None,
+                                             n_input_channels=self.n_input_channels)
+            self.classifier.fit(X, Y)
 
-            if self.pessimistic_classifier.should_train(Y_pessimistic):
-                self.pessimistic_classifier.fit(X_pessimistic, Y_pessimistic)
+            # Re-point the classifiers to the same object in memory
+            self.optimistic_classifier = self.classifier
+            self.pessimistic_classifier = self.classifier
 
     def plot_training_predictions(self, option_name, episode, experiment_name, seed, goal=None):
         """ Plot the predictions on the traininng data. """

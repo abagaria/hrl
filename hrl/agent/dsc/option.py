@@ -118,9 +118,7 @@ class ModelFreeOption(object):
                 nu=2.5e-4
             )
         if self.classifier_type == "cnn":
-            return ConvInitiationClassifier(device,
-                pessimistic_relabel=self.use_pessimistic_relabel
-            )
+            return ConvInitiationClassifier(device)
         if self.classifier_type == "single-cnn":
             return SingleConvInitiationClassifier(device)
         if self.classifier_type == "double-cnn":

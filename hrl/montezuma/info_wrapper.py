@@ -125,6 +125,63 @@ class MontezumaInfoWrapper(Wrapper):
             self.get_is_player_dead(ram)
 
     def get_is_climbing_imaginary_ladder(self, ram):
-        imaginary = self.get_player_x(ram) == 128
+        # imaginary = self.get_player_x(ram) == 128
+        screen = self.get_room_number(ram)
+        position = self.get_player_x(ram), self.get_player_y(ram)
+        imaginary = not self.at_any_climb_region(position, screen)
         ladder = self.get_player_status(ram) == "climbing-ladder"
-        return imaginary and ladder
+        climbing = imaginary and ladder
+        if climbing:
+            print(f"Found climbing imaginary ladder {position, screen}")
+        return climbing
+
+    def at_any_climb_region(self, pos, screen):
+        climb_margin = 4
+        for x_center, ylim in self.get_climb_regions(screen):
+            if (ylim[0] <= pos[1] <= ylim[1]
+                    and abs(pos[0] - x_center) <= climb_margin):
+                return True
+        return False
+
+    def get_climb_regions(self, screen):
+        LEFT_LADDER = 0x14
+        CENTER_LADDER = 0x4d
+        RIGHT_LADDER = 0x85
+        SCREEN_TOP = 0xfe
+        UPPER_LEVEL = 0xeb
+        MIDDLE_LEVEL_1 = 0xc0
+        LOWER_LEVEL_1 = 0x94
+        LOWER_LEVEL_5 = 0x9d
+        LOWER_LEVEL_14 = 0xa0
+        SCREEN_BOTTOM = 0x86
+
+        regions = []
+        climb_margin_y = 6
+        
+        # start-screen ladders
+        if screen == 1:
+            regions.append((CENTER_LADDER, (MIDDLE_LEVEL_1, UPPER_LEVEL)))
+            regions.append((LEFT_LADDER, (LOWER_LEVEL_1, MIDDLE_LEVEL_1)))
+            regions.append((RIGHT_LADDER, (LOWER_LEVEL_1, MIDDLE_LEVEL_1)))
+        if screen == 5:
+            regions.append((CENTER_LADDER, (SCREEN_BOTTOM, LOWER_LEVEL_5)))
+            regions.append((CENTER_LADDER, (SCREEN_BOTTOM - 1, SCREEN_BOTTOM)))
+        if screen == 14:
+            regions.append((CENTER_LADDER, (SCREEN_BOTTOM, LOWER_LEVEL_14)))
+            regions.append((CENTER_LADDER, (SCREEN_BOTTOM - 1, SCREEN_BOTTOM)))
+        # tall bottom ladders
+        if screen in [0, 2, 3, 4, 7, 11, 13]:
+            regions.append((CENTER_LADDER, (SCREEN_BOTTOM, UPPER_LEVEL)))
+            regions.append((CENTER_LADDER, (SCREEN_BOTTOM - 1, SCREEN_BOTTOM)))
+        # short top ladders
+        if screen in [4, 6, 9, 11, 13, 19, 21]:
+            regions.append((CENTER_LADDER, (UPPER_LEVEL, SCREEN_TOP)))
+            regions.append((CENTER_LADDER, (SCREEN_TOP, SCREEN_TOP + 1)))
+        elif screen in [10, 22]:
+            # add vertical landmark just above the bridge
+            regions.append(
+                (CENTER_LADDER, (UPPER_LEVEL, UPPER_LEVEL + climb_margin_y)))
+            regions.append(
+                (CENTER_LADDER, (UPPER_LEVEL + climb_margin_y, SCREEN_TOP)))
+            regions.append((CENTER_LADDER, (SCREEN_TOP, SCREEN_TOP + 1)))
+        return regions

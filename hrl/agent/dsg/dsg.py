@@ -57,6 +57,25 @@ class SkillGraphAgent:
                 selected_option = _pick_option_to_execute_from_plan(plan)
                 if selected_option is not None:
                     return selected_option
+
+        current_events = self.get_corresponding_events(state, info)
+        candidate_goals = self.planner.get_nodes_that_reach_target_node(goal_vertex)
+        candidate_goals = [node for node in candidate_goals if isinstance(node, SalientEvent)]
+        candidate_goals = [node for node in candidate_goals if node not in current_events]
+
+        # If the graph has holes here, try to target an ancestor instead
+        if current_events and candidate_goals:
+            _, closest_ancestor = self.get_closest_pair_of_vertices(
+                current_events, candidate_goals, metric=self.distance_metric
+            )
+            assert isinstance(closest_ancestor, SalientEvent), closest_ancestor
+            _, target_info = self.sample_from_vertex(closest_ancestor)
+            option = self.dsc_agent.act(state, info, goal_info=target_info)
+            
+            # Only return an option here if its better than the global-option
+            if not option.global_init:
+                print(f"Attempting to save broken graph by using {option} to target {target_info}")
+                return option
         
         # DSC expects `sampled_goal` to be an info dict
         print(f"Reverting to the DSC policy over options targeting {sampled_goal}")
