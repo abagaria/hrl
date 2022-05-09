@@ -40,9 +40,12 @@ def chunked_policy_prediction(policy, states, action_dim, device, chunk_size=100
         actions[num_whole_chunks*chunk_size:, :] = policy(states[num_whole_chunks*chunk_size:, :])
     return actions
 
-def generate_sample_idx(data, batch_size=50):
-    zero_r_idx = np.where(data['reward'] == 1)
-    sample_idx = list(zero_r_idx[0]) + random.sample(range(len(data["state"])), batch_size - len(zero_r_idx[0]))
+def generate_sample_idx(data, batch_size=50, oversample_goal=True):
+    if oversample_goal:
+        zero_r_idx = np.where(data['reward'] == 1)
+        sample_idx = list(zero_r_idx[0]) + random.sample(range(len(data["state"])), batch_size - len(zero_r_idx[0]))
+    else:
+        sample_idx = random.sample(range(len(data["state"])), batch_size)
     return sample_idx
 
 class FQE:
@@ -73,12 +76,20 @@ class FQE:
         self.next_state_action = torch.cat(
             (torch.from_numpy(data["next_state"].astype(np.float32)).to(device), next_action), dim=1).to(device)
 
-    def optimize_model(self, gamma, batch_size, num_batches, save_fname=None):
+    def optimize_model(self, gamma, batch_size, num_batches, oversample_goal, save_fname=None):
         if save_fname is not None:
             loss_list = []
         for idx_batch in range(num_batches):
             # Sample a batch with the transitions reaching the goal
-            sample_idx = generate_sample_idx(data, batch_size=batch_size)
+            if oversample_goal == 'always':
+                sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=True)
+            elif oversample_goal == 'never':
+                sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=False)
+            elif oversample_goal == 'first_sample_only':
+                if idx_batch == 0:
+                    sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=True)
+                else:
+                    sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=False)
 
             # Feed forward
             q_pred = self.q_fitter(self.state_action[sample_idx, :].requires_grad_())
@@ -109,11 +120,11 @@ class FQE:
                     pickle.dump(loss_list, f)
 
 
-    def fit(self, num_iter, gamma, batch_size, num_batches, save_interval=np.inf):
+    def fit(self, num_iter, gamma, batch_size, num_batches, save_interval=np.inf, oversample_goal='always'):
         for iteration in range(num_iter):
             print('Iteration: {}'.format(iteration))
             loss_save_fname = 'saved_results/{}/loss_iter_{}.pkl'.format(self.exp_name, iteration)
-            self.optimize_model(gamma, batch_size, num_batches, save_fname=loss_save_fname)
+            self.optimize_model(gamma, batch_size, num_batches, oversample_goal, save_fname=loss_save_fname)
             if (save_interval < np.inf and iteration % save_interval == 0) or iteration == num_iter-1:
                 torch.save(self.q_fitter.state_dict(), "saved_results/{}/weights_{}".format(self.exp_name, iteration))
 
@@ -136,6 +147,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_batches', type=int, default=100)
     parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--oversample_goal', type=str, default='always')
     args = parser.parse_args()
 
     buffer_fname = 'td3_replay_buffer.pkl'
@@ -186,7 +198,8 @@ if __name__ == '__main__':
             gamma=args.gamma,
             batch_size=args.batch_size,
             num_batches=args.num_batches,
-            save_interval=args.save_interval)
+            save_interval=args.save_interval,
+            oversample_goal=args.oversample_goal)
 
     with open('saved_results/{}/args.txt'.format(exp_name), 'w') as f:
         for arg in vars(args):
