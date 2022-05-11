@@ -52,7 +52,7 @@ class FQE:
     def __init__(self,
                  data,
                  pi_eval,
-                 learning_rate=0.01,
+                 learning_rate=0.001,
                  device='cpu',
                  exp_name="tmp"):
         self.pi_eval = pi_eval
@@ -120,7 +120,7 @@ class FQE:
                     pickle.dump(loss_list, f)
 
 
-    def fit(self, num_iter, gamma, batch_size, num_batches, save_interval=np.inf, oversample_goal='always'):
+    def fit(self, num_iter=10, gamma=0.995, batch_size=256, num_batches=10000, save_interval=np.inf, oversample_goal='always'):
         for iteration in range(num_iter):
             print('Iteration: {}'.format(iteration))
             loss_save_fname = 'saved_results/{}/loss_iter_{}.pkl'.format(self.exp_name, iteration)
