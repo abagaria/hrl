@@ -16,7 +16,8 @@ def make_env(env_name, seed, terminal_on_loss_of_life=False):
     env = atari_wrappers.wrap_deepmind(
         atari_wrappers.make_atari(env_name, max_frames=30 * 60 * 60),
         episode_life=terminal_on_loss_of_life,
-        clip_rewards=False
+        clip_rewards=False,
+        frame_stack=False
     )
 
     env.seed(seed)
@@ -35,12 +36,13 @@ if __name__ == "__main__":
     parser.add_argument("--noisy_net_sigma", type=float, default=0.5)
     parser.add_argument("--lr", type=float, default=6.25e-5)
     parser.add_argument("--n_steps", type=int, default=3)
-    parser.add_argument("--replay_start_size", type=int, default=80_000)
+    parser.add_argument("--replay_start_size", type=int, default=800)
     parser.add_argument("--replay_buffer_size", type=int, default=10**6)
     parser.add_argument("--num_training_steps", type=int, default=int(13e6))
     parser.add_argument("--use_her", action="store_true", default=False)
     parser.add_argument("--goal_conditioned", action="store_true", default=False)
     parser.add_argument("--terminal_on_loss_of_life", action="store_true", default=False)
+    parser.add_argument("--stack_num", type=int, default=4)
     args = parser.parse_args()
 
     create_log_dir("logs")
@@ -70,14 +72,20 @@ if __name__ == "__main__":
         replay_buffer_size=args.replay_buffer_size,
         demonstration_buffer_size=args.replay_buffer_size,
         gpu=args.gpu_id,
-        goal_conditioned=args.goal_conditioned
+        goal_conditioned=args.goal_conditioned,
+        stack_num=args.stack_num
     )
 
     data_dir = os.path.expanduser("~/Documents/research/code/montezuma/atari_v1")
-    trajectory = load_trajectory(data_dir, 1)
-    rainbow_agent.add_demonstration_trajectory(trajectory)
+    for id in range(1500):
+        trajectory = load_trajectory(data_dir, id, args.stack_num)
+        if trajectory:
+            rainbow_agent.add_demonstration_trajectory(trajectory)
 
     t0 = time.time()
+
+    rainbow_agent.bootstrap_training(10000)
+
     current_step_number = 0
     max_episodic_reward = 0
     current_episode_number = 0

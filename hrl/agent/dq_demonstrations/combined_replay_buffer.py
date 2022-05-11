@@ -176,7 +176,7 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
 
     def __len__(self) -> int:
         #return length of experience buffer
-        return len(self.data[0])
+        return len(self.data[0]) + len(self.data[1])
 
     def demonstration_buffer_size(self):
         return len(self.data[1])
@@ -236,10 +236,8 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
                 popped_sum.append(sum_pop)
                 popped_min.append(min_pop)
         for pop in popped_sum:
-            print(pop)
             self.priority_sums.append(pop)
         for pop in popped_min:
-            print(pop)
             self.priority_mins.append(pop)
         if remove_experience:
             self.experience_front = (self.experience_front + 1) % self.capacity
@@ -263,6 +261,7 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
         )
 
         self.sampled_indices = indices
+        self.sampled_nodes = node_info
         self.flag_wait_priority = True
 
         probabilities = [node_info[i][0] for i in range(len(node_info))]
@@ -300,14 +299,25 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
         indices.extend(pr_indices)
         priorities.extend(pr_priorities)
 
-        print(priorities)
-
         probs = []
         for pri in priorities:
             prob = uniform_ratio / (self.experience_buffer_size() + self.demonstration_buffer_size()) + (1 - uniform_ratio) * pri[0]/total_priority
             probs.append((prob, pri[1], pri[2]))
 
         return indices, probs, min_prob
+
+    def set_last_priority(self, priority: Sequence[float]) -> None:
+        assert not self.wait_priority_after_sampling or self.flag_wait_priority
+        assert all([p > 0.0 for p in priority])
+        assert len(self.sampled_indices) == len(priority)
+        assert len(self.sampled_nodes) == len(priority)
+        for i, n, p in zip(self.sampled_indices, self.sampled_nodes, priority):
+            n = (p, n[1], n[2])
+            self.priority_sums[i] = n
+            self.priority_mins[i] = n
+            self.max_priority = max(self.max_priority, p)
+        self.flag_wait_priority = False
+        self.sampled_indices = []
 
 class CombinedPrioritizedReplayBuffer(PrioritizedReplayBuffer):
 

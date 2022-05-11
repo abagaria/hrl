@@ -52,7 +52,8 @@ def get_exploration_agent(rnd_base_dir):
     from hrl.agent.bonus_based_exploration.run_experiment import create_exploration_agent as create_agent
 
     _gin_files = [
-        os.path.expanduser("~/git-repos/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
+        # os.path.expanduser("~/git-repos/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
+        os.path.expanduser("~/Documents/research/code/montezuma/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
     ]
 
     run_experiment.load_gin_configs(_gin_files, [])
@@ -144,7 +145,8 @@ if __name__ == "__main__":
     s0, _ = env.reset()
     p0 = env.get_current_position()
 
-    goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
+    goal_dir_path = os.path.join(os.path.expanduser("~"), "Documents/Research/Code/montezuma/hrl/logs/goal_states")
+    # goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
     
     gpos = (123, 148)
     gpos1 = (132, 192)

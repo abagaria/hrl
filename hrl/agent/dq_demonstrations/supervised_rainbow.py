@@ -2,8 +2,7 @@ import torch
 import random
 import numpy as np
 from pfrl import nn as pnn
-from pfrl import replay_buffers
-from pfrl import agents, explorers
+from pfrl import explorers
 from pfrl.wrappers import atari_wrappers
 from pfrl.q_functions import DistributionalDuelingDQN
 from pfrl.utils import batch_states as pfrl_batch_states
@@ -15,9 +14,9 @@ class SupervisedRainbow:
     def __init__(self, n_actions, n_atoms, v_min, v_max, noisy_net_sigma, lr,
                 n_steps, betasteps, replay_start_size, replay_buffer_size, 
                 demonstration_buffer_size, gpu, goal_conditioned, 
-                use_custom_batch_states=True):
+                use_custom_batch_states=True, stack_num=4):
         self.n_actions = n_actions
-        n_channels = 4 + int(goal_conditioned)
+        n_channels = stack_num + int(goal_conditioned)
         self.goal_conditioned = goal_conditioned
         self.use_custom_batch_states = use_custom_batch_states
 
@@ -59,7 +58,6 @@ class SupervisedRainbow:
     @staticmethod
     def batch_states(states, device, phi):
         assert isinstance(states, list), type(states)
-        assert isinstance(states[0], atari_wrappers.LazyFrames), type(states[0])
         features = np.array([phi(s) for s in states])
         return torch.as_tensor(features).to(device)
 
@@ -143,7 +141,7 @@ class SupervisedRainbow:
             next_state, reward, done, info = env.step(action)
             reset = info.get("needs_reset", False)
 
-            reward, reached = rf(info)
+            # reward, reached = rf(info)
 
             episode_trajectory.append((
                 state,
@@ -165,6 +163,11 @@ class SupervisedRainbow:
         print(f"Episode: {episode}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
         return episode_reward, episode_length, max_reward_so_far
+
+    def bootstrap_training(self, num_steps):
+        for x in range(num_steps):
+            self.agent.bootstrap_train_step()
+            print("Bootstrap: step {} of {}".format(x, num_steps))
 
     def her(self, trajectory, visited_positions, pursued_goal, pursued_goal_position):
         hindsight_goal, hindsight_goal_idx = self.pick_hindsight_goal(trajectory)

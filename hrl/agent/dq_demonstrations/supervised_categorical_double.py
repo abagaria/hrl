@@ -2,6 +2,7 @@ from logging import Logger
 from typing import Any, Callable, Dict, List, Optional, Sequence
 import pfrl
 from pfrl.agents import CategoricalDoubleDQN
+from pfrl.agents.categorical_dqn import compute_value_loss
 from pfrl.agents.dqn import batch_experiences
 import torch
 from pfrl.replay_buffers import PrioritizedReplayBuffer
@@ -31,7 +32,8 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
             logger: Logger = ..., 
             batch_states: Callable[[Sequence[Any], torch.device, Callable[[Any], Any]], Any] = ..., 
             recurrent: bool = False, 
-            max_grad_norm: Optional[float] = None):
+            max_grad_norm: Optional[float] = None,
+            supervised_batchsize=32):
         super().__init__(q_function, 
             optimizer, 
             replay_buffer, 
@@ -55,6 +57,7 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
             max_grad_norm)
 
         assert isinstance(self.replay_buffer, CombinedPrioritizedReplayBuffer)
+        self.supervised_batchsize = 32
 
     def update(
         self,
@@ -98,7 +101,7 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
         )
         if has_weight:
             exp_batch["weight"] = torch.tensor(
-                [elem[0]["weights"] for elem in experiences],
+                [elem[0]["weight"] for elem in experiences],
                 device=self.device,
                 dtype=torch.float32
             )
@@ -120,8 +123,13 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
 
 
     def _overall_loss(self, exp_batch, errors_out=None):
-        loss = self._compute_dq_loss(exp_batch, errors_out) \
-                + self._compute_supervised_loss
+        dq_loss = self._compute_dq_loss(exp_batch, errors_out)
+        supervised_loss = self._compute_supervised_loss(exp_batch)
+
+        loss =  dq_loss \
+                + supervised_loss
+
+        return loss
 
     def _compute_dq_loss(self, exp_batch, errors_out=None):
         return super()._compute_loss(exp_batch, errors_out)
@@ -139,14 +147,19 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
         model_actions = model_qout.greedy_actions
         margin_loss = self._margin_loss(batch_action, model_actions)
 
-        expert_q = torch.reshape(
-            self.model(batch_state).evaluate_actions(batch_action),
+        expert_q = self.model(batch_state).evaluate_actions(batch_action)
+
+        eltwise_loss = torch.mul(batch_lambda, model_value + margin_loss - expert_q)
+
+        eltwise_loss = torch.reshape(
+            eltwise_loss,
             (batch_size, 1)
         )
 
-        loss = torch.mul(batch_lambda, model_value + margin_loss - expert_q)
-
-        return loss 
+        return compute_value_loss(
+            eltwise_loss,
+            batch_accumulator=self.batch_accumulator
+        )
 
     @staticmethod
     def _margin_loss(expert_actions, actions):
@@ -165,7 +178,9 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
         for trajectory in trajectories:
             self.replay_buffer.append(supervised_lambda=1, **trajectory)
 
-
+    def bootstrap_train_step(self):
+        transitions = self.replay_buffer.sample(self.supervised_batchsize)
+        self.replay_updater.update_func(transitions)
 
 
 

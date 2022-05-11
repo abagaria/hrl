@@ -3,6 +3,7 @@ import glob
 import os
 from PIL import Image, ImageOps
 from pfrl.wrappers.atari_wrappers import LazyFrames
+import numpy as np
 
 def load_trajectory(data_dir, trajectory_num, stack_num=4):
 
@@ -18,6 +19,7 @@ def load_trajectory(data_dir, trajectory_num, stack_num=4):
     transition["reward"] = 0
     trajectory = []
     count = 0
+    previous_state = None
 
     with open(trajectory_dir) as f:
         for i, line in enumerate(f):
@@ -33,20 +35,26 @@ def load_trajectory(data_dir, trajectory_num, stack_num=4):
                 count += 1
 
                 if count == stack_num or transition["is_state_terminal"]:
-                    count = 0
                     state = LazyFrames(list(frames))
-                    transition["state"] = state
-                    trajectory.append(transition)
-
+                    if i != 2:
+                        transition["next_state"] = state
+                        transition["state"] = previous_state
+                        trajectory.append(transition)
+                                            
+                    previous_state = state
                     transition["reward"] = 0
-
+                    count = 0
+                    
     return trajectory
 
 
 def get_image(image_file, resize=(84,84)):
-    image = Image.open(image_file)
-    image = ImageOps.grayscale(image)
-    image = image.resize(resize)
+    with Image.open(image_file) as image:
+        image = ImageOps.grayscale(image)
+        image = image.resize(resize)
+        image = np.array(image)
+
+    image = np.expand_dims(image, axis=0)
 
     return image
 
