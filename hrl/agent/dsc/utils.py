@@ -76,10 +76,10 @@ def plot_one_class_initiation_classifier(option):
 
     colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
 
-    X = option.construct_feature_matrix(option.positive_examples)
+    X = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.positive_examples)
     X0, X1 = X[:, 0], X[:, 1]
     xx, yy = make_meshgrid(X0, X1)
-    Z1 = option.pessimistic_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
+    Z1 = option.initiation_classifier.pessimistic_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
     Z1 = Z1.reshape(xx.shape)
 
     color = colors[option.option_idx % len(colors)]
@@ -99,8 +99,8 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     plt.colorbar()
 
     # Plot trajectories
-    positive_examples = option.construct_feature_matrix(option.positive_examples)
-    negative_examples = option.construct_feature_matrix(option.negative_examples)
+    positive_examples = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.positive_examples)
+    negative_examples = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.negative_examples)
 
     if positive_examples.shape[0] > 0 and plot_examples:
         plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", c="black", alpha=0.3, s=10)
@@ -108,7 +108,7 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     if negative_examples.shape[0] > 0 and plot_examples:
         plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", c="lime", alpha=1.0, s=10)
 
-    if option.pessimistic_classifier is not None:
+    if option.initiation_classifier.pessimistic_classifier is not None:
         plot_one_class_initiation_classifier(option)
 
     # background_image = imageio.imread("four_room_domain.png")
@@ -154,8 +154,11 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     # Take out the original goal and append the new goal
     states = [exp[0] for exp in replay_buffer]
     states = [state[:-2] for state in states]
+
+    print("preparing states")
     states = np.array([np.concatenate((state, goal), axis=0) for state in states])
 
+    print("preparing actions")
     actions = np.array([exp[1] for exp in replay_buffer])
 
     # Chunk up the inputs so as to conserve GPU memory
@@ -164,6 +167,7 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     if num_chunks == 0:
         return 0.
 
+    print("chunking")
     state_chunks = np.array_split(states, num_chunks, axis=0)
     action_chunks = np.array_split(actions, num_chunks, axis=0)
     qvalues = np.zeros((states.shape[0],))
@@ -177,6 +181,7 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
 
+    print("plotting")
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
 
@@ -186,6 +191,8 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}_option_{option_idx}"
     plt.title(f"VF Targeting {np.round(goal, 2)}")
     saving_path = os.path.join('results', experiment_name, 'value_function_plots', f'{file_name}.png')
+
+    print("saving")
     plt.savefig(saving_path)
     plt.close()
 

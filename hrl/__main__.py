@@ -47,9 +47,11 @@ if __name__ == "__main__":
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
     parser.add_argument("--use_skill_trees", action="store_true", default=False)
     parser.add_argument("--max_num_children", type=int, default=1, help="Max number of children per option in the tree")
+    parser.add_argument("--init_classifier_type", type=str, default="position-clf")
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
+    assert args.init_classifier_type in ("position-clf", "state-clf", "critic-threshold", "ope-threshold", "ope-clf")
 
     if not args.use_value_function:
         assert not args.use_global_value_function
@@ -95,7 +97,8 @@ if __name__ == "__main__":
             "seed": args.seed,
             "lr_c": args.lr_c,
             "lr_a": args.lr_a,
-            "max_num_children": args.max_num_children
+            "max_num_children": args.max_num_children,
+            "init_classifier_type": args.init_classifier_type 
     }
 
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)

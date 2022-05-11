@@ -24,6 +24,12 @@ class GoalConditionedMDPWrapper(Wrapper):
         self.cur_state = deepcopy(self.reset())
         self.cur_done = False
 
+    def state_space_size(self):
+        return self.env.observation_space.shape[0]
+
+    def action_space_size(self):
+        return self.env.action_space.shape[0]
+
     def get_start_state_salient_event(self):
         return SalientEvent(self.start_state, event_idx=0)
     

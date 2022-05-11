@@ -88,11 +88,21 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		"""
 		for antmaze, the features are the x, y coordinates (first 2 dimensions)
 		"""
-		assert isinstance(states, np.ndarray)
-		features = states
-		if "push" in self.unwrapped.spec.id:
-			return features[:4]
-		return features[:2]
+		def _numpy_extract(states):
+			if len(states.shape) == 1:
+				return states[:2]
+			assert len(states.shape) == 2, states.shape
+			return states[:, :2]
+		
+		def _list_extract(states):
+			return [state[:2] for state in states]
+		
+		if isinstance(states, np.ndarray):
+			return _numpy_extract(states)
+		if isinstance(states, list):
+			return _list_extract(states)
+		raise ValueError(f"{states} of type {type(states)}")
+		
 	
 	def set_xy(self, position):
 		""" Used at test-time only. """

@@ -1,21 +1,25 @@
+import torch
 import random
 import itertools
+import numpy as np
 from copy import deepcopy
 
-import torch
-import numpy as np
 from scipy.spatial import distance
 from sklearn.svm import OneClassSVM, SVC
-
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
+from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
+from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
+from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
 
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
                  option_idx, lr_c, lr_a, max_num_children=1, init_salient_event=None, target_salient_event=None,
-                 path_to_model="", multithread_mpc=False):
+                 path_to_model="", multithread_mpc=False, init_classifier_type="position-clf"):
+        assert isinstance(mdp, GoalConditionedMDPWrapper), mdp
+
         self.mdp = mdp
         self.name = name
         self.lr_c = lr_c
@@ -35,6 +39,7 @@ class ModelBasedOption(object):
         self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.multithread_mpc = multithread_mpc
+        self.init_classifier_type = init_classifier_type
 
         # TODO
         self.overall_mdp = mdp
@@ -44,11 +49,6 @@ class ModelBasedOption(object):
         self.num_goal_hits = 0
         self.num_executions = 0
         self.gestation_period = gestation_period
-
-        self.positive_examples = []
-        self.negative_examples = []
-        self.optimistic_classifier = None
-        self.pessimistic_classifier = None
 
         # In the model-free setting, the output norm doesn't seem to work
         # But it seems to stabilize off policy value function learning
@@ -72,6 +72,8 @@ class ModelBasedOption(object):
         else:
             print(f"Using model-free controller for {name}")
             self.solver = self._get_model_free_solver()
+
+        self.initiation_classifier = self._get_initiation_classifier()
 
         self.children = []
         self.success_curve = []
@@ -120,6 +122,18 @@ class ModelBasedOption(object):
         assert self.value_learner is not None
         return self.value_learner
 
+    def _get_initiation_classifier(self):
+        if self.init_classifier_type == "position-clf":
+            return PositionInitiationClassifier()
+        if self.init_classifier_type == "state-clf":
+            raise NotImplementedError(self.init_classifier_type)
+        if self.init_classifier_type == "critic-threshold":
+            return CriticInitiationClassifier(self.solver)
+        if self.init_classifier_type == "ope-threshold":
+            pass
+        if self.init_classifier_type == "ope-clf":
+            pass
+
     # ------------------------------------------------------------
     # Learning Phase Methods
     # ------------------------------------------------------------
@@ -137,13 +151,13 @@ class ModelBasedOption(object):
             return True
 
         features = self.mdp.extract_features_for_initiation_classifier(state)
-        return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
+        return self.initiation_classifier.optimistic_predict(features) or self.pessimistic_is_init_true(state) 
 
     def is_term_true(self, state):
         if self.parent is None:
             return self.target_salient_event(state)
 
-        # TODO change
+        assert isinstance(self.parent, ModelBasedOption)
         return self.parent.pessimistic_is_init_true(state)
 
     def pessimistic_is_init_true(self, state):
@@ -151,7 +165,7 @@ class ModelBasedOption(object):
             return True
 
         features = self.mdp.extract_features_for_initiation_classifier(state)
-        return self.pessimistic_classifier.predict([features])[0] == 1
+        return self.initiation_classifier.pessimistic_predict(features)
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
@@ -197,7 +211,7 @@ class ModelBasedOption(object):
         if self.parent is None and self.target_salient_event is not None:
             return self.target_salient_event.get_target_position()
 
-        sampled_goal = self.parent.sample_from_initiation_region_fast_and_epsilon()
+        sampled_goal = self.parent.initiation_classifier.sample()
         assert sampled_goal is not None
 
         if isinstance(sampled_goal, np.ndarray):
@@ -260,7 +274,7 @@ class ModelBasedOption(object):
 
         # Always be refining your initiation classifier
         if not self.global_init and not eval_mode:
-            self.fit_initiation_classifier()
+            self.initiation_classifier.fit_initiation_classifier()
 
         return option_transitions, total_reward
 
@@ -281,11 +295,14 @@ class ModelBasedOption(object):
         self.value_learner.target_critic.load_state_dict(self.global_value_learner.target_critic.state_dict())
 
     def extract_goal_dimensions(self, goal):
-        assert isinstance(goal, np.ndarray)
-        goal_features = goal
-        if "ant" in self.mdp.unwrapped.spec.id:
-            return goal_features[:2]
-        raise NotImplementedError(f"{self.mdp.env_name}")
+        def _extract(goal):
+            goal_features = goal
+            if "ant" in self.mdp.unwrapped.spec.id:
+                return goal_features[:2]
+            raise NotImplementedError(f"{self.mdp.env_name}")
+        if isinstance(goal, np.ndarray):
+            return _extract(goal)
+        return goal.pos
 
     def get_augmented_state(self, state, goal):
         assert goal is not None and isinstance(goal, np.ndarray), f"goal is {goal}"
@@ -346,7 +363,7 @@ class ModelBasedOption(object):
         return None
 
     def sample_from_termination_region(self):
-        pessimistic_samples = self.get_states_inside_pessimistic_classifier_region()
+        pessimistic_samples = self.initiation_classifier.get_states_inside_pessimistic_classifier_region()
 
         if len(pessimistic_samples) > 0:
             sample = random.choice(pessimistic_samples)
@@ -355,118 +372,27 @@ class ModelBasedOption(object):
         sample = random.choice(self.effect_set)
         return self.mdp.extract_features_for_initiation_classifier(sample)
 
-    def sample_from_initiation_region_fast(self):
-        """ Sample from the pessimistic initiation classifier. """
-        num_tries = 0
-        sampled_state = None
-        while sampled_state is None and num_tries < 200:
-            num_tries = num_tries + 1
-            sampled_trajectory_idx = random.choice(range(len(self.positive_examples)))
-            sampled_trajectory = self.positive_examples[sampled_trajectory_idx]
-            sampled_state = self.get_first_state_in_classifier(sampled_trajectory)
-        return sampled_state
-
-    def sample_from_initiation_region_fast_and_epsilon(self):
-        """ Sample from the pessimistic initiation classifier. """
-        def compile_states(s):
-            pos0 = self.mdp.get_position(s)
-            pos1 = np.copy(pos0)
-            pos1[0] -= self.target_salient_event.tolerance
-            pos2 = np.copy(pos0)
-            pos2[0] += self.target_salient_event.tolerance
-            pos3 = np.copy(pos0)
-            pos3[1] -= self.target_salient_event.tolerance
-            pos4 = np.copy(pos0)
-            pos4[1] += self.target_salient_event.tolerance
-            return pos0, pos1, pos2, pos3, pos4
-
-        idxs = [i for i in range(len(self.positive_examples))]
-        random.shuffle(idxs)
-
-        for idx in idxs:
-            sampled_trajectory = self.positive_examples[idx]
-            states = []
-            for s in sampled_trajectory:
-                states.extend(compile_states(s))
-
-            position_matrix = np.vstack(states)
-            # optimistic_predictions = self.optimistic_classifier.predict(position_matrix) == 1
-            # pessimistic_predictions = self.pessimistic_classifier.predict(position_matrix) == 1
-            # predictions = np.logical_or(optimistic_predictions, pessimistic_predictions)
-            predictions = self.pessimistic_classifier.predict(position_matrix) == 1
-            predictions = np.reshape(predictions, (-1, 5))
-            valid = np.all(predictions, axis=1)
-            indices = np.argwhere(valid == True)
-            if len(indices) > 0:
-                return sampled_trajectory[indices[0][0]]
-
-        return self.sample_from_initiation_region_fast()
-
     def derive_positive_and_negative_examples(self, visited_states):
         start_state = visited_states[0]
         final_state = visited_states[-1]
 
+        phi = self.mdp.extract_features_for_initiation_classifier
+
+        start_features = phi(start_state)
+
         if self.is_term_true(final_state):
             positive_states = [start_state] + visited_states[-self.buffer_length:]
-            self.positive_examples.append(positive_states)
+            visited_features = phi(visited_states[-self.buffer_length:])
+            visited_features = [features for features in visited_features]  # np array -> list
+            positive_positions = [start_features] + visited_features
+            self.initiation_classifier.add_positive_examples(positive_states, positive_positions)
         else:
             negative_examples = [start_state]
-            self.negative_examples.append(negative_examples)
+            negative_positions = [start_features]
+            self.initiation_classifier.add_negative_examples(negative_examples, negative_positions)
 
     def should_change_negative_examples(self):
-        should_change = []
-        for negative_example in self.negative_examples:
-            should_change += [self.does_model_rollout_reach_goal(negative_example[0])]
-        return should_change
-
-    def does_model_rollout_reach_goal(self, state):
-        sampled_goal = self.get_goal_for_rollout()
-        final_states, actions, costs = self.solver.simulate(state, sampled_goal, num_rollouts=14000, num_steps=self.timeout)
-        farthest_position = final_states[:, :2].max(axis=0)
-        return self.is_term_true(farthest_position)
-
-    def fit_initiation_classifier(self):
-        if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
-            self.train_two_class_classifier()
-        elif len(self.positive_examples) > 0:
-            self.train_one_class_svm()
-
-    def construct_feature_matrix(self, examples):
-        states = list(itertools.chain.from_iterable(examples))
-        positions = [self.mdp.extract_features_for_initiation_classifier(state) for state in states]
-        return np.array(positions)
-
-    def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
-        positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="auto")
-        self.pessimistic_classifier.fit(positive_feature_matrix)
-
-        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10., gamma="auto")
-        self.optimistic_classifier.fit(positive_feature_matrix)
-
-    def train_two_class_classifier(self, nu=0.1):
-        positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
-        positive_labels = [1] * positive_feature_matrix.shape[0]
-        negative_labels = [0] * negative_feature_matrix.shape[0]
-
-        X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
-        Y = np.concatenate((positive_labels, negative_labels))
-
-        if negative_feature_matrix.shape[0] >= 10:  # TODO: Implement gamma="auto" for thundersvm
-            kwargs = {"kernel": "rbf", "gamma": "auto", "class_weight": "balanced"}
-        else:
-            kwargs = {"kernel": "rbf", "gamma": "auto"}
-
-        self.optimistic_classifier = SVC(**kwargs)
-        self.optimistic_classifier.fit(X, Y)
-
-        training_predictions = self.optimistic_classifier.predict(X)
-        positive_training_examples = X[training_predictions == 1]
-
-        if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="auto")
-            self.pessimistic_classifier.fit(positive_training_examples)
+        pass
 
     def is_valid_init_data(self, state_buffer):
 
@@ -480,7 +406,7 @@ class ModelBasedOption(object):
         if not length_condition:
             return False
 
-        sibling_cond = lambda o: o.get_training_phase() != "gestation" and o.pessimistic_classifier is not None
+        sibling_cond = lambda o: o.get_training_phase() != "gestation" and o.initiation_classifier.is_initialized()
         siblings = [option for option in self.get_sibling_options() if sibling_cond(option)]
 
         if len(siblings) > 0:
@@ -489,8 +415,7 @@ class ModelBasedOption(object):
             sibling_count = 0.
             for state in state_buffer:
                 for sibling in siblings:
-                    penalize = sibling.pessimistic_is_init_true(state) and not self.parent.pessimistic_is_init_true(
-                        state)
+                    penalize = sibling.pessimistic_is_init_true(state) and not self.parent.pessimistic_is_init_true(state)
                     sibling_count += penalize
 
             return 0 < (sibling_count / len(state_buffer)) <= 0.35
@@ -500,14 +425,6 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
     # Distance functions
     # ------------------------------------------------------------
-
-    def get_states_inside_pessimistic_classifier_region(self):
-        if self.pessimistic_classifier is not None:
-            point_array = self.construct_feature_matrix(self.positive_examples)
-            point_array_predictions = self.pessimistic_classifier.predict(point_array)
-            positive_point_array = point_array[point_array_predictions == 1]
-            return positive_point_array
-        return []
 
     def distance_to_state(self, state, metric="euclidean"):
         """ Compute the distance between the current option and the input `state`. """
@@ -523,14 +440,14 @@ class ModelBasedOption(object):
         assert isinstance(point, np.ndarray)
         assert point.shape == (2,), point.shape
 
-        positive_point_array = self.get_states_inside_pessimistic_classifier_region()
+        positive_point_array = self.initiation_classifier.get_states_inside_pessimistic_classifier_region()
 
         distances = distance.cdist(point[None, :], positive_point_array)
         return np.median(distances)
 
     def _value_distance_to_state(self, state):
         features = state.features() if not isinstance(state, np.ndarray) else state
-        goals = self.get_states_inside_pessimistic_classifier_region()
+        goals = self.initiation_classifier.get_states_inside_pessimistic_classifier_region()
 
         distances = self.value_function(features, goals)
         distances[distances > 0] = 0.

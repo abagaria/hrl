@@ -1,3 +1,4 @@
+import ipdb
 import pickle
 from copy import deepcopy
 from functools import reduce
@@ -13,7 +14,8 @@ class RobustDSC(object):
     def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, lr_c, lr_a,
                  experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
+                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc,
+                 max_num_children=1, init_classifier_type="position-clf"):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -28,6 +30,7 @@ class RobustDSC(object):
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
         self.multithread_mpc = multithread_mpc
+        self.init_classifier_type = init_classifier_type
 
         self.seed = seed
         self.logging_freq = logging_freq
@@ -186,9 +189,11 @@ class RobustDSC(object):
 
             for option in self.mature_options:
                 episode_label = episode if self.generate_init_gif else -1
+                print(f"Plotting initiation set for {option}")
                 plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
 
             for option in options:
+                print(f"Plotting value function for {option}")
                 if self.use_global_vf:
                     make_chunked_goal_conditioned_value_function_plot(option.global_value_learner,
                                                                     goal=option.get_goal_for_rollout(),
@@ -219,7 +224,8 @@ class RobustDSC(object):
                                   global_value_learner=self.global_option.value_learner,
                                   option_idx=option_idx,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
-                                  multithread_mpc=self.multithread_mpc)
+                                  multithread_mpc=self.multithread_mpc,
+                                  init_classifier_type=self.init_classifier_type)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -239,7 +245,8 @@ class RobustDSC(object):
                                   global_value_learner=None,
                                   option_idx=0,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
-                                  multithread_mpc=self.multithread_mpc)
+                                  multithread_mpc=self.multithread_mpc,
+                                  init_classifier_type=self.init_classifier_type)
         return option
 
     def reset(self, episode):
