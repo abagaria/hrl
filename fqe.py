@@ -118,7 +118,7 @@ class FQE:
         self.reward = self.done
 
 
-    def fit(self, data, termination_indicator=None, num_iter=100, gamma=0.995, batch_size=256, num_batches=1000, save_interval=np.inf, oversample_goal='always'):
+    def fit(self, data, termination_indicator=None, num_iter=100, gamma=0.995, batch_size=256, num_batches=1000, save_interval=np.inf, oversample_goal='never'):
         self.state = torch.from_numpy(data["state"].astype(np.float32)).to(self.device)
         if termination_indicator is None:
             self.reward = torch.from_numpy(data["reward"].astype(np.float32)).view(-1, 1).to(self.device)
@@ -157,7 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_batches', type=int, default=100)
     parser.add_argument('--device', type=str, default='cpu')
-    parser.add_argument('--oversample_goal', type=str, default='always')
+    parser.add_argument('--oversample_goal', type=str, default='never')
     args = parser.parse_args()
 
     buffer_fname = 'td3_replay_buffer.pkl'
