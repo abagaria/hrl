@@ -138,7 +138,6 @@ class FQE:
             if (save_interval < np.inf and iteration % save_interval == 0) or iteration == num_iter-1:
                 torch.save(self.q_fitter.state_dict(), "saved_results/{}/weights_{}".format(self.exp_name, iteration))
 
-    # Formerly predict()
     def get_values(self, state):
         next_action = self.pi_eval(state)
         state_policy_action = torch.cat(
@@ -182,36 +181,22 @@ if __name__ == '__main__':
     if not os.path.exists('saved_results/{}/'.format(exp_name)):
         os.makedirs('saved_results/{}/'.format(exp_name))
 
-    # fqe = FQE(state_dim=state_dim,
-    #           action_dim=action_dim,
-    #           pi_eval=agent.actor,
-    #           learning_rate=args.learning_rate,
-    #           exp_name=exp_name,
-    #           device=args.device)
-    # fqe.fit(data,
-    #         num_iter=args.num_iter,
-    #         gamma=args.gamma,
-    #         batch_size=args.batch_size,
-    #         num_batches=args.num_batches,
-    #         save_interval=args.save_interval,
-    #         oversample_goal=args.oversample_goal)
+    def termination_indicator(next_state):
+        return np.sqrt((next_state[:, 0] - 1)**2 + (next_state[:, 1] - 1)**2) <= 0.5
 
     fqe = FQE(state_dim=state_dim,
               action_dim=action_dim,
               pi_eval=agent.actor,
+              learning_rate=args.learning_rate,
               exp_name=exp_name,
               device=args.device)
-
-    def termination_indicator(next_state):
-        return np.sqrt((next_state[:, 0] - 1)**2 + (next_state[:, 1] - 1)**2) <= 0.5
-
-
-    # termination_indicator = None
-
     fqe.fit(data,
-            termination_indicator=termination_indicator,
+            num_iter=args.num_iter,
+            gamma=args.gamma,
             batch_size=args.batch_size,
-            save_interval=args.save_interval)
+            num_batches=args.num_batches,
+            save_interval=args.save_interval,
+            oversample_goal=args.oversample_goal)
 
     with open('saved_results/{}/args.txt'.format(exp_name), 'w') as f:
         for arg in vars(args):
