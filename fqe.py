@@ -157,6 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_batches', type=int, default=100)
     parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--oversample_goal', type=str, default='never')
+    parser.add_argument('--move_goal', action='store_true')
     args = parser.parse_args()
 
     buffer_fname = 'td3_replay_buffer.pkl'
@@ -181,8 +182,13 @@ if __name__ == '__main__':
     if not os.path.exists('saved_results/{}/'.format(exp_name)):
         os.makedirs('saved_results/{}/'.format(exp_name))
 
-    def termination_indicator(next_state):
-        return np.sqrt((next_state[:, 0] - 1)**2 + (next_state[:, 1] - 1)**2) <= 0.5
+    if args.move_goal:
+        def termination_indicator(next_state):
+            return np.sqrt((next_state[:, 0] - 2)**2 + (next_state[:, 1] - 2)**2) <= 0.5
+        print('yay')
+    else:
+        termination_indicator = None
+        print('nay')
 
     fqe = FQE(state_dim=state_dim,
               action_dim=action_dim,
@@ -191,6 +197,7 @@ if __name__ == '__main__':
               exp_name=exp_name,
               device=args.device)
     fqe.fit(data,
+            termination_indicator=termination_indicator,
             num_iter=args.num_iter,
             gamma=args.gamma,
             batch_size=args.batch_size,
