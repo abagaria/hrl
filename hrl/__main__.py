@@ -47,7 +47,11 @@ if __name__ == "__main__":
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
     parser.add_argument("--use_skill_trees", action="store_true", default=False)
     parser.add_argument("--max_num_children", type=int, default=1, help="Max number of children per option in the tree")
+    
+    # Off policy init learning configs
     parser.add_argument("--init_classifier_type", type=str, default="position-clf")
+    parser.add_argument("--optimistic_threshold", type=float, default=40)
+    parser.add_argument("--pessimistic_threshold", type=float, default=20)
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
@@ -68,7 +72,13 @@ if __name__ == "__main__":
             # default to D4RL goal state
             goal_state = np.array(env.target_goal)
         print(f'using goal state {goal_state} in env {args.environment}')
-        env = D4RLAntMazeWrapper(env, start_state=np.array((0, 0)), goal_state=goal_state, use_dense_reward=args.use_dense_rewards)
+        env = D4RLAntMazeWrapper(
+            env,
+            start_state=np.array((0, 0)),
+            goal_state=goal_state,
+            init_truncate="position" in args.init_classifier_type,
+            use_dense_reward=args.use_dense_rewards
+        )
 
         torch.manual_seed(0)
         seeding.seed(0, random, np)
