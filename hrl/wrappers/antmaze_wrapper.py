@@ -7,8 +7,9 @@ from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 
 
 class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
-	def __init__(self, env, start_state, goal_state, use_dense_reward=False):
+	def __init__(self, env, start_state, goal_state, init_truncate=True, use_dense_reward=False):
 		self.env = env
+		self.init_truncate = init_truncate
 		self.norm_func = lambda x: np.linalg.norm(x, axis=-1) if isinstance(x, np.ndarray) else torch.norm(x, dim=-1)
 		self.reward_func = self.dense_gc_reward_func if use_dense_reward else self.sparse_gc_reward_func
 		self._determine_x_y_lims()
@@ -97,12 +98,14 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		def _list_extract(states):
 			return [state[:2] for state in states]
 		
-		if isinstance(states, np.ndarray):
-			return _numpy_extract(states)
-		if isinstance(states, list):
-			return _list_extract(states)
-		raise ValueError(f"{states} of type {type(states)}")
+		if self.init_truncate:
+			if isinstance(states, np.ndarray):
+				return _numpy_extract(states)
+			if isinstance(states, list):
+				return _list_extract(states)
+			raise ValueError(f"{states} of type {type(states)}")
 		
+		return states
 	
 	def set_xy(self, position):
 		""" Used at test-time only. """
