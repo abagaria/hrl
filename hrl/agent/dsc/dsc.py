@@ -1,11 +1,9 @@
 import ipdb
 import pickle
+import numpy as np
 from copy import deepcopy
 from functools import reduce
 from collections import deque
-
-import numpy as np
-
 from hrl.agent.dsc.utils import *
 from hrl.agent.dsc.MBOptionClass import ModelBasedOption
 
@@ -15,7 +13,8 @@ class RobustDSC(object):
                  use_diverse_starts, use_dense_rewards, lr_c, lr_a,
                  experiment_name, device,
                  logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc,
-                 max_num_children=1, init_classifier_type="position-clf"):
+                 max_num_children,
+                 init_classifier_type, optimistic_threshold, pessimistic_threshold):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -30,7 +29,10 @@ class RobustDSC(object):
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
         self.multithread_mpc = multithread_mpc
+        
         self.init_classifier_type = init_classifier_type
+        self.optimistic_threshold = optimistic_threshold
+        self.pessimistic_threshold = pessimistic_threshold
 
         self.seed = seed
         self.logging_freq = logging_freq
@@ -90,7 +92,7 @@ class RobustDSC(object):
             if selected_option == self.global_option:
                 subgoal = self.pick_subgoal_for_global_option(state)
 
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
+            transitions, reward = selected_option.rollout(step_number=step_number, goal=subgoal)
 
             if len(transitions) == 0:
                 break
@@ -142,7 +144,11 @@ class RobustDSC(object):
             option.solver.model = self.global_option.solver.model
 
     def is_chain_complete(self):
-        return all([option.get_training_phase() == "initiation_done" for option in self.chain]) and self.mature_options[-1].is_init_true(np.array([0,0]))
+        learned = all([option.get_training_phase() == "initiation_done" for option in self.chain])
+        covered = self.mature_options[-1].is_init_true(
+            self.mdp.start_state
+        )
+        return learned and covered 
 
     def should_create_new_option(self):  # TODO: Cleanup
         if len(self.mature_options) > 0 and len(self.new_options) == 0:
@@ -152,7 +158,9 @@ class RobustDSC(object):
 
     def contains_init_state(self):
         for option in self.mature_options:
-            if option.is_init_true(np.array([0,0])):  # TODO: Get test-time start state automatically
+            if option.is_init_true(
+                self.mdp.start_state
+            ):
                 return True
         return False
 
@@ -178,7 +186,8 @@ class RobustDSC(object):
     def pick_subgoal_for_global_option(self, state):
         nearest_option = self.find_nearest_option_in_chain(state)
         if nearest_option is not None:
-            return nearest_option.sample_from_initiation_region_fast_and_epsilon()
+            goal = nearest_option.initiation_classifier.sample()
+            return nearest_option.extract_goal_dimensions(goal)
         return self.global_option.get_goal_for_rollout()
 
     def log_status(self, episode, last_10_durations):
@@ -188,9 +197,16 @@ class RobustDSC(object):
             options = self.mature_options + self.new_options
 
             for option in self.mature_options:
+                assert isinstance(option, ModelBasedOption)
                 episode_label = episode if self.generate_init_gif else -1
-                print(f"Plotting initiation set for {option}")
-                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
+                option.initiation_classifier.plot_initiation_classifier(
+                    self.mdp,
+                    option.solver.replay_buffer, 
+                    option.name, 
+                    episode_label,
+                    self.experiment_name,
+                    self.seed
+                )
 
             for option in options:
                 print(f"Plotting value function for {option}")
@@ -225,7 +241,9 @@ class RobustDSC(object):
                                   option_idx=option_idx,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
                                   multithread_mpc=self.multithread_mpc,
-                                  init_classifier_type=self.init_classifier_type)
+                                  init_classifier_type=self.init_classifier_type,
+                                  optimistic_threshold=self.optimistic_threshold,
+                                  pessimistic_threshold=self.pessimistic_threshold)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -246,7 +264,9 @@ class RobustDSC(object):
                                   option_idx=0,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
                                   multithread_mpc=self.multithread_mpc,
-                                  init_classifier_type=self.init_classifier_type)
+                                  init_classifier_type=self.init_classifier_type,
+                                  optimistic_threshold=self.optimistic_threshold,
+                                  pessimistic_threshold=self.pessimistic_threshold)
         return option
 
     def reset(self, episode):
@@ -264,7 +284,7 @@ def test_agent(exp, num_experiments, num_steps):
 
             state = deepcopy(exp.mdp.cur_state)
             selected_option, subgoal = exp.act(state)
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
+            transitions, reward = selected_option.rollout(step_number=step_number, goal=subgoal, eval_mode=True)
             step_number += len(transitions)
         return step_number
 
