@@ -154,12 +154,19 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     # Take out the original goal and append the new goal
     states = [exp[0] for exp in replay_buffer]
     states = [state[:-2] for state in states]
+    actions = [exp[1] for exp in replay_buffer]
 
-    print("preparing states")
+    if len(states) > 100_000:
+        print(f"Subsampling {len(states)} s-a pairs to 100,000")
+        idx = np.random.randint(0, len(states), size=100_000)
+        states = [states[i] for i in idx]
+        actions = [actions[i] for i in idx]
+
+    print(f"preparing {len(states)} states")
     states = np.array([np.concatenate((state, goal), axis=0) for state in states])
 
-    print("preparing actions")
-    actions = np.array([exp[1] for exp in replay_buffer])
+    print(f"preparing {len(actions)} actions")
+    actions = np.array(actions)
 
     # Chunk up the inputs so as to conserve GPU memory
     num_chunks = int(np.ceil(states.shape[0] / chunk_size))
