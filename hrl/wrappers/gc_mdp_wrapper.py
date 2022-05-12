@@ -24,6 +24,10 @@ class GoalConditionedMDPWrapper(Wrapper):
         self.cur_state = deepcopy(self.reset())
         self.cur_done = False
 
+        if start_state.shape == (2,):
+            print("Padding start state with other dims")
+            self.start_state = np.concatenate((start_state, self.cur_state[2:]))
+
     def state_space_size(self):
         return self.env.observation_space.shape[0]
 
