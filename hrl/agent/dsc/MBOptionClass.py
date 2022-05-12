@@ -1,11 +1,9 @@
 import torch
 import random
-import itertools
 import numpy as np
 from copy import deepcopy
 
 from scipy.spatial import distance
-from sklearn.svm import OneClassSVM, SVC
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
@@ -17,7 +15,8 @@ class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
                  option_idx, lr_c, lr_a, max_num_children=1, init_salient_event=None, target_salient_event=None,
-                 path_to_model="", multithread_mpc=False, init_classifier_type="position-clf"):
+                 path_to_model="", multithread_mpc=False, init_classifier_type="position-clf",
+                 optimistic_threshold=40, pessimistic_threshold=20):
         assert isinstance(mdp, GoalConditionedMDPWrapper), mdp
 
         self.mdp = mdp
@@ -40,6 +39,8 @@ class ModelBasedOption(object):
         self.target_salient_event = target_salient_event
         self.multithread_mpc = multithread_mpc
         self.init_classifier_type = init_classifier_type
+        self.optimistic_threshold = optimistic_threshold
+        self.pessimistic_threshold = pessimistic_threshold
 
         # TODO
         self.overall_mdp = mdp
@@ -128,7 +129,13 @@ class ModelBasedOption(object):
         if self.init_classifier_type == "state-clf":
             raise NotImplementedError(self.init_classifier_type)
         if self.init_classifier_type == "critic-threshold":
-            return CriticInitiationClassifier(self.solver)
+            return CriticInitiationClassifier(
+                self.solver,
+                self.get_goal_for_rollout,
+                self.get_augmented_state,
+                optimistic_threshold=self.optimistic_threshold,
+                pessimistic_threshold=self.pessimistic_threshold
+            )
         if self.init_classifier_type == "ope-threshold":
             pass
         if self.init_classifier_type == "ope-clf":
@@ -150,8 +157,7 @@ class ModelBasedOption(object):
         if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
-        features = self.mdp.extract_features_for_initiation_classifier(state)
-        return self.initiation_classifier.optimistic_predict(features) or self.pessimistic_is_init_true(state) 
+        return self.initiation_classifier.optimistic_predict(state) or self.pessimistic_is_init_true(state) 
 
     def is_term_true(self, state):
         if self.parent is None:
@@ -164,8 +170,7 @@ class ModelBasedOption(object):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
 
-        features = self.mdp.extract_features_for_initiation_classifier(state)
-        return self.initiation_classifier.pessimistic_predict(features)
+        return self.initiation_classifier.pessimistic_predict(state)
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
@@ -214,16 +219,10 @@ class ModelBasedOption(object):
         sampled_goal = self.parent.initiation_classifier.sample()
         assert sampled_goal is not None
 
-        if isinstance(sampled_goal, np.ndarray):
-            return sampled_goal.squeeze()
-
         return self.extract_goal_dimensions(sampled_goal)
 
-    def rollout(self, step_number, rollout_goal=None, eval_mode=False):
+    def rollout(self, *, goal, step_number, eval_mode=False):
         """ Main option control loop. """
-
-        start_state = deepcopy(self.mdp.cur_state)
-        assert self.is_init_true(start_state)
 
         num_steps = 0
         total_reward = 0
@@ -231,7 +230,6 @@ class ModelBasedOption(object):
         option_transitions = []
 
         state = deepcopy(self.mdp.cur_state)
-        goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state[:2]} targeting {goal}")
 
@@ -352,16 +350,6 @@ class ModelBasedOption(object):
     # Learning Initiation Classifiers
     # ------------------------------------------------------------
 
-    def get_first_state_in_classifier(self, trajectory, classifier_type="pessimistic"):
-        """ Extract the first state in the trajectory that is inside the initiation classifier. """
-
-        assert classifier_type in ("pessimistic", "optimistic"), classifier_type
-        classifier = self.pessimistic_is_init_true if classifier_type == "pessimistic" else self.is_init_true
-        for state in trajectory:
-            if classifier(state):
-                return state
-        return None
-
     def sample_from_termination_region(self):
         pessimistic_samples = self.initiation_classifier.get_states_inside_pessimistic_classifier_region()
 
@@ -440,9 +428,15 @@ class ModelBasedOption(object):
         assert isinstance(point, np.ndarray)
         assert point.shape == (2,), point.shape
 
-        positive_point_array = self.initiation_classifier.get_states_inside_pessimistic_classifier_region()
+        positive_states = self.initiation_classifier.get_states_inside_pessimistic_classifier_region()
 
-        distances = distance.cdist(point[None, :], positive_point_array)
+        if isinstance(positive_states, list):
+            positive_states = np.array(positive_states)
+
+        if positive_states.shape[1] > 2:
+            positive_states = positive_states[:, :2]
+
+        distances = distance.cdist(point[None, :], positive_states)
         return np.median(distances)
 
     def _value_distance_to_state(self, state):
