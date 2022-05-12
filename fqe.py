@@ -40,25 +40,18 @@ def chunked_policy_prediction(policy, states, action_dim, device, chunk_size=100
         actions[num_whole_chunks*chunk_size:, :] = policy(states[num_whole_chunks*chunk_size:, :])
     return actions
 
-def generate_sample_idx(data, batch_size=50, oversample_goal=True):
-    if oversample_goal:
-        zero_r_idx = np.where(data['reward'] == 1)
-        sample_idx = list(zero_r_idx[0]) + random.sample(range(len(data["state"])), batch_size - len(zero_r_idx[0]))
-    else:
-        sample_idx = random.sample(range(len(data["state"])), batch_size)
-    return sample_idx
-
 class FQE:
     def __init__(self,
-                 data,
+                 state_dim,
+                 action_dim,
                  pi_eval,
                  learning_rate=0.001,
                  device='cpu',
                  exp_name="tmp"):
         self.pi_eval = pi_eval
-        self.state_dim = data["state"].shape[1]
-        self.action_dim = data["action"].shape[1]
-        self.data_size = data["action"].shape[0]
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.device = device
 
         self.q_fitter = QFitter(self.state_dim, self.action_dim).to(device)
 
@@ -68,13 +61,14 @@ class FQE:
         self.loss_func = nn.MSELoss()
         self.optimizer = torch.optim.Adam(self.q_fitter.parameters(), lr=self.learning_rate)
 
-        self.reward = torch.from_numpy(data["reward"].astype(np.float32)).view(-1, 1).to(device)
-        self.state = torch.from_numpy(data["state"].astype(np.float32)).to(device)
-        self.state_action = torch.from_numpy(np.concatenate((data["state"], data["action"]), axis=1).astype(np.float32)).to(device)
-        self.done = torch.from_numpy(data["done"].astype(np.float32)).to(device)
-        next_action = chunked_policy_prediction(self.pi_eval, self.state, self.action_dim, device)
-        self.next_state_action = torch.cat(
-            (torch.from_numpy(data["next_state"].astype(np.float32)).to(device), next_action), dim=1).to(device)
+    def generate_sample_idx(self, batch_size=50, oversample_goal=True):
+        num_samples = len(self.state)
+        if oversample_goal:
+            zero_r_idx = np.where(self.reward == 1)
+            sample_idx = list(zero_r_idx[0]) + random.sample(range(num_samples), batch_size - len(zero_r_idx[0]))
+        else:
+            sample_idx = random.sample(range(num_samples), batch_size)
+        return sample_idx
 
     def optimize_model(self, gamma, batch_size, num_batches, oversample_goal, save_fname=None):
         if save_fname is not None:
@@ -82,14 +76,14 @@ class FQE:
         for idx_batch in range(num_batches):
             # Sample a batch with the transitions reaching the goal
             if oversample_goal == 'always':
-                sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=True)
+                sample_idx = self.generate_sample_idx(batch_size=batch_size, oversample_goal=True)
             elif oversample_goal == 'never':
-                sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=False)
+                sample_idx = self.generate_sample_idx(batch_size=batch_size, oversample_goal=False)
             elif oversample_goal == 'first_sample_only':
                 if idx_batch == 0:
-                    sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=True)
+                    sample_idx = self.generate_sample_idx(batch_size=batch_size, oversample_goal=True)
                 else:
-                    sample_idx = generate_sample_idx(data, batch_size=batch_size, oversample_goal=False)
+                    sample_idx = self.generate_sample_idx(batch_size=batch_size, oversample_goal=False)
 
             # Feed forward
             q_pred = self.q_fitter(self.state_action[sample_idx, :].requires_grad_())
@@ -115,12 +109,28 @@ class FQE:
             if idx_batch % 10 == 0 or idx_batch == num_batches - 1:
                 print('Batch {}: loss = {}'.format(idx_batch, loss.item()))
 
-            if save_fname is not None:
-                with open(save_fname, 'wb') as f:
-                    pickle.dump(loss_list, f)
+        if save_fname is not None:
+            with open(save_fname, 'wb') as f:
+                pickle.dump(loss_list, f)
+
+    def update_rewards(self, termination_indicator, next_state):
+        self.done = torch.from_numpy(termination_indicator(next_state).astype(np.float32)).view(-1, 1).to(self.device)
+        self.reward = self.done
 
 
-    def fit(self, num_iter=10, gamma=0.995, batch_size=256, num_batches=10000, save_interval=np.inf, oversample_goal='always'):
+    def fit(self, data, termination_indicator=None, num_iter=100, gamma=0.995, batch_size=256, num_batches=1000, save_interval=np.inf, oversample_goal='always'):
+        self.state = torch.from_numpy(data["state"].astype(np.float32)).to(self.device)
+        if termination_indicator is None:
+            self.reward = torch.from_numpy(data["reward"].astype(np.float32)).view(-1, 1).to(self.device)
+            self.done = torch.from_numpy(data["done"].astype(np.float32)).to(self.device)
+        else:
+            self.update_rewards(termination_indicator, data["next_state"])
+        self.state_action = torch.from_numpy(
+            np.concatenate((data["state"], data["action"]), axis=1).astype(np.float32)).to(self.device)
+        next_action = chunked_policy_prediction(self.pi_eval, self.state, self.action_dim, self.device)
+        self.next_state_action = torch.cat(
+            (torch.from_numpy(data["next_state"].astype(np.float32)).to(self.device), next_action), dim=1).to(self.device)
+
         for iteration in range(num_iter):
             print('Iteration: {}'.format(iteration))
             loss_save_fname = 'saved_results/{}/loss_iter_{}.pkl'.format(self.exp_name, iteration)
@@ -128,8 +138,8 @@ class FQE:
             if (save_interval < np.inf and iteration % save_interval == 0) or iteration == num_iter-1:
                 torch.save(self.q_fitter.state_dict(), "saved_results/{}/weights_{}".format(self.exp_name, iteration))
 
-
-    def predict(self, state):
+    # Formerly predict()
+    def get_values(self, state):
         next_action = self.pi_eval(state)
         state_policy_action = torch.cat(
             (state, next_action), dim=1)
@@ -155,6 +165,7 @@ if __name__ == '__main__':
     data["reward"] += 1
     data["done"] = (data["reward"] == 1).astype(float)
 
+
     exp_name = "{}_gamma_{}_lr_{}".format(args.exp_name, args.gamma, args.learning_rate)
 
     agent = TD3(state_dim=29,
@@ -165,41 +176,42 @@ if __name__ == '__main__':
     agent_fname = 'antreacher_dense_save_rbuf_policy/0/td3_episode_500'
     load_agent(agent, agent_fname)
 
-    ####################################################
-    # # Reduce data size for fast testing
-    # zero_r_idx = np.where(data['reward'] == 0)
-    # print(zero_r_idx[0])
-    # data_idx = list(range(500)) + list(zero_r_idx[0])
-    #
-    # data['state'] = data['state'][data_idx, :]
-    # data['action'] = data['action'][data_idx, :]
-    # data['reward'] = data['reward'][data_idx, :]
-    # data['next_state'] = data['next_state'][data_idx, :]
-    ####################################################
-
     state_dim = data["state"].shape[1]
     action_dim = data["action"].shape[1]
-
-    # q_fitter = QFitter(state_dim, action_dim)
-    #
-    # learning_rate = 0.01
-    # loss_func = nn.MSELoss()
-    # optimizer = torch.optim.SGD(q_fitter.parameters(), lr=learning_rate)
 
     if not os.path.exists('saved_results/{}/'.format(exp_name)):
         os.makedirs('saved_results/{}/'.format(exp_name))
 
-    fqe = FQE(data,
-              agent.actor,
-              learning_rate=args.learning_rate,
+    # fqe = FQE(state_dim=state_dim,
+    #           action_dim=action_dim,
+    #           pi_eval=agent.actor,
+    #           learning_rate=args.learning_rate,
+    #           exp_name=exp_name,
+    #           device=args.device)
+    # fqe.fit(data,
+    #         num_iter=args.num_iter,
+    #         gamma=args.gamma,
+    #         batch_size=args.batch_size,
+    #         num_batches=args.num_batches,
+    #         save_interval=args.save_interval,
+    #         oversample_goal=args.oversample_goal)
+
+    fqe = FQE(state_dim=state_dim,
+              action_dim=action_dim,
+              pi_eval=agent.actor,
               exp_name=exp_name,
               device=args.device)
-    fqe.fit(args.num_iter,
-            gamma=args.gamma,
+
+    def termination_indicator(next_state):
+        return np.sqrt((next_state[:, 0] - 1)**2 + (next_state[:, 1] - 1)**2) <= 0.5
+
+
+    # termination_indicator = None
+
+    fqe.fit(data,
+            termination_indicator=termination_indicator,
             batch_size=args.batch_size,
-            num_batches=args.num_batches,
-            save_interval=args.save_interval,
-            oversample_goal=args.oversample_goal)
+            save_interval=args.save_interval)
 
     with open('saved_results/{}/args.txt'.format(exp_name), 'w') as f:
         for arg in vars(args):
