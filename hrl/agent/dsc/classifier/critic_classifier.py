@@ -147,21 +147,43 @@ class CriticInitiationClassifier(InitiationClassifier):
         print("chunking")
         state_chunks = np.array_split(states, num_chunks, axis=0)
         steps = np.zeros((states.shape[0],))
+        
+        optimistic_predictions = np.zeros((states.shape[0],))
+        pessimistic_predictions = np.zeros((states.shape[0],))
+
         current_idx = 0
 
         for state_chunk in tqdm(state_chunks, desc="Plotting Critic Init Classifier"):
             chunk_values = self.value_function(state_chunk)
-            chunk_steps = self.value2steps(chunk_values)
+            chunk_steps = self.value2steps(chunk_values).squeeze()
             current_chunk_size = len(state_chunk)
-            steps[current_idx:current_idx + current_chunk_size] = chunk_steps.squeeze()
-            current_idx += current_chunk_size
 
+            steps[current_idx:current_idx + current_chunk_size] = chunk_steps
+            optimistic_predictions[current_idx:current_idx + current_chunk_size] = self.optimistic_classifier(chunk_steps)
+            pessimistic_predictions[current_idx:current_idx + current_chunk_size] = self.pessimistic_classifier(chunk_steps)
+
+            current_idx += current_chunk_size
+        
         print("plotting")
+        plt.figure(figsize=(20, 10))
+        
+        plt.subplot(1, 3, 1)
         plt.scatter(states[:, 0], states[:, 1], c=steps)
+        plt.title(f"nSteps to termination region")
         plt.colorbar()
 
+        plt.subplot(1, 3, 2)
+        plt.scatter(states[:, 0], states[:, 1], c=optimistic_predictions)
+        plt.title(f"Optimistic Classifier")
+        plt.colorbar()
+
+        plt.subplot(1, 3, 3)
+        plt.scatter(states[:, 0], states[:, 1], c=pessimistic_predictions)
+        plt.title(f"Pessimistic Classifier")
+        plt.colorbar()
+
+        plt.suptitle(f"{option_name}")
         file_name = f"{option_name}_critic_init_clf_{seed}_episode_{episode}"
-        plt.title(f"nSteps to {option_name}'s termination region")
         saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{file_name}.png')
 
         print("saving")
