@@ -187,7 +187,8 @@ class RobustDSC(object):
         nearest_option = self.find_nearest_option_in_chain(state)
         if nearest_option is not None:
             goal = nearest_option.initiation_classifier.sample()
-            return nearest_option.extract_goal_dimensions(goal)
+            if goal:
+                return nearest_option.extract_goal_dimensions(goal)
         return self.global_option.get_goal_for_rollout()
 
     def log_status(self, episode, last_10_durations):
