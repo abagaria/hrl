@@ -70,7 +70,11 @@ class FQE:
             sample_idx = random.sample(range(num_samples), batch_size)
         return sample_idx
 
-    def optimize_model(self, gamma, batch_size, num_batches, oversample_goal, save_fname=None):
+    def optimize_model(self, gamma, batch_size, num_batches, oversample_goal, save_fname=None, no_bootstrap_within_iteration=False):
+        # Compute target
+        if no_bootstrap_within_iteration:
+            target_q_full = self.reward + (1. - self.done) * gamma * self.q_fitter(
+                self.next_state_action).detach()
         if save_fname is not None:
             loss_list = []
         for idx_batch in range(num_batches):
@@ -89,8 +93,11 @@ class FQE:
             q_pred = self.q_fitter(self.state_action[sample_idx, :].requires_grad_())
 
             # Compute target
-            target_q = self.reward[sample_idx, :] + (1. - self.done[sample_idx, :]) * gamma * self.q_fitter(
-                self.next_state_action[sample_idx, :]).detach()
+            if no_bootstrap_within_iteration:
+                target_q = target_q_full[sample_idx, :]
+            else:
+                target_q = self.reward[sample_idx, :] + (1. - self.done[sample_idx, :]) * gamma * self.q_fitter(
+                    self.next_state_action[sample_idx, :]).detach()
 
             # Calculate the loss
             loss = self.loss_func(q_pred, target_q)
@@ -118,7 +125,7 @@ class FQE:
         self.reward = self.done
 
 
-    def fit(self, data, termination_indicator=None, num_iter=100, gamma=0.995, batch_size=256, num_batches=1000, save_interval=np.inf, oversample_goal='never'):
+    def fit(self, data, termination_indicator=None, num_iter=100, gamma=0.995, batch_size=256, num_batches=1000, save_interval=np.inf, oversample_goal='never', no_bootstrap_within_iteration=False):
         self.state = torch.from_numpy(data["state"].astype(np.float32)).to(self.device)
         if termination_indicator is None:
             self.reward = torch.from_numpy(data["reward"].astype(np.float32)).view(-1, 1).to(self.device)
@@ -134,7 +141,7 @@ class FQE:
         for iteration in range(num_iter):
             print('Iteration: {}'.format(iteration))
             loss_save_fname = 'saved_results/{}/loss_iter_{}.pkl'.format(self.exp_name, iteration)
-            self.optimize_model(gamma, batch_size, num_batches, oversample_goal, save_fname=loss_save_fname)
+            self.optimize_model(gamma, batch_size, num_batches, oversample_goal, save_fname=loss_save_fname, no_bootstrap_within_iteration=no_bootstrap_within_iteration)
             if (save_interval < np.inf and iteration % save_interval == 0) or iteration == num_iter-1:
                 torch.save(self.q_fitter.state_dict(), "saved_results/{}/weights_{}".format(self.exp_name, iteration))
 
@@ -153,11 +160,12 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=0.01)
     parser.add_argument('--num_iter', type=int, default=200)
     parser.add_argument('--gamma', type=float, default=0.995)
-    parser.add_argument('--batch_size', type=int, default=512)
+    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--num_batches', type=int, default=100)
     parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--oversample_goal', type=str, default='never')
     parser.add_argument('--move_goal', action='store_true')
+    parser.add_argument('--no_bootstrap_within_iteration', action='store_true')
     args = parser.parse_args()
 
     buffer_fname = 'td3_replay_buffer.pkl'
@@ -203,7 +211,8 @@ if __name__ == '__main__':
             batch_size=args.batch_size,
             num_batches=args.num_batches,
             save_interval=args.save_interval,
-            oversample_goal=args.oversample_goal)
+            oversample_goal=args.oversample_goal,
+            no_bootstrap_within_iteration=args.no_bootstrap_within_iteration)
 
     with open('saved_results/{}/args.txt'.format(exp_name), 'w') as f:
         for arg in vars(args):
