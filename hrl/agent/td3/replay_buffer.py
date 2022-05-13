@@ -58,3 +58,13 @@ class ReplayBuffer(object):
 		self.next_state = np.zeros((self.max_size, self.state_dim))
 		self.reward = np.zeros((self.max_size, 1))
 		self.done = np.zeros((self.max_size, 1))
+
+	def serialize(self):
+		ptr = self.ptr if self.size < self.max_size else self.max_size
+		return dict(
+			state=self.state[:ptr, :],
+			action=self.action[:ptr, :],
+			reward=self.reward[:ptr, :],
+			next_state=self.next_state[:ptr, :],
+			done=self.done[:ptr, :]
+		)
