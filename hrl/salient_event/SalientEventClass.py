@@ -127,10 +127,11 @@ class SalientEvent(object):
         dist = np.linalg.norm(position - target_position)
         return np.round(dist, 8) <= self.tolerance
 
-    def batched_is_init_true(self, position_matrix):
-        assert isinstance(position_matrix, np.ndarray), type(position_matrix)
+    def batched_is_init_true(self, observations):
+        assert isinstance(observations, np.ndarray), type(observations)
         goal_position = self._get_position(self.target_state)
-        distances = distance.cdist(position_matrix, goal_position[None, :])
+        position_matrix = observations[:, :2]
+        distances = distance.cdist(position_matrix, goal_position[np.newaxis, :])
         in_goal_position = np.round(distances, 8) <= self.tolerance
         return in_goal_position.squeeze(1)
 
