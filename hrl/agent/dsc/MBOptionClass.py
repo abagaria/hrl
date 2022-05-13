@@ -9,6 +9,7 @@ from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
+from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
 
 
 class ModelBasedOption(object):
@@ -137,8 +138,21 @@ class ModelBasedOption(object):
                 pessimistic_threshold=self.pessimistic_threshold
             )
         if self.init_classifier_type == "ope-threshold":
-            pass
+            return OPECriticInitiationClassifier(
+                self.mdp.state_space_size(),
+                self.mdp.action_space_size(),
+                self.solver,
+                self.get_goal_for_rollout,
+                self.get_augmented_state,
+                self.is_term_true,
+                device=self.device,
+                option_name=self.name,
+                optimistic_threshold=self.optimistic_threshold,
+                pessimistic_threshold=self.pessimistic_threshold
+            )
         if self.init_classifier_type == "ope-clf":
+            pass
+        if self.init_classifier_type == "critic-clf":
             pass
 
     # ------------------------------------------------------------
@@ -271,7 +285,7 @@ class ModelBasedOption(object):
             self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
-        if not self.global_init and not eval_mode:
+        if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
             self.initiation_classifier.fit_initiation_classifier()
 
         return option_transitions, total_reward
