@@ -68,3 +68,19 @@ class Critic(nn.Module):
         q1 = self.l3(q1)
         return q1
 
+
+class SingleCritic(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(SingleCritic, self).__init__()
+
+        self.l1 = nn.Linear(state_dim + action_dim, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(256, 1)
+
+    def forward(self, state, action):
+        sa = torch.cat([state, action], 1)
+        q1 = F.relu(self.l1(sa))
+        q1 = F.relu(self.l2(q1))
+        q1 = self.l3(q1)
+
+        return q1
