@@ -7,8 +7,9 @@ from scipy.spatial import distance
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
-from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
+from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
+from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
 from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
 
 
@@ -153,7 +154,15 @@ class ModelBasedOption(object):
         if self.init_classifier_type == "ope-clf":
             pass
         if self.init_classifier_type == "critic-clf":
-            pass
+            return CriticBayesClassifier(
+                self.solver,
+                use_position=True,
+                goal_sampler=self.get_goal_for_rollout,
+                augment_func=self.get_augmented_state,
+                optimistic_threshold=self.optimistic_threshold,
+                pessimistic_threshold=self.pessimistic_threshold,
+                option_name=self.name,
+            )
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -282,10 +291,10 @@ class ModelBasedOption(object):
         is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(state_buffer=visited_states)
 
         if not self.global_init and is_valid_data:
-            self.derive_positive_and_negative_examples(visited_states)
+            self.derive_positive_and_negative_examples(visited_states, goal)
 
         # Always be refining your initiation classifier
-        if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
+        if not self.global_init and not eval_mode: # and self.get_training_phase() != "gestation":
             self.initiation_classifier.fit_initiation_classifier()
 
         return option_transitions, total_reward
@@ -349,6 +358,10 @@ class ModelBasedOption(object):
         if len(goals.shape) == 1:
             goals = goals[None, ...]
 
+        if states.shape[0] != goals.shape[0]:
+            assert goals.shape[0] == 1, (states.shape, goals.shape)
+            goals = np.repeat(goals, repeats=len(states), axis=0)
+
         goal_positions = goals[:, :2]
         augmented_states = np.concatenate((states, goal_positions), axis=1)
         augmented_states = torch.as_tensor(augmented_states).float().to(self.device)
@@ -374,24 +387,30 @@ class ModelBasedOption(object):
         sample = random.choice(self.effect_set)
         return self.mdp.extract_features_for_initiation_classifier(sample)
 
-    def derive_positive_and_negative_examples(self, visited_states):
+    def derive_positive_and_negative_examples(self, visited_states, pursued_goal):
+
+        def state2info(s, v=None):
+            sg = self.get_augmented_state(s, pursued_goal)
+            return dict(
+                player_x=s[0],  # TODO: Dont assume that its in 0, 1
+                player_y=s[1],
+                augmented_state=sg,
+                value=v,
+            )
+
         start_state = visited_states[0]
         final_state = visited_states[-1]
 
-        phi = self.mdp.extract_features_for_initiation_classifier
-
-        start_features = phi(start_state)
-
         if self.is_term_true(final_state):
             positive_states = [start_state] + visited_states[-self.buffer_length:]
-            visited_features = phi(visited_states[-self.buffer_length:])
-            visited_features = [features for features in visited_features]  # np array -> list
-            positive_positions = [start_features] + visited_features
-            self.initiation_classifier.add_positive_examples(positive_states, positive_positions)
+            positive_values = self.value_function(np.array(positive_states), pursued_goal)
+            positive_infos = [state2info(state, value) for state, value in zip(positive_states, positive_values)]
+            self.initiation_classifier.add_positive_examples(positive_states, positive_infos)
         else:
-            negative_examples = [start_state]
-            negative_positions = [start_features]
-            self.initiation_classifier.add_negative_examples(negative_examples, negative_positions)
+            negative_states = [start_state]
+            negative_values = self.value_function(np.array(negative_states), pursued_goal)
+            negative_infos = [state2info(negative_states[0], negative_values[0])]
+            self.initiation_classifier.add_negative_examples(negative_states, negative_infos)
 
     def should_change_negative_examples(self):
         pass
