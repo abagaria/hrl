@@ -1,4 +1,5 @@
 import os
+import itertools
 import numpy as np
 
 
@@ -32,3 +33,6 @@ def chunked_inference(states, f, chunk_size=1000):
         current_idx += current_chunk_size
 
     return values
+
+def flatten(x):
+    return list(itertools.chain.from_iterable(x))
