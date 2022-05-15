@@ -108,7 +108,9 @@ if __name__ == "__main__":
             "lr_c": args.lr_c,
             "lr_a": args.lr_a,
             "max_num_children": args.max_num_children,
-            "init_classifier_type": args.init_classifier_type 
+            "init_classifier_type": args.init_classifier_type, 
+            "optimistic_threshold": args.optimistic_threshold,
+            "pessimistic_threshold": args.pessimistic_threshold
     }
 
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)
