@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 
 from hrl.utils import flatten
 from sklearn.svm import OneClassSVM, SVC
-from hrl.agent.td3.TD3AgentClass import TD3
 from .flipping_classifier import FlippingClassifier
 from .critic_classifier import CriticInitiationClassifier
 from .position_classifier import PositionInitiationClassifier
@@ -23,7 +22,8 @@ class CriticBayesClassifier(PositionInitiationClassifier):
         optimistic_threshold,
         pessimistic_threshold,
         option_name,
-        maxlen=100
+        maxlen=100,
+        resample_goals=False
     ):
         self.agent = agent
         self.use_position = use_position
@@ -42,6 +42,7 @@ class CriticBayesClassifier(PositionInitiationClassifier):
         )
 
         self.option_name = option_name
+        self.resample_goals = resample_goals
 
         super().__init__(maxlen)
 
@@ -63,7 +64,7 @@ class CriticBayesClassifier(PositionInitiationClassifier):
 
         X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
         Y = np.concatenate((positive_labels, negative_labels))
-        W = self.get_sample_weights()
+        W = self.get_sample_weights(plot=True)
 
         if negative_feature_matrix.shape[0] >= 10:
             kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
@@ -97,9 +98,16 @@ class CriticBayesClassifier(PositionInitiationClassifier):
 
         # Extract what labels the current VF would have assigned
         augmented_states = np.array([eg.info["augmented_state"] for eg in examples])
+
+        if self.resample_goals:
+            observations = augmented_states[:, :-2]
+            new_goal = self.critic_classifier.goal_sampler()[np.newaxis, ...]
+            new_goals = np.repeat(new_goal, axis=0, repeats=observations.shape[0])
+            augmented_states = np.concatenate((observations, new_goals), axis=1)
+
         new_values = self.agent.get_values(augmented_states).squeeze()
         new_nsteps = self.critic_classifier.value2steps(new_values)
-        new_critic_labels = self.critic_classifier.pessimistic_classifier(new_nsteps)
+        new_critic_labels = self.critic_classifier.optimistic_classifier(new_nsteps)
 
         # Train the flip predictor
         self.flipping_classifier.fit(
@@ -114,7 +122,14 @@ class CriticBayesClassifier(PositionInitiationClassifier):
         weights = 1. / (probabilities + 1e-4)
 
         if plot:
-            self._plot_flipping_probabilities(
+            self.plot_flipping_labels(
+                examples,
+                assigned_labels, 
+                old_critic_labels, 
+                new_critic_labels
+            )
+
+            self.plot_flipping_probabilities(
                 examples,
                 assigned_labels,
                 old_critic_labels,
@@ -123,15 +138,6 @@ class CriticBayesClassifier(PositionInitiationClassifier):
             )
 
         return weights
-
-    def compute_weights(self, augmented_states, old_values):
-        assert isinstance(self.agent, TD3)
-        assert isinstance(old_values, np.ndarray)
-        assert isinstance(augmented_states, np.ndarray)
-        assert augmented_states.shape[0] == old_values.shape[0]
-
-        new_values = self.agent.get_values(augmented_states).squeeze()
-        return new_values
 
     def plot_initiation_classifier(self, env, replay_buffer, option_name, episode, experiment_name, seed):
         def make_meshgrid(x, y, h=.02):
@@ -216,7 +222,40 @@ class CriticBayesClassifier(PositionInitiationClassifier):
 
         plot_two_class_classifier(env, episode, experiment_name, True, seed)
 
-    def _plot_flipping_probabilities(self, examples, assigned_labels, old_vf_labels, new_vf_labels, probs):
+    def plot_flipping_labels(self, examples, assigned_labels, old_vf_labels, new_vf_labels):
+        x_positions = np.array([eg.pos[0] for eg in examples])
+        y_positions = np.array([eg.pos[1] for eg in examples])
+
+        pos_x_positions = x_positions[assigned_labels==1]
+        pos_y_positions = y_positions[assigned_labels==1]
+
+        neg_x_positions = x_positions[assigned_labels==0]
+        neg_y_positions = y_positions[assigned_labels==0]
+
+        flip_labels = self.flipping_classifier.extract_labels(
+            assigned_labels,
+            old_vf_labels,
+            new_vf_labels
+        )
+
+        pos_flip_labels = flip_labels[assigned_labels==1]
+        neg_flip_labels = flip_labels[assigned_labels==0]
+
+        plt.subplot(1, 2, 1)
+        plt.scatter(pos_x_positions, pos_y_positions, c=pos_flip_labels, s=20, cmap="Set1")
+        plt.colorbar()
+        plt.title("Originally Positive")
+
+        plt.subplot(1, 2, 2)
+        plt.scatter(neg_x_positions, neg_y_positions, c=neg_flip_labels, s=20, cmap="Set1")
+        plt.colorbar()
+        plt.title("Orginally Negative")
+
+        plt.suptitle(f"{self.option_name} Flip Labels")
+        plt.savefig(f"results/critic_clf_resample_goals/initiation_set_plots/{self.option_name}_flip_labels.png")
+        plt.close()
+    
+    def plot_flipping_probabilities(self, examples, assigned_labels, old_vf_labels, new_vf_labels, probs):
         x_positions = np.array([eg.pos[0] for eg in examples])
         y_positions = np.array([eg.pos[1] for eg in examples])
 
@@ -257,5 +296,5 @@ class CriticBayesClassifier(PositionInitiationClassifier):
         plt.scatter(neg_x_positions, neg_y_positions, c=neg_probs, marker="o", s=20); plt.colorbar()
 
         plt.title(f"Flipping Probs")
-        plt.savefig(f"results/critic_clf_dev/initiation_set_plots/{self.option_name}_flipper.png")
+        plt.savefig(f"results/critic_clf_resample_goals/initiation_set_plots/{self.option_name}_flipper.png")
         plt.close()
