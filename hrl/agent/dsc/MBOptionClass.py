@@ -4,6 +4,7 @@ import numpy as np
 from copy import deepcopy
 
 from scipy.spatial import distance
+from hrl.agent.dsc.classifier.state_critic_bayes_classifier import ObsCriticBayesIinitiationClassifier
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
@@ -134,6 +135,30 @@ class ModelBasedOption(object):
                 self.mdp.state_space_size(),
                 device=self.device,
             )
+        if self.init_classifier_type == "pos-critic-clf":
+            return CriticBayesClassifier(
+                self.solver,
+                use_position=True,
+                goal_sampler=self.get_goal_for_rollout,
+                augment_func=self.get_augmented_state,
+                optimistic_threshold=self.optimistic_threshold,
+                pessimistic_threshold=self.pessimistic_threshold,
+                option_name=self.name,
+            )
+        if self.init_classifier_type == "state-critic-clf":
+            return ObsCriticBayesIinitiationClassifier(
+                obs_dim=self.mdp.state_space_size(),
+                agent=self.solver,
+                goal_sampler=self.get_goal_for_rollout,
+                augment_func=self.get_augmented_state,
+                option_name=self.name,
+                optimistic_threshold=self.optimistic_threshold,
+                pessimistic_threshold=self.pessimistic_threshold
+            )
+        if self.init_classifier_type == "pos-ope-clf":
+            raise NotImplementedError()
+        if self.init_classifier_type == "state-ope-clf":
+            raise NotImplementedError()
         if self.init_classifier_type == "critic-threshold":
             return CriticInitiationClassifier(
                 self.solver,
@@ -154,18 +179,6 @@ class ModelBasedOption(object):
                 option_name=self.name,
                 optimistic_threshold=self.optimistic_threshold,
                 pessimistic_threshold=self.pessimistic_threshold
-            )
-        if self.init_classifier_type == "ope-clf":
-            pass
-        if self.init_classifier_type == "critic-clf":
-            return CriticBayesClassifier(
-                self.solver,
-                use_position=True,
-                goal_sampler=self.get_goal_for_rollout,
-                augment_func=self.get_augmented_state,
-                optimistic_threshold=self.optimistic_threshold,
-                pessimistic_threshold=self.pessimistic_threshold,
-                option_name=self.name,
             )
 
     # ------------------------------------------------------------

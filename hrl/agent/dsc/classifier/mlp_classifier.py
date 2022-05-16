@@ -79,7 +79,7 @@ class BinaryMLPClassifier:
 
             pos_weight = self.determine_pos_weight(labels)
 
-            if not pos_weight:
+            if pos_weight is None or pos_weight.nelement == 0:
                 continue
 
             logits = self.model(observations)
@@ -96,14 +96,17 @@ class BinaryMLPClassifier:
         
         return np.mean(batch_losses)
     
-    @staticmethod
-    def _extract_sample(sample):
+    def _extract_sample(self, sample):
         weights = None
 
         if len(sample) == 3:
             observations, labels, weights = sample
+            weights = weights.to(self.device).float().squeeze()
         else:
             observations, labels = sample
+
+        observations = observations.to(self.device).float()
+        labels = labels.to(self.device)
 
         return observations, labels, weights
 
@@ -119,7 +122,7 @@ class ClassifierDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, i):
-        if self.weights:
+        if self.weights is not None:
             return self.states[i], self.labels[i], self.weights[i]
 
         return self.states[i], self.labels[i]

@@ -55,7 +55,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
-    assert args.init_classifier_type in ("position-clf", "state-clf", "critic-threshold", "critic-clf", "ope-threshold", "ope-clf")
+
+    possible_thresholders = "critic-threshold", "ope-threshold"
+    possible_clfs = "position-clf", "pos-critic-clf", "pos-ope-clf", "state-clf", "state-critic-clf", "state-ope-clf"
+    assert args.init_classifier_type in possible_thresholders or possible_clfs
 
     if not args.use_value_function:
         assert not args.use_global_value_function

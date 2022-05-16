@@ -3,14 +3,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.svm import SVC
-from hrl.agent.dsc.datastructures import TrainingExample
 from hrl.utils import flatten
+from hrl.agent.dsc.datastructures import TrainingExample
+from hrl.agent.dsc.classifier.mlp_classifier import BinaryMLPClassifier
 
 
 class FlippingClassifier:
-    def __init__(self, classifier_type, feature_extractor_type):
+    """ Classifier that takes TrainingExamples and predicts their probability of changing init labels. """
+    def __init__(self, obs_dim, device, classifier_type, feature_extractor_type):
         assert classifier_type in ("svm", "nn"), classifier_type
         assert feature_extractor_type in ("pos", "obs", "augmented_obs")
+
+        self.device = device
+        self.obs_dim = obs_dim
 
         self.classifier = None
         self.classifier_type = classifier_type
@@ -96,7 +101,11 @@ class FlippingClassifier:
         return flipping_probs
 
     def _nn_predict(self, X):
-        raise NotImplementedError()
+        assert isinstance(X, np.ndarray), X
+        assert len(X.shape) == 2, X.shape
+        assert isinstance(self.classifier, BinaryMLPClassifier)
+        flipping_probs = self.classifier.predict_proba(X)
+        return flipping_probs
 
     def _fit_svm_classifier(self, X, Y):
         assert len(X.shape) == 2, X.shape
@@ -112,27 +121,13 @@ class FlippingClassifier:
         self.classifier.fit(X, Y)
 
     def _fit_nn_classifier(self, X, Y):
-        raise NotImplementedError()
+        assert len(X.shape) == 2, X.shape
+        assert len(Y.shape) == 1, Y.shape
+        assert X.shape[0] == Y.shape[0], (X.shape, Y.shape)
 
-    def plot_flipping_classifier(self, option_name, episode, experiment_name, seed):
-        """ Plot the labels and the predicted probabilities. """
-        
-        pos_egs = flatten(self)
-
-        pos_x_positions = x_positions[assigned_labels==1]
-        pos_y_positions = y_positions[assigned_labels==1]
-        pos_probabilities = probabilities[assigned_labels==1]
-
-        neg_x_positions = x_positions[assigned_labels==0]
-        neg_y_positions = y_positions[assigned_labels==0]
-        neg_probabilities = probabilities[assigned_labels==0]
-
-        plt.scatter(pos_x_positions, pos_y_positions, c=pos_probabilities, marker="+", s=20)
-        plt.scatter(neg_x_positions, neg_y_positions, c=neg_probabilities, marker="o", s=20)
-        
-        plt.colorbar()
-        plt.title(f"Flipping Classifier {option_name}")
-        plt.savefig(
-          f"results/{experiment_name}/initiation_set_plots/{option_name}_flipping_clf_episode_{episode}_seed_{seed}.png"
+        self.classifier = BinaryMLPClassifier(
+            self.obs_dim,
+            self.device,
         )
-        plt.close()
+
+        self.classifier.fit(X, Y, W=None)

@@ -1,8 +1,5 @@
-import os
-import ipdb
-import torch
+import scipy
 import pickle
-import argparse
 import numpy as np
 from copy import deepcopy
 from functools import reduce
@@ -17,7 +14,8 @@ class RobustDST(object):
                  use_vf, use_global_vf, use_model, lr_a, lr_c,
                  max_steps, use_diverse_starts, use_dense_rewards, experiment_name,
                  logging_freq, evaluation_freq, device, seed, multithread_mpc,
-                 generate_init_gif, max_num_children):
+                 generate_init_gif, max_num_children,
+                 init_classifier_type, optimistic_threshold, pessimistic_threshold):
         self.seed = seed
         self.device = device
         self.use_vf = use_vf
@@ -35,6 +33,9 @@ class RobustDST(object):
         self.max_num_children = max_num_children
 
         self.gestation_period = gestation_period
+        self.init_classifier_type = init_classifier_type
+        self.optimistic_threshold = optimistic_threshold
+        self.pessimistic_threshold = pessimistic_threshold
 
         self.lr_a = lr_a
         self.lr_c = lr_c
@@ -59,8 +60,7 @@ class RobustDST(object):
         # Use this list rather than `self.mature_options` to take advantage of the tree.bfs() traversal order
         # Checking if classifiers exist because it is possible that you are at init-done, but don't have clf yet
         cond = lambda o: o.get_training_phase() == "initiation_done" \
-                         and o.optimistic_classifier is not None \
-                         and o.pessimistic_classifier is not None
+                         and o.initiation_classifier.is_initialized()
 
         options_in_maturation = [option for option in options if cond(option)]
         selected_option_and_subgoal = self._pick_among_mature_options(options_in_maturation, state)
@@ -126,7 +126,7 @@ class RobustDST(object):
 
             selected_option, subgoal = self.act(state)
 
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
+            transitions, reward = selected_option.rollout(step_number=step_number, goal=subgoal)
             self.manage_chain_after_rollout(selected_option)
 
             step_number += len(transitions)
@@ -196,21 +196,37 @@ class RobustDST(object):
 
         if len(self.mature_options) > 1:
             samples = [option.sample_from_termination_region() for option in self.mature_options]
-            states = np.repeat(state[None, ...], len(samples), axis=0)
             goals = np.array(samples)
-            values = self.global_option.value_function(states, goals).squeeze().tolist()
-            distances = [(option, -value) for option, value in zip(self.mature_options, values)]
+            
+            distances = self.get_distance_from_state_to_goals(state, goals)
+            
+            
             nearest_option = sorted(distances, key=lambda x: x[1])[0][0]  # type: ModelBasedOption
             return nearest_option
 
+    def get_distance_from_state_to_goals(self, state, goals):
+        states = np.repeat(state[np.newaxis, ...], len(goals), axis=0)
+
+        if self.distance_function_type == "vf":
+            values = self.global_option.value_function(states, goals).squeeze().tolist()
+            distances = [(option, -value) for option, value in zip(self.mature_options, values)]
+            return distances
+
+        assert self.distance_function_type == "euclidean", self.distance_function_type
+        distances = scipy.spatial.distance.cdist(states, goals)
+        distances = [(option, distance) for option, distance in zip(self.mature_options, distances)]
+        return distances
+
     def pick_subgoal_for_global_option(self, state):
         nearest_option = self.find_nearest_option_in_tree(state)
-        sampled_goal = nearest_option.sample_from_initiation_region_fast_and_epsilon()
 
-        if isinstance(sampled_goal, np.ndarray):
-            return sampled_goal.squeeze()
+        if nearest_option:
+            goal = nearest_option.initiation_classifier.sample()
 
-        return self.global_option.extract_goal_dimensions(sampled_goal)
+            if goal:
+                return nearest_option.extract_goal_dimensions(goal)
+
+        return self.global_option.get_goal_for_rollout()
 
     def add_new_options(self, new_options):
         for new_option in new_options:  # type: ModelBasedOption
@@ -275,7 +291,10 @@ class RobustDST(object):
                                   use_global_vf=self.use_global_vf,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
                                   option_idx=option_idx,
-                                  max_num_children=self.max_num_children)
+                                  max_num_children=self.max_num_children,
+                                  init_classifier_type=self.init_classifier_type,
+                                  optimistic_threshold=self.optimistic_threshold,
+                                  pessimistic_threshold=self.pessimistic_threshold)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -296,7 +315,10 @@ class RobustDST(object):
                                   use_global_vf=self.use_global_vf,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
                                   option_idx=0,
-                                  max_num_children=self.max_num_children)
+                                  max_num_children=self.max_num_children,
+                                  init_classifier_type=self.init_classifier_type,
+                                  optimistic_threshold=self.optimistic_threshold,
+                                  pessimistic_threshold=self.pessimistic_threshold)
         return option
 
     def reset(self, episode):
@@ -308,7 +330,7 @@ class RobustDST(object):
             if not self.mdp.is_goal_region(random_state):
                 self.mdp.set_xy(random_position)
 
-        print(f"[Episode {episode}] Reset state to {self.mdp.cur_state}")
+        print(f"[Episode {episode}] Reset state to {self.mdp.cur_state[:2]}")
 
 
 def test_agent(exp, num_experiments, num_steps, get_trajectories=False):
@@ -319,7 +341,8 @@ def test_agent(exp, num_experiments, num_steps, get_trajectories=False):
         exp.mdp.sparse_gc_reward_func(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
             state = deepcopy(exp.mdp.cur_state)
             selected_option, subgoal = exp.act(state)
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal,
+            transitions, reward = selected_option.rollout(step_number=step_number,
+                                                          goal=subgoal,
                                                           eval_mode=True)
             if get_trajectories:
                 episodic_trajectory.append((selected_option.option_idx, transitions))

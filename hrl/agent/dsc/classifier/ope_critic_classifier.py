@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
+from hrl.agent.fqe.fqe import FQE
+from hrl.agent.td3.TD3AgentClass import TD3
 from ..datastructures import ValueThresholder
 from .critic_classifier import CriticInitiationClassifier
 
@@ -10,14 +12,44 @@ from .critic_classifier import CriticInitiationClassifier
 class OPECriticInitiationClassifier(CriticInitiationClassifier):
     """ Initiation Classifier that thresholds V^pi. """
 
-    def __init__(self, agent, optimistic_threshold=0.6, pessimistic_threshold=0.8):
-        super().__init__(agent, None, None, optimistic_threshold, pessimistic_threshold)
+    def __init__(
+        self,
+        state_dim,
+        action_dim,
+        actor_critic,
+        goal_sampler,
+        augment_func,
+        termination_clf,
+        device,
+        option_name,
+        optimistic_threshold=0.6,
+        pessimistic_threshold=0.8,
+    ):
+        assert isinstance(actor_critic, TD3), actor_critic
+        
+        fqe = FQE(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            pi_eval=actor_critic.actor,
+            device="cuda",
+            # option_name=option_name
+        )
 
+        super().__init__(fqe, goal_sampler, augment_func, optimistic_threshold, pessimistic_threshold)
+
+        self.device = device
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.option_name = option_name
+        self.actor_critic = actor_critic
+        self.termination_clf = termination_clf
         self.optimistic_classifier = ValueThresholder(optimistic_threshold)
         self.pessimistic_classifier = ValueThresholder(pessimistic_threshold)
+        
+        self.is_fitted = False
 
-    def value_function(self, states):
-        pass
+    def is_initialized(self):
+        return self.is_fitted
 
     def optimistic_predict(self, state):
         value = self.value_function(state)
@@ -27,8 +59,14 @@ class OPECriticInitiationClassifier(CriticInitiationClassifier):
         value = self.value_function(state)
         return self.pessimistic_classifier(value)
 
-    def fit_initiation_classifier(self):
-        pass
+    def fit_initiation_classifier(self, n_iterations=5):
+        n_iterations = 100 if not self.is_fitted else n_iterations
+        self.agent.fit(
+            self.actor_critic.replay_buffer.serialize(),
+            self.termination_clf,
+            n_iterations
+        )
+        self.is_fitted = True
 
     def plot_initiation_classifier(self, env, replay_buffer, option_name, episode, experiment_name, seed):
         print(f"Plotting OPE-Critic Initiation Set Classifier for {option_name}")
