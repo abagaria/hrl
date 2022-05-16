@@ -200,8 +200,8 @@ if __name__ == '__main__':
     parser.add_argument("--goal_state", nargs="+", type=float, default=[],
                         help="specify the goal state of the environment, (0, 8) for example")
     parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
-    parser.add_argument("--lr_c", type=float, help="critic learning rate")
-    parser.add_argument("--lr_a", type=float, help="actor learning rate")
+    parser.add_argument("--lr_c", type=float, default=3e-4, help="critic learning rate")
+    parser.add_argument("--lr_a", type=float, default=3e-4, help="actor learning rate")
     parser.add_argument("--use_skill_trees", action="store_true", default=False)
     parser.add_argument("--max_num_children", type=int, default=1, help="Max number of children per option in the tree")
     # Off policy init learning configs
