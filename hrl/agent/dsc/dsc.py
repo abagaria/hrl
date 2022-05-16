@@ -93,8 +93,10 @@ class RobustDSC(object):
                 subgoal = self.pick_subgoal_for_global_option(state)
 
             transitions, reward = selected_option.rollout(step_number=step_number, goal=subgoal)
-            print("Reward {}".format(reward))
-
+            # if reward > -200:
+            if True:
+                print("Found Goal")
+                save(selected_option.solver, "agent")
 
             if len(transitions) == 0:
                 break
@@ -106,7 +108,6 @@ class RobustDSC(object):
     def run_loop(self, num_episodes, num_steps, start_episode=0):
         per_episode_durations = []
         last_10_durations = deque(maxlen=10)
-        times_at_goal = 0
 
         for episode in range(start_episode, start_episode + num_episodes):
             self.reset(episode)
@@ -123,8 +124,6 @@ class RobustDSC(object):
                 self.learn_dynamics_model(epochs=5)
 
             self.log_success_metrics(episode)
-            print("Ep {} Step {}".format(episode, step))
-
 
         return per_episode_durations
 
