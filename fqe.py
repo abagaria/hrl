@@ -294,6 +294,8 @@ if __name__ == '__main__':
 
     goal_sampler =exp.chain[0].get_goal_for_rollout
 
+    pdb.set_trace()
+
     fqe = FQE(state_dim=state_dim,
               action_dim=action_dim,
               pi_eval=agent.actor,
