@@ -123,9 +123,7 @@ class RobustDSC(object):
                 self.learn_dynamics_model(epochs=5)
 
             self.log_success_metrics(episode)
-            if step < 1000:
-                times_at_goal += 1
-                if times_at_goal % 5 == 0:
+            print("Ep {} Step {}".format(episode, step))
 
 
         return per_episode_durations
