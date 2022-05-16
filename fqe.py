@@ -219,7 +219,7 @@ if __name__ == '__main__':
 
     exp_name = "{}_gamma_{}_lr_{}".format(args.exp_name, args.gamma, args.learning_rate)
 
-    agent = TD3(state_dim=29,
+    agent = TD3(state_dim=31,
                 action_dim=8,
                 max_action=1.,
                 use_output_normalization=False,
