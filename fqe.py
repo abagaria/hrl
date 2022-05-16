@@ -154,7 +154,8 @@ class GoalConditionedFQE:
                 torch.save(self.q_fitter.state_dict(), "saved_results/{}/weights_{}".format(self.exp_name, iteration))
 
     def get_values(self, state):
-        next_action = self.pi_eval(state)
+        subgoal = self.goal_sampler()
+        next_action = np.concatenate((self.pi_eval(state), subgoal))
         state_policy_action = torch.cat(
             (state, next_action), dim=1)
         return self.q_fitter(state_policy_action)
@@ -293,7 +294,7 @@ if __name__ == '__main__':
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)
     #################################################################
 
-    goal_sampler =exp.chain[0].get_goal_for_rollout
+    goal_sampler = exp.chain[0].get_goal_for_rollout
 
     fqe = GoalConditionedFQE(state_dim=state_dim,
                              action_dim=action_dim,
