@@ -7,6 +7,7 @@ from scipy.spatial import distance
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
+from hrl.agent.dsc.classifier.obs_init_classifier import ObsInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
 from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
@@ -129,7 +130,10 @@ class ModelBasedOption(object):
         if self.init_classifier_type == "position-clf":
             return PositionInitiationClassifier()
         if self.init_classifier_type == "state-clf":
-            raise NotImplementedError(self.init_classifier_type)
+            return ObsInitiationClassifier(
+                self.mdp.state_space_size(),
+                device=self.device,
+            )
         if self.init_classifier_type == "critic-threshold":
             return CriticInitiationClassifier(
                 self.solver,
@@ -279,16 +283,16 @@ class ModelBasedOption(object):
         reached_term = self.is_term_true(state)
         self.success_curve.append(reached_term)
 
-        if reached_term and not eval_mode:
-            self.num_goal_hits += 1
-            self.effect_set.append(state)
-
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
                                     pursued_goal=goal,
                                     reached_goal=self.extract_goal_dimensions(state))
 
         is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(state_buffer=visited_states)
+
+        if reached_term and is_valid_data and not eval_mode:
+            self.num_goal_hits += 1
+            self.effect_set.append(state)
 
         if not self.global_init and is_valid_data:
             self.derive_positive_and_negative_examples(visited_states, goal)
