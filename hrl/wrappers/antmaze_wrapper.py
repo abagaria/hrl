@@ -12,6 +12,7 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		self.init_truncate = init_truncate
 		self.norm_func = lambda x: np.linalg.norm(x, axis=-1) if isinstance(x, np.ndarray) else torch.norm(x, dim=-1)
 		self.reward_func = self.dense_gc_reward_func if use_dense_reward else self.sparse_gc_reward_func
+		self.observations = self.env.get_dataset()["observations"]
 		self._determine_x_y_lims()
 		super().__init__(env, start_state, goal_state)
 
@@ -121,7 +122,7 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
     # --------------------------------
 
 	def _determine_x_y_lims(self):
-		observations = self.env.get_dataset()["observations"]
+		observations = self.observations
 		x = [obs[0] for obs in observations]
 		y = [obs[1] for obs in observations]
 		xlow, xhigh = min(x), max(x)
