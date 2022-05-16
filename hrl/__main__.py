@@ -11,6 +11,8 @@ import numpy as np
 
 from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.utils import create_log_dir
+from hrl.agent.dsc.dsc import RobustDSC
+from hrl.agent.dsc.dst import RobustDST
 
 
 if __name__ == "__main__":
