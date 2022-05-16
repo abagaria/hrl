@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
-from hrl.agent.fqe.fqe import FQE
+# from hrl.agent.fqe.fqe import FQE
 from hrl.agent.td3.TD3AgentClass import TD3
 from ..datastructures import ValueThresholder
 from .critic_classifier import CriticInitiationClassifier
