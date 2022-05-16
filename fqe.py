@@ -46,7 +46,7 @@ def chunked_policy_prediction(policy, states, action_dim, device, chunk_size=100
         actions[num_whole_chunks*chunk_size:, :] = policy(states[num_whole_chunks*chunk_size:, :])
     return actions
 
-class FQE:
+class GoalConditionedFQE:
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -60,7 +60,7 @@ class FQE:
         self.action_dim = action_dim
         self.device = device
 
-        self.q_fitter = QFitter(self.state_dim, self.action_dim).to(device)
+        self.q_fitter = QFitter(self.state_dim+2, self.action_dim).to(device)
         self.goal_sampler = goal_sampler
 
         self.learning_rate = learning_rate
@@ -211,7 +211,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    buffer_fname = 'td3_replay_buffer.pkl'
+    # buffer_fname = 'td3_replay_buffer.pkl'
+    buffer_fname = 'saved_results/results/umaze_init_clf_2/buffer_after_10_times_at_goal.pkl'
     data = pickle.load(open(buffer_fname, 'rb'))
     data["reward"] += 1
     data["done"] = (data["reward"] == 1).astype(float)
@@ -223,11 +224,11 @@ if __name__ == '__main__':
                 max_action=1.,
                 use_output_normalization=False,
                 device=torch.device(args.device))
-    agent_fname = 'antreacher_dense_save_rbuf_policy/0/td3_episode_500'
+    agent_fname = 'saved_results/results/umaze_init_clf_2/agent_after_10_times_at_goal'
     load_agent(agent, agent_fname)
 
-    state_dim = data["state"].shape[1]
-    action_dim = data["action"].shape[1]
+    state_dim = 29
+    action_dim = 8
 
     if not os.path.exists('saved_results/{}/'.format(exp_name)):
         os.makedirs('saved_results/{}/'.format(exp_name))
@@ -294,15 +295,13 @@ if __name__ == '__main__':
 
     goal_sampler =exp.chain[0].get_goal_for_rollout
 
-    pdb.set_trace()
-
-    fqe = FQE(state_dim=state_dim,
-              action_dim=action_dim,
-              pi_eval=agent.actor,
-              goal_sampler=goal_sampler,
-              learning_rate=args.learning_rate,
-              exp_name=exp_name,
-              device=args.device)
+    fqe = GoalConditionedFQE(state_dim=state_dim,
+                             action_dim=action_dim,
+                             pi_eval=agent.actor,
+                             goal_sampler=goal_sampler,
+                             learning_rate=args.learning_rate,
+                             exp_name=exp_name,
+                             device=args.device)
     fqe.fit(data,
             termination_indicator=termination_indicator,
             num_iter=args.num_iter,
