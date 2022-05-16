@@ -6,6 +6,7 @@ from functools import reduce
 from collections import deque
 from hrl.agent.dsc.utils import *
 from hrl.agent.dsc.MBOptionClass import ModelBasedOption
+from hrl.agent.td3.utils import save
 
 
 class RobustDSC(object):
