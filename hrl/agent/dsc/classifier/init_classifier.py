@@ -9,6 +9,12 @@ class InitiationClassifier:
     def pessimistic_predict(self, state):
         pass
 
+    def optimistic_predict_proba(self, state):
+        pass
+
+    def pessimistic_predict_proba(self, state):
+        pass
+
     def is_initialized(self):
         pass
 
