@@ -193,10 +193,8 @@ if __name__ == '__main__':
     if args.move_goal:
         def termination_indicator(next_state):
             return np.sqrt((next_state[:, 0] - 2)**2 + (next_state[:, 1] - 2)**2) <= 0.5
-        print('yay')
     else:
         termination_indicator = None
-        print('nay')
 
     fqe = FQE(state_dim=state_dim,
               action_dim=action_dim,
