@@ -123,14 +123,16 @@ class RobustDSC(object):
 
             self.log_success_metrics(episode)
 
-            # if step < 1000:
             if True:
+            # if step < 1000:
                 print("Goal found! :)")
                 times_at_goal += 1
+                if True:
                 # if times_at_goal % 5 == 0:
-                if times_at_goal % 1 == 0:
                     save(self.global_option.solver,
-                         f"results/{self.experiment_name}/agent_at_ep_{episode}.pkl")
+                         f"results/{self.experiment_name}/agent_after_{times_at_goal}_times_at_goal.pkl")
+                    with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "rb") as f:
+                        pickle.dump(self.global_option.solver.replay_buffer.serialize())
 
         return per_episode_durations
 
