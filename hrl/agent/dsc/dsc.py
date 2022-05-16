@@ -102,6 +102,7 @@ class RobustDSC(object):
         return step_number
 
     def run_loop(self, num_episodes, num_steps, start_episode=0):
+        print('Indeed running dsc')
         per_episode_durations = []
         last_10_durations = deque(maxlen=10)
 
@@ -120,6 +121,7 @@ class RobustDSC(object):
                 self.learn_dynamics_model(epochs=5)
 
             self.log_success_metrics(episode)
+            print('Ep {}, Step {}'.format(episode, step))
 
         return per_episode_durations
 
