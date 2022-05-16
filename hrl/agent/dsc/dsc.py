@@ -93,8 +93,8 @@ class RobustDSC(object):
                 subgoal = self.pick_subgoal_for_global_option(state)
 
             transitions, reward = selected_option.rollout(step_number=step_number, goal=subgoal)
-            if reward[-1] == 0:
-                print("Found Goal!")
+            print("Reward {}".format(reward))
+
 
             if len(transitions) == 0:
                 break
