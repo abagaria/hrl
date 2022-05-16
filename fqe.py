@@ -292,7 +292,7 @@ if __name__ == '__main__':
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)
     #################################################################
 
-    goal_sampler =exp.chain[1].goal_sampler
+    goal_sampler =exp.chain[0].goal_sampler
 
     fqe = FQE(state_dim=state_dim,
               action_dim=action_dim,
