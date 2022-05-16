@@ -212,7 +212,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # buffer_fname = 'td3_replay_buffer.pkl'
-    buffer_fname = 'saved_results/results/umaze_init_clf_2/buffer_after_10_times_at_goal.pkl'
+    buffer_fname = 'results/umaze_init_clf_2/buffer_after_10_times_at_goal.pkl'
     data = pickle.load(open(buffer_fname, 'rb'))
     data["reward"] += 1
     data["done"] = (data["reward"] == 1).astype(float)
@@ -224,7 +224,7 @@ if __name__ == '__main__':
                 max_action=1.,
                 use_output_normalization=False,
                 device=torch.device(args.device))
-    agent_fname = 'saved_results/results/umaze_init_clf_2/agent_after_10_times_at_goal'
+    agent_fname = 'results/umaze_init_clf_2/agent_after_10_times_at_goal'
     load_agent(agent, agent_fname)
 
     state_dim = 29
