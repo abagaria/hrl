@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import gym
 import d4rl
+import seeding
 
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.agent.td3.utils import load as load_agent
