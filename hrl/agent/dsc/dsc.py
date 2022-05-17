@@ -135,7 +135,7 @@ class RobustDSC(object):
                         pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
                     sampled_goals = []
                     for o in self.chain:
-                        sampled_goals.append(o.get_goal_for_rollout)
+                        sampled_goals.append(o.get_goal_for_rollout())
                     with open(f"results/{self.experiment_name}/subgoals_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
                         pickle.dump(sampled_goals, f)
 
