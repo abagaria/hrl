@@ -154,12 +154,13 @@ class GoalConditionedFQE:
                 torch.save(self.q_fitter.state_dict(), "saved_results/{}/weights_{}".format(self.exp_name, iteration))
 
     def get_values(self, state):
-        subgoal = self.goal_sampler()
+        subgoal = torch.from_numpy(self.goal_sampler().astype(np.float32)).to(self.device)
         print(type(subgoal))
         state_tensor = torch.from_numpy(state.astype(np.float32)).to(self.device)
-        next_action = np.concatenate((self.pi_eval(state_tensor), subgoal))
+        augmented_state = torch.concatenate((state_tensor, subgoal), dim=1)
+        next_action = self.pi_eval(augmented_state)
         state_policy_action = torch.concatenate(
-            (state, next_action), dim=1)
+            (augmented_state, next_action), dim=1)
         return self.q_fitter(state_policy_action)
 
 
