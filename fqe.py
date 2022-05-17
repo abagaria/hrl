@@ -327,6 +327,8 @@ if __name__ == '__main__':
                 oversample_goal=args.oversample_goal,
                 no_bootstrap_within_iteration=args.no_bootstrap_within_iteration)
 
+        pdb.set_trace()
+
     with open('saved_results/{}/args.txt'.format(exp_name), 'w') as f:
         for arg in vars(args):
             f.write("{}: {}".format(arg, getattr(args, arg)))
