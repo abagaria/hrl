@@ -306,8 +306,9 @@ if __name__ == '__main__':
         def termination_indicator(next_state):
             return np.sqrt((next_state[:, 0] - sg[0])**2 + (next_state[:, 1] - sg[1])**2) <= 0.5
 
-        temp_exp_name = exp_name + "subgoal_" + str(idx_sg)
-        os.makedirs('saved_results/{}/'.format(temp_exp_name))
+        temp_exp_name = exp_name + "_subgoal_" + str(idx_sg)
+        if not os.path.exists('saved_results/{}/'.format(temp_exp_name)):
+            os.makedirs('saved_results/{}/'.format(temp_exp_name))
         fqe = GoalConditionedFQE(state_dim=state_dim,
                                  action_dim=action_dim,
                                  pi_eval=agent.actor,
