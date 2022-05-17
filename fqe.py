@@ -213,7 +213,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # buffer_fname = 'td3_replay_buffer.pkl'
-    buffer_fname = 'results/umaze_init_clf_2/buffer_after_10_times_at_goal.pkl'
+    buffer_fname = 'results/umaze_init_clf/buffer_after_10_times_at_goal.pkl'
     data = pickle.load(open(buffer_fname, 'rb'))
     data["reward"] += 1
     data["done"] = (data["reward"] == 1).astype(float)
@@ -225,8 +225,10 @@ if __name__ == '__main__':
                 max_action=1.,
                 use_output_normalization=False,
                 device=torch.device(args.device))
-    agent_fname = 'results/umaze_init_clf_2/agent_after_10_times_at_goal'
+    agent_fname = 'results/umaze_init_clf/agent_after_10_times_at_goal'
     load_agent(agent, agent_fname)
+
+    subgoals = pickle.load(open('results/umaze_init_clf/subgoals_after_10_times_at_goal.pkl', 'rb'))
 
     state_dim = 29
     action_dim = 8
@@ -234,11 +236,11 @@ if __name__ == '__main__':
     if not os.path.exists('saved_results/{}/'.format(exp_name)):
         os.makedirs('saved_results/{}/'.format(exp_name))
 
-    if args.move_goal:
-        def termination_indicator(next_state):
-            return np.sqrt((next_state[:, 0] - 2)**2 + (next_state[:, 1] - 2)**2) <= 0.5
-    else:
-        termination_indicator = None
+    # if args.move_goal:
+    #     def termination_indicator(next_state):
+    #         return np.sqrt((next_state[:, 0] - 2)**2 + (next_state[:, 1] - 2)**2) <= 0.5
+    # else:
+    #     termination_indicator = None
 
     ###### copy from __main__ to create option for goal_sampler #####
     if args.environment in ["antmaze-umaze-v0", "antmaze-medium-play-v0", "antmaze-large-play-v0"]:
@@ -296,22 +298,31 @@ if __name__ == '__main__':
 
     goal_sampler = exp.chain[0].get_goal_for_rollout
 
-    fqe = GoalConditionedFQE(state_dim=state_dim,
-                             action_dim=action_dim,
-                             pi_eval=agent.actor,
-                             goal_sampler=goal_sampler,
-                             learning_rate=args.learning_rate,
-                             exp_name=exp_name,
-                             device=args.device)
-    fqe.fit(data,
-            termination_indicator=termination_indicator,
-            num_iter=args.num_iter,
-            gamma=args.gamma,
-            batch_size=args.batch_size,
-            num_batches=args.num_batches,
-            save_interval=args.save_interval,
-            oversample_goal=args.oversample_goal,
-            no_bootstrap_within_iteration=args.no_bootstrap_within_iteration)
+    for idx_sg, sg in enumerate(subgoals):
+        print()
+        print("Subgoal {}".format(idx_sg))
+        print(sg)
+        print()
+        def termination_indicator(next_state):
+            return np.sqrt((next_state[:, 0] - sg[0])**2 + (next_state[:, 1] - sg[1])**2) <= 0.5
+
+        fqe = GoalConditionedFQE(state_dim=state_dim,
+                                 action_dim=action_dim,
+                                 pi_eval=agent.actor,
+                                 goal_sampler=goal_sampler,
+                                 learning_rate=args.learning_rate,
+                                 exp_name=exp_name + "_subgoal_" + str(idx_sg),
+                                 device=args.device)
+
+        fqe.fit(data,
+                termination_indicator=termination_indicator,
+                num_iter=args.num_iter,
+                gamma=args.gamma,
+                batch_size=args.batch_size,
+                num_batches=args.num_batches,
+                save_interval=args.save_interval,
+                oversample_goal=args.oversample_goal,
+                no_bootstrap_within_iteration=args.no_bootstrap_within_iteration)
 
     with open('saved_results/{}/args.txt'.format(exp_name), 'w') as f:
         for arg in vars(args):
