@@ -155,12 +155,10 @@ class GoalConditionedFQE:
 
     def get_values(self, state):
         subgoal = torch.from_numpy(self.goal_sampler().astype(np.float32)).to(self.device)
-        print(type(subgoal))
         state_tensor = torch.from_numpy(state.astype(np.float32)).to(self.device)
-        augmented_state = torch.concatenate((state_tensor, subgoal), dim=1)
+        augmented_state = torch.cat((state_tensor, subgoal), dim=1)
         next_action = self.pi_eval(augmented_state)
-        state_policy_action = torch.concatenate(
-            (augmented_state, next_action), dim=1)
+        state_policy_action = torch.cat((augmented_state, next_action), dim=1)
         return self.q_fitter(state_policy_action)
 
 
