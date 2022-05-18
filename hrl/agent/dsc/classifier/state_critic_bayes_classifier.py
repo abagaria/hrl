@@ -118,7 +118,7 @@ class ObsCriticBayesIinitiationClassifier(ObsInitiationClassifier):
         x_positive = self.construct_feature_matrix(self.positive_examples)
         x_negative = self.construct_feature_matrix(self.negative_examples)
 
-        sample_weights = self.get_sample_weights()
+        sample_weights = self.get_sample_weights().cpu().numpy()
         w_positive = sample_weights[:x_positive.shape[0], :]
         w_negative = sample_weights[x_positive.shape[0]:, :]
 
@@ -164,7 +164,7 @@ class ObsCriticBayesIinitiationClassifier(ObsInitiationClassifier):
         if goal:
             plt.suptitle(f"Targeting {goal}")
 
-        plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option_name}_init_clf_episode_{episode}.png")
+        plt.savefig(f"results/{experiment_name}/initiation_set_plots/{option_name}_init_clf_seed_{seed}_episode_{episode}.png")
         plt.close()
 
     def plot_testing_predictions(self, env, replay_buffer, option_name, episode, experiment_name, seed):

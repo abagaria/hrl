@@ -12,7 +12,6 @@ from hrl.agent.dsc.classifier.obs_init_classifier import ObsInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
 from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
-from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
 
 
 class ModelBasedOption(object):
@@ -168,6 +167,8 @@ class ModelBasedOption(object):
                 pessimistic_threshold=self.pessimistic_threshold
             )
         if self.init_classifier_type == "ope-threshold":
+            from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
+
             return OPECriticInitiationClassifier(
                 self.mdp.state_space_size(),
                 self.mdp.action_space_size(),

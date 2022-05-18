@@ -223,5 +223,5 @@ class ObsInitiationClassifier(InitiationClassifier):
         plt.title("Pesssimistic Predictions")
 
         plt.suptitle(f"{option_name} Test InitiationSet")
-        plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option_name}_test_clf_episode_{episode}.png")
+        plt.savefig(f"results/{experiment_name}/initiation_set_plots/{option_name}_test_clf_seed_{seed}_episode_{episode}.png")
         plt.close()

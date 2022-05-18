@@ -1,3 +1,4 @@
+import ipdb
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -83,7 +84,8 @@ class BinaryMLPClassifier:
                 continue
 
             logits = self.model(observations)
-            loss = F.binary_cross_entropy_with_logits(logits.squeeze(),
+
+            loss = F.binary_cross_entropy_with_logits(logits.squeeze(1),
                                                       labels,
                                                       pos_weight=pos_weight,
                                                       weight=weights) 
