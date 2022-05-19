@@ -76,8 +76,8 @@ if __name__ == "__main__":
         stack_num=args.stack_num
     )
 
-    data_dir = os.path.expanduser("~/Documents/research/code/montezuma/atari_v1")
-    for id in range(1500):
+    data_dir = os.path.expanduser("/users/ademello/data/ademello/atari_v1/")
+    for id in range(5000):
         trajectory = load_trajectory(data_dir, id, args.stack_num)
         if trajectory:
             rainbow_agent.add_demonstration_trajectory(trajectory)

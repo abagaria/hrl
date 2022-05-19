@@ -53,7 +53,7 @@ class SupervisedRainbow:
         )
 
         self.T = 0
-        self.device = torch.device(f"cuda:{gpu}" if gpu > -1 else "cpu")
+        self.device = torch.device(f"cuda" if gpu > -1 else "cpu")
 
     @staticmethod
     def batch_states(states, device, phi):
