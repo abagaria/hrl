@@ -49,18 +49,20 @@ class ObsInitiationClassifier(InitiationClassifier):
         return pessimistic_predictions.cpu().numpy()
 
     def optimistic_predict(self, state):
-        assert isinstance(state, np.ndarray)
+        assert isinstance(state, (np.ndarray, torch.Tensor)), state
         assert isinstance(self.optimistic_classifier, BinaryMLPClassifier)
         assert self.optimistic_classifier.is_trained
-        features = torch.as_tensor(state).float().to(self.device)
+        if isinstance(state, np.ndarray):
+            features = torch.as_tensor(state).float().to(self.device)
         label = self.optimistic_classifier.predict(features, threshold=0.5) == 1
         return label.cpu().numpy()
 
     def pessimistic_predict(self, state):
-        assert isinstance(state, np.ndarray)
+        assert isinstance(state, (np.ndarray, torch.Tensor)), state
         assert isinstance(self.pessimistic_classifier, BinaryMLPClassifier)
         assert self.pessimistic_classifier.is_trained
-        features = torch.as_tensor(state).float().to(self.device)
+        if isinstance(state, np.ndarray):
+            features = torch.as_tensor(state).float().to(self.device)
         label = self.pessimistic_classifier.predict(features, threshold=0.75) == 1
         return label.cpu().numpy()
 

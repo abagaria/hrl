@@ -104,6 +104,14 @@ class ObsCriticBayesIinitiationClassifier(ObsInitiationClassifier):
 
         return weights
 
+    def get_states_inside_pessimistic_classifier_region(self):
+        if self.pessimistic_classifier is not None:
+            observations = self.construct_feature_matrix(self.positive_examples)
+            predictions = self.pessimistic_predict(observations).squeeze()
+            positive_observations = observations[predictions==1]
+            return positive_observations
+        return []
+
     def plot_initiation_classifier(self, env, replay_buffer, option_name, episode, experiment_name, seed):
         self.plot_training_predictions(self.option_name, episode, experiment_name, seed)
 
