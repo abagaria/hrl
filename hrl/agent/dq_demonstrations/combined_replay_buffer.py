@@ -331,11 +331,14 @@ class CombinedPrioritizedReplayBuffer(PrioritizedReplayBuffer):
             normalize_by_max=True, 
             error_min=0, 
             error_max=1, 
-            num_steps=1):
+            num_steps=1,
+            demonstration_priority_bonus=1):
         super().__init__(capacity, alpha, beta0, betasteps, eps, normalize_by_max, error_min, error_max, num_steps)
 
         self.demonstration_capacity = demonstration_capacity
-        self.memory = CombinedPriorityBuffer(capacity=capacity, demonstration_capacity=demonstration_capacity)
+        self.memory = CombinedPriorityBuffer(capacity=capacity, 
+                demonstration_capacity=demonstration_capacity,
+                demonstration_priority_bonus=demonstration_priority_bonus)
 
     def append(self, 
             state, 
