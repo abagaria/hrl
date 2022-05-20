@@ -30,6 +30,10 @@ if __name__ == "__main__":
     parser.add_argument("--gpu_id", type=int)
     parser.add_argument("--experiment_name", type=str)
     parser.add_argument("--environment_name", type=str)
+    parser.add_argument("--bootstrap_steps", type=int, default=1000)
+    parser.add_argument("--supervised_lambda", type=float, default=1)
+    parser.add_argument("--margin",type=float, default=0.8)
+    parser.add_argument("--demonstration_priority", type=float, default=1.0)
     parser.add_argument("--n_atoms", type=int, default=51)
     parser.add_argument("--v_max", type=float, default=+10.)
     parser.add_argument("--v_min", type=float, default=-10.)
@@ -73,7 +77,10 @@ if __name__ == "__main__":
         demonstration_buffer_size=args.replay_buffer_size,
         gpu=args.gpu_id,
         goal_conditioned=args.goal_conditioned,
-        stack_num=args.stack_num
+        stack_num=args.stack_num,
+        margin=args.margin,
+        supervised_lambda=args.supervised_lambda,
+        demonstration_priority_bonus=args.demonstration_priority
     )
 
     data_dir = os.path.expanduser("/users/ademello/data/ademello/atari_v1/")
@@ -84,7 +91,7 @@ if __name__ == "__main__":
 
     t0 = time.time()
 
-    rainbow_agent.bootstrap_training(10000)
+    rainbow_agent.bootstrap_training(args.bootstrap_steps)
 
     current_step_number = 0
     max_episodic_reward = 0

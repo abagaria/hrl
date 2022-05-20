@@ -14,7 +14,8 @@ class SupervisedRainbow:
     def __init__(self, n_actions, n_atoms, v_min, v_max, noisy_net_sigma, lr,
                 n_steps, betasteps, replay_start_size, replay_buffer_size, 
                 demonstration_buffer_size, gpu, goal_conditioned, 
-                use_custom_batch_states=True, stack_num=4):
+                use_custom_batch_states=True, stack_num=4, margin=0.8, supervised_lambda=1,
+                demonstration_priority_bonus=1.0):
         self.n_actions = n_actions
         n_channels = stack_num + int(goal_conditioned)
         self.goal_conditioned = goal_conditioned
@@ -33,7 +34,8 @@ class SupervisedRainbow:
             beta0=0.4,
             betasteps=betasteps,
             num_steps=n_steps,
-            normalize_by_max="memory"
+            normalize_by_max="memory",
+            demonstration_priority_bonus=demonstration_priority_bonus
         )
 
         self.agent = SupervisedCategoricalDoubleDQN(
@@ -49,7 +51,9 @@ class SupervisedRainbow:
             update_interval=4,
             batch_accumulator="mean",
             phi=self.phi,
-            batch_states=self.batch_states if use_custom_batch_states else pfrl_batch_states
+            batch_states=self.batch_states if use_custom_batch_states else pfrl_batch_states,
+            margin=margin,
+            supervised_lambda=supervised_lambda
         )
 
         self.T = 0

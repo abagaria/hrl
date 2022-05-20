@@ -33,6 +33,8 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
             batch_states: Callable[[Sequence[Any], torch.device, Callable[[Any], Any]], Any] = ..., 
             recurrent: bool = False, 
             max_grad_norm: Optional[float] = None,
+            margin=0.8,
+            supervised_lambda=1,
             supervised_batchsize=32):
         super().__init__(q_function, 
             optimizer, 
@@ -57,7 +59,9 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
             max_grad_norm)
 
         assert isinstance(self.replay_buffer, CombinedPrioritizedReplayBuffer)
-        self.supervised_batchsize = 32
+        self.supervised_batchsize = supervised_batchsize
+        self.margin = margin
+        self.supervised_lambda=supervised_lambda
 
     def update(
         self,
@@ -161,8 +165,7 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
             batch_accumulator=self.batch_accumulator
         )
 
-    @staticmethod
-    def _margin_loss(expert_actions, actions):
+    def _margin_loss(self, expert_actions, actions):
 
         """ if expert action == action: 0.8 else 0 """
 
@@ -176,7 +179,7 @@ class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
     def add_demonstration_trajectory(self, trajectories):
 
         for trajectory in trajectories:
-            self.replay_buffer.append(supervised_lambda=1, **trajectory)
+            self.replay_buffer.append(supervised_lambda=self.supervised_lambda, **trajectory)
 
     def bootstrap_train_step(self):
         transitions = self.replay_buffer.sample(self.supervised_batchsize)
