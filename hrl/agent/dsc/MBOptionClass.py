@@ -1,10 +1,10 @@
+import ipdb
 import torch
 import random
 import numpy as np
 from copy import deepcopy
 
 from scipy.spatial import distance
-from hrl.agent.dsc.classifier.state_critic_bayes_classifier import ObsCriticBayesIinitiationClassifier
 from hrl.agent.dynamics.mpc import MPC
 from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
@@ -12,6 +12,7 @@ from hrl.agent.dsc.classifier.obs_init_classifier import ObsInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
 from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
+from hrl.agent.dsc.classifier.obs_weighted_init_classifier import ObsWeightedInitiationClassifier
 
 
 class ModelBasedOption(object):
@@ -145,7 +146,7 @@ class ModelBasedOption(object):
                 option_name=self.name,
             )
         if self.init_classifier_type == "state-critic-clf":
-            return ObsCriticBayesIinitiationClassifier(
+            return ObsWeightedInitiationClassifier(
                 obs_dim=self.mdp.state_space_size(),
                 agent=self.solver,
                 goal_sampler=self.get_goal_for_rollout,
@@ -257,10 +258,20 @@ class ModelBasedOption(object):
         if self.parent is None and self.target_salient_event is not None:
             return self.target_salient_event.get_target_position()
 
-        sampled_goal = self.parent.initiation_classifier.sample()
-        assert sampled_goal is not None
+        sampled_goal = None
+        parent = self.parent
 
-        return self.extract_goal_dimensions(sampled_goal)
+        while parent is not None and sampled_goal is None:
+            sampled_goal = parent.initiation_classifier.sample()
+            parent = parent.parent
+
+        if sampled_goal is not None:
+            return self.extract_goal_dimensions(sampled_goal)
+
+        if self.target_salient_event is not None:
+            return self.target_salient_event.get_target_position()
+        
+        raise ValueError(f"{self, self.parent, sampled_goal, parent}")
 
     def rollout(self, *, goal, step_number, eval_mode=False):
         """ Main option control loop. """
@@ -484,10 +495,13 @@ class ModelBasedOption(object):
         if isinstance(positive_states, list):
             positive_states = np.array(positive_states)
 
+        if isinstance(positive_states, torch.Tensor):
+            positive_states = positive_states.detach().cpu().numpy()
+
         if positive_states.shape[1] > 2:
             positive_states = positive_states[:, :2]
 
-        distances = distance.cdist(point[None, :], positive_states)
+        distances = distance.cdist(point[np.newaxis, :], positive_states)
         return np.median(distances)
 
     def _value_distance_to_state(self, state):
