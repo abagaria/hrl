@@ -31,7 +31,9 @@ def default_pos_to_info(pos):
         has_key=False,
         room_number=1,
         dead=False,
-        falling=False
+        falling=False,
+        left_door_open=False,
+        right_door_open=False
     )
 
 def flatten(lol):
