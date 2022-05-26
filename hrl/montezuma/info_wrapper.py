@@ -11,6 +11,7 @@ class MontezumaInfoWrapper(Wrapper):
     def __init__(self, env):
         self.T = 0
         self.num_lives = None
+        self.imaginary_ladder_locations = set()
         Wrapper.__init__(self, env)
     
     def reset(self, **kwargs):
@@ -39,6 +40,8 @@ class MontezumaInfoWrapper(Wrapper):
         info["falling"] = self.get_is_falling(ram)
         info["uncontrollable"] = self.get_is_in_non_controllable_state(ram)
         info["buggy_state"] = self.get_is_climbing_imaginary_ladder(ram)
+        info["left_door_open"] = self.get_is_left_door_unlocked(ram)
+        info["right_door_open"] = self.get_is_right_door_unlocked(ram)
 
         if update_lives:
             self.num_lives = info["lives"]
@@ -127,13 +130,31 @@ class MontezumaInfoWrapper(Wrapper):
     def get_is_climbing_imaginary_ladder(self, ram):
         # imaginary = self.get_player_x(ram) == 128
         screen = self.get_room_number(ram)
-        position = self.get_player_x(ram), self.get_player_y(ram)
+        x_pos = self.get_player_x(ram)
+        y_pos = self.get_player_y(ram)
+        position = x_pos, y_pos
         imaginary = not self.at_any_climb_region(position, screen)
         ladder = self.get_player_status(ram) == "climbing-ladder"
         climbing = imaginary and ladder
+        known_imaginary = (x_pos, y_pos, screen) in self.imaginary_ladder_locations
         if climbing:
             print(f"Found climbing imaginary ladder {position, screen}")
-        return climbing
+        if climbing and not known_imaginary:
+            print(f"New imaginary location, adding {x_pos, y_pos, screen} to blacklist")
+            self.imaginary_ladder_locations.add((x_pos, y_pos, screen))
+        return climbing or known_imaginary
+
+    def get_is_left_door_unlocked(self, ram):
+        objects = format(self.getByte(ram, 'c2'), '08b')[-4:]
+        left_door = objects[0]
+        locked = int(left_door) == 1 and self.get_room_number(ram) in [1, 5, 17]
+        return not locked
+
+    def get_is_right_door_unlocked(self, ram):
+        objects = format(self.getByte(ram, 'c2'), '08b')[-4:]
+        right_door = objects[1]
+        locked = int(right_door) == 1 and self.get_room_number(ram) in [1, 5, 17]
+        return not locked
 
     def at_any_climb_region(self, pos, screen):
         climb_margin = 4
