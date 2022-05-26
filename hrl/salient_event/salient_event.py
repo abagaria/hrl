@@ -49,11 +49,13 @@ class SalientEvent:
             
         xcond = abs(pos[0] - self.target_info["player_x"]) <= self.tolerance
         ycond = abs(pos[1] - self.target_info["player_y"]) <= self.tolerance
-        
-        key_cond = info["has_key"] == self.target_info["has_key"]
         room_cond = info["room_number"] == self.target_info["room_number"]
 
-        return xcond and ycond and key_cond and room_cond
+        key_cond = info["has_key"] == self.target_info["has_key"]
+        left_door_cond = info["left_door_open"] == self.target_info["left_door_open"]
+        right_door_cond = info["right_door_open"] == self.target_info["right_door_open"]
+
+        return xcond and ycond and key_cond and room_cond and left_door_cond and right_door_cond
 
     def __str__(self):
         info = self.target_info
