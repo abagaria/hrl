@@ -9,6 +9,7 @@ from scipy.special import softmax
 from collections import defaultdict
 from pfrl.wrappers import atari_wrappers
 from hrl.agent.dsc.option import ModelFreeOption
+from hrl.agent.dsc.utils import flatten
 from .graph import PlanGraph
 from ...salient_event.salient_event import SalientEvent
 from ..dsc.dsc import RobustDSC
@@ -58,24 +59,24 @@ class SkillGraphAgent:
                 if selected_option is not None:
                     return selected_option
 
-        current_events = self.get_corresponding_events(state, info)
-        candidate_goals = self.planner.get_nodes_that_reach_target_node(goal_vertex)
-        candidate_goals = [node for node in candidate_goals if isinstance(node, SalientEvent)]
-        candidate_goals = [node for node in candidate_goals if node not in current_events]
+        # current_events = self.get_corresponding_events(state, info)
+        # candidate_goals = self.planner.get_nodes_that_reach_target_node(goal_vertex)
+        # candidate_goals = [node for node in candidate_goals if isinstance(node, SalientEvent)]
+        # candidate_goals = [node for node in candidate_goals if node not in current_events]
 
-        # If the graph has holes here, try to target an ancestor instead
-        if current_events and candidate_goals:
-            _, closest_ancestor = self.get_closest_pair_of_vertices(
-                current_events, candidate_goals, metric=self.distance_metric
-            )
-            assert isinstance(closest_ancestor, SalientEvent), closest_ancestor
-            _, target_info = self.sample_from_vertex(closest_ancestor)
-            option = self.dsc_agent.act(state, info, goal_info=target_info)
+        # # If the graph has holes here, try to target an ancestor instead
+        # if current_events and candidate_goals:
+        #     _, closest_ancestor = self.get_closest_pair_of_vertices(
+        #         current_events, candidate_goals, metric=self.distance_metric
+        #     )
+        #     assert isinstance(closest_ancestor, SalientEvent), closest_ancestor
+        #     _, target_info = self.sample_from_vertex(closest_ancestor)
+        #     option = self.dsc_agent.act(state, info, goal_info=target_info)
             
-            # Only return an option here if its better than the global-option
-            if not option.global_init:
-                print(f"Attempting to save broken graph by using {option} to target {target_info}")
-                return option
+        #     # Only return an option here if its better than the global-option
+        #     if not option.global_init:
+        #         print(f"Attempting to save broken graph by using {option} to target {target_info}")
+        #         return option
         
         # DSC expects `sampled_goal` to be an info dict
         print(f"Reverting to the DSC policy over options targeting {sampled_goal}")
@@ -389,7 +390,7 @@ class SkillGraphAgent:
 
         def state_to_event(info, events):
             for event in events:
-                if event(info) and not info['dead'] and not info['falling']:
+                if event(info) and not info["uncontrollable"]:
                     return event
 
         def states_to_event_traj(infos, events):
@@ -399,21 +400,41 @@ class SkillGraphAgent:
                 event_traj.append(event)    
             return event_traj
 
-        t0 = time.time()
-        
-        event_traj = states_to_event_traj(infos, events)
+        def truncate_traj_at_death(trajectory):
+            truncated = []
+            sub_trajectory = []
+            for info in trajectory:
+                sub_trajectory.append(info)
+                if info["dead"]:
+                    truncated.append(sub_trajectory)
+                    sub_trajectory = []
+            return truncated
 
-        for i, e_i in reverse_enum(event_traj):
+        def update_from_traj(infos, events):
+            event_traj = states_to_event_traj(infos, events)
+
+            for i, e_i in reverse_enum(event_traj):
+                
+                if e_i is None:
+                    continue
+
+                for j, e_j in reverse_enum(event_traj[:i+1]):
+                    if e_i and e_j:
+                        distance = min(i - j, self.node_distances[e_j][e_i])
+                        self.node_distances[e_j][e_i] = distance
             
-            if e_i is None:
-                continue
+            return event_traj
 
-            for j, e_j in reverse_enum(event_traj[:i+1]):
-                if e_i and e_j:
-                    distance = min(i - j, self.node_distances[e_j][e_i])
-                    self.node_distances[e_j][e_i] = distance
+        t0 = time.time()
 
-        print(f"Took {time.time() - t0}s to update distance table with events {set(event_traj)}")
+        if len(infos) > 100_000:
+            truncated_traj = truncate_traj_at_death(infos)
+            event_trajs = [update_from_traj(traj, events) for traj in truncated_traj]
+            event_traj = flatten(event_trajs)
+        else:
+            event_traj = update_from_traj(infos, events)
+
+        print(f"Took {time.time() - t0}s to update distance table with {len(infos)} states and events {set(event_traj)}")
 
     def choose_closest_source_target_vertex_pair(self, state, info, goal_salient_event, choose_among_events):
         candidate_vertices_to_fall_from = self.planner.get_reachable_nodes_from_source_state(state, info)
