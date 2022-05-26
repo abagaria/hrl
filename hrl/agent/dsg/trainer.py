@@ -636,56 +636,21 @@ class DSGTrainer:
     def delete_potential_nodes_from_graph(self):
         """ Delete nodes that are impossible to re-trigger. """
         
-        def get_success_rate(event, window_length=50):
-            key = tuple(event.target_pos)
-            if key in self.dsg_agent.gc_successes:
-                curve = self.dsg_agent.gc_successes[key]
-                if len(curve) >= window_length:
-                    return np.mean(curve[-window_length:])
+        # Find bad events
+        bad_events = []
+        for event in self.salient_events:
+            key = event.target_pos[0], event.target_pos[1], event.target_info["room_number"]
+            if key in self.env.imaginary_ladder_locations:
+                bad_events.append(event)
 
-        def get_num_attempts(event):
-            key = tuple(event.target_pos)
-            if key in self.dsg_agent.gc_successes:
-                curve = self.dsg_agent.gc_successes[key]
-                return len(curve)
-            return 0
-
-        def get_close_events(source_events, distance_threshold=20):
-            close_events = []
-            for src_event in source_events:
-                for target_event in self.salient_events:
-                    distance = self.dsg_agent.node_distances[src_event][target_event]
-                    if distance < distance_threshold:
-                        close_events.append(target_event)
-            return close_events
-
-        # 1. Compute success rate of all salient events
-        success_rates = [get_success_rate(beta) for beta in self.salient_events]
-
-        # 2. Grab the salient events with success rate above 30%
-        good_events = [event for i, event in enumerate(self.salient_events) if success_rates[i] and success_rates[i] > .3]
-
-        # 3. Grab the salient events that are "close" to the salient events from (2)
-        close_to_good_events = list(set(get_close_events(good_events)))
-
-        # 4. Check the success rates of the events from (3)
-        close_event_n_successes = [len(n.effect_set) for n in close_to_good_events]
-        close_event_n_attempts = [get_num_attempts(n) for n in close_to_good_events]
-
-        assert len(close_to_good_events) == len(close_event_n_successes) == len(close_event_n_attempts)
-
-        # 5. Grab the salient events whose n_successes is lower than 5
-        bad_events = [
-            event for event, n_successes, n_attempts in \
-            zip(close_to_good_events, close_event_n_successes, close_event_n_attempts) \
-            if n_successes < 5 and n_attempts > 200
-        ]
-
-        # 6. Log deleted events
+        # Log deleted events
         if bad_events:
+            print("*" * 80)
+            print(f"Deleting {bad_events}")
+            print("*" * 80)
             self.deleted_events.extend(bad_events)
 
-        # 7. Delete the salient events from (5) from the graph
+        # Delete the bad salient events from the graph
         for event in bad_events:
             print(f"Removing {event} from the list of salient events.")
             self.salient_events.remove(event)
@@ -892,8 +857,6 @@ class DSGTrainer:
             for option in options:
 
                 if states.shape[0] > 0:
-                    if states.shape[0] == 1:
-                        ipdb.set_trace()
                     inits = option.initiation_classifier.batched_pessimistic_predict(states)
                     inits = inits.squeeze(1)  # (N, 1) --> (N,)
                     print(f"Mean init: {inits.mean()} for {option}")
@@ -927,14 +890,16 @@ class DSGTrainer:
             first_pass_observations = [triple[0] for triple in first_pass_triples]
             first_pass_rewards = [triple[1] for triple in first_pass_triples]
             first_pass_infos = [triple[2] for triple in first_pass_triples]
-            
-            if len(first_pass_observations) > 3:
-                
-                accepted_observations, accepted_rewards, accepted_infos = apply_option_filtering_cond(
-                    first_pass_observations, first_pass_rewards, first_pass_infos
-                )
 
-                return accepted_observations, accepted_rewards, accepted_infos
+            return first_pass_observations, first_pass_rewards, first_pass_infos
+            
+            # if len(first_pass_observations) > 3:
+                
+            #     accepted_observations, accepted_rewards, accepted_infos = apply_option_filtering_cond(
+            #         first_pass_observations, first_pass_rewards, first_pass_infos
+            #     )
+
+            #     return accepted_observations, accepted_rewards, accepted_infos
             
         return [], [], []
 
