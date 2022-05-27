@@ -5,7 +5,7 @@ from pfrl.collections.prioritized import TreeQueue, PrioritizedBuffer
 from pfrl.utils.random import sample_n_k
 import numpy as np
 
-# tuple<value, index, tree>
+# tuple<value, index, queue>
 NodeInfo = Tuple[float, int, int]
 Node = List[Any]
 T = TypeVar("T")
@@ -247,8 +247,8 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
             return self.data[1].popleft()
         
 
-    def _get_true_index(self, index, tree_index):
-        if tree_index == 1:
+    def _get_true_index(self, index, queue_index):
+        if queue_index == 1:
             return (self.demonstration_capacity - self.demonstration_front + index) % self.demonstration_capacity
         else:
             return (self.capacity - self.experience_front + index) % self.capacity
@@ -265,13 +265,13 @@ class CombinedPriorityBuffer(PrioritizedBuffer):
         self.flag_wait_priority = True
 
         probabilities = [node_info[i][0] for i in range(len(node_info))]
-        true_indices = [self._get_true_index(node_info[i][1], node_info[i][0]) for i in range(len(node_info))]
-        tree_indices = [node_info[i][2] for i in range(len(node_info))]
+        true_indices = [self._get_true_index(node_info[i][1], node_info[i][2]) for i in range(len(node_info))]
+        queue_indices = [node_info[i][2] for i in range(len(node_info))]
 
         sampled = []
 
         for i in range(len(node_info)):
-            sampled.append(self.data[tree_indices[i]][true_indices[i]])
+            sampled.append(self.data[queue_indices[i]][true_indices[i]])
 
         return sampled, probabilities, min_prob
 
