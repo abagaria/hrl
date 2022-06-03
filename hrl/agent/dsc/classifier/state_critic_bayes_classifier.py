@@ -11,7 +11,7 @@ from .obs_init_classifier import ObsInitiationClassifier
 from .critic_classifier import CriticInitiationClassifier
 
 
-class ObsCriticBayesIinitiationClassifier(ObsInitiationClassifier):
+class ObsWeightedInitiationClassifier(ObsInitiationClassifier):
     def __init__(self,
         obs_dim,
         agent,

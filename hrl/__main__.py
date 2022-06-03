@@ -57,8 +57,11 @@ if __name__ == "__main__":
     assert args.use_model or args.use_value_function
 
     possible_thresholders = "critic-threshold", "ope-threshold"
-    possible_clfs = "position-clf", "pos-critic-clf", "pos-ope-clf", "state-clf", "state-critic-clf", "state-ope-clf"
-    assert args.init_classifier_type in possible_thresholders or possible_clfs
+    possible_clfs = "position-clf", "pos-critic-clf", "pos-ope-clf",\
+                    "state-clf", "state-critic-clf", "state-ope-clf"\
+                    "state-svm", "state-critic-svm"
+    assert args.init_classifier_type in possible_thresholders or \
+           args.init_classifier_type in possible_clfs
 
     if not args.use_value_function:
         assert not args.use_global_value_function

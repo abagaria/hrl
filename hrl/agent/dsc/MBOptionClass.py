@@ -12,7 +12,8 @@ from hrl.agent.dsc.classifier.obs_init_classifier import ObsInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
 from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
-from hrl.agent.dsc.classifier.obs_weighted_init_classifier import ObsWeightedInitiationClassifier
+from hrl.agent.dsc.classifier.obs_svm_init_classifier import ObsSVMInitiationClassifier
+from hrl.agent.dsc.classifier.state_critic_bayes_classifier import ObsWeightedInitiationClassifier
 
 
 class ModelBasedOption(object):
@@ -135,6 +136,8 @@ class ModelBasedOption(object):
                 self.mdp.state_space_size(),
                 device=self.device,
             )
+        if self.init_classifier_type == "state-svm":
+            return ObsSVMInitiationClassifier()
         if self.init_classifier_type == "pos-critic-clf":
             return CriticBayesClassifier(
                 self.solver,

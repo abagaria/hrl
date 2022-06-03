@@ -53,8 +53,8 @@ class ObsInitiationClassifier(InitiationClassifier):
         assert isinstance(self.optimistic_classifier, BinaryMLPClassifier)
         assert self.optimistic_classifier.is_trained
         if isinstance(state, np.ndarray):
-            features = torch.as_tensor(state).float().to(self.device)
-        label = self.optimistic_classifier.predict(features, threshold=0.5) == 1
+            state = torch.as_tensor(state).float().to(self.device)
+        label = self.optimistic_classifier.predict(state, threshold=0.5) == 1
         return label.cpu().numpy()
 
     def pessimistic_predict(self, state):
@@ -62,8 +62,8 @@ class ObsInitiationClassifier(InitiationClassifier):
         assert isinstance(self.pessimistic_classifier, BinaryMLPClassifier)
         assert self.pessimistic_classifier.is_trained
         if isinstance(state, np.ndarray):
-            features = torch.as_tensor(state).float().to(self.device)
-        label = self.pessimistic_classifier.predict(features, threshold=0.75) == 1
+            state = torch.as_tensor(state).float().to(self.device)
+        label = self.pessimistic_classifier.predict(state, threshold=0.75) == 1
         return label.cpu().numpy()
 
     def get_false_positive_rate(self):
@@ -145,6 +145,14 @@ class ObsInitiationClassifier(InitiationClassifier):
         if predictions.any(): # grab the first positive obs in traj
             return observations[predictions.squeeze()][0]
 
+    def get_states_inside_pessimistic_classifier_region(self):
+        if self.pessimistic_classifier is not None:
+            observations = self.construct_feature_matrix(self.positive_examples)
+            predictions = self.pessimistic_predict(observations).squeeze()
+            positive_observations = observations[predictions==1]
+            return positive_observations.cpu().numpy()
+        return []
+
     def plot_initiation_classifier(self, env, replay_buffer, option_name, episode, experiment_name, seed):
         self.plot_training_predictions(option_name, episode, experiment_name, seed)
         self.plot_testing_predictions(env, replay_buffer, option_name, episode, experiment_name, seed)
@@ -197,7 +205,7 @@ class ObsInitiationClassifier(InitiationClassifier):
         if goal:
             plt.suptitle(f"Targeting {goal}")
 
-        plt.savefig(f"plots/{experiment_name}/{seed}/initiation_set_plots/{option_name}_init_clf_episode_{episode}.png")
+        plt.savefig(f"results/{experiment_name}/initiation_set_plots/{option_name}_init_clf_seed{seed}_episode_{episode}.png")
         plt.close()
 
     def plot_testing_predictions(self, env, replay_buffer, option_name, episode, experiment_name, seed):

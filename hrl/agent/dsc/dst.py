@@ -15,7 +15,8 @@ class RobustDST(object):
                  max_steps, use_diverse_starts, use_dense_rewards, experiment_name,
                  logging_freq, evaluation_freq, device, seed, multithread_mpc,
                  generate_init_gif, max_num_children,
-                 init_classifier_type, optimistic_threshold, pessimistic_threshold):
+                 init_classifier_type, optimistic_threshold, pessimistic_threshold,
+                 distance_function_type="euclidean"):
         self.seed = seed
         self.device = device
         self.use_vf = use_vf
@@ -36,6 +37,7 @@ class RobustDST(object):
         self.init_classifier_type = init_classifier_type
         self.optimistic_threshold = optimistic_threshold
         self.pessimistic_threshold = pessimistic_threshold
+        self.distance_function_type = distance_function_type 
 
         self.lr_a = lr_a
         self.lr_c = lr_c
@@ -200,20 +202,21 @@ class RobustDST(object):
             
             distances = self.get_distance_from_state_to_goals(state, goals)
             
-            
             nearest_option = sorted(distances, key=lambda x: x[1])[0][0]  # type: ModelBasedOption
             return nearest_option
 
     def get_distance_from_state_to_goals(self, state, goals):
-        states = np.repeat(state[np.newaxis, ...], len(goals), axis=0)
 
         if self.distance_function_type == "vf":
+            states = np.repeat(state[np.newaxis, ...], len(goals), axis=0)
             values = self.global_option.value_function(states, goals).squeeze().tolist()
             distances = [(option, -value) for option, value in zip(self.mature_options, values)]
             return distances
 
         assert self.distance_function_type == "euclidean", self.distance_function_type
-        distances = scipy.spatial.distance.cdist(states, goals)
+        position = state[np.newaxis, :2]
+        distances = scipy.spatial.distance.cdist(position, goals)  # distance from one pos -> many goals
+        distances = distances.squeeze(0).tolist()  # (1, N) -> list of N elements
         distances = [(option, distance) for option, distance in zip(self.mature_options, distances)]
         return distances
 
@@ -256,8 +259,16 @@ class RobustDST(object):
             options = self.mature_options + self.new_options
 
             for option in self.mature_options:
+                assert isinstance(option, ModelBasedOption)
                 episode_label = episode if self.generate_init_gif else -1
-                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
+                option.initiation_classifier.plot_initiation_classifier(
+                    self.mdp,
+                    option.solver.replay_buffer, 
+                    option.name, 
+                    episode_label,
+                    self.experiment_name,
+                    self.seed
+                )
 
             for option in options:
                 if self.use_global_vf:
