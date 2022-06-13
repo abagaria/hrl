@@ -7,6 +7,7 @@ from collections import deque
 from hrl.agent.dsc.utils import *
 from hrl.agent.dsc.MBOptionClass import ModelBasedOption
 from hrl.agent.td3.utils import save
+from joblib import dump
 
 
 class RobustDSC(object):
@@ -129,15 +130,25 @@ class RobustDSC(object):
                 print()
                 times_at_goal += 1
                 if times_at_goal % 5 == 0:
-                    save(self.global_option.solver,
-                         f"results/{self.experiment_name}/agent_after_{times_at_goal}_times_at_goal")
                     with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
                         pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
-                    sampled_goals = []
-                    for o in self.chain:
-                        sampled_goals.append(o.get_goal_for_rollout())
-                    with open(f"results/{self.experiment_name}/subgoals_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
-                        pickle.dump(sampled_goals, f)
+                    with open(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
+                        pickle.dump(self.chain, f)
+                    # save(self.global_option.solver,
+                    #      f"results/{self.experiment_name}/agent_after_{times_at_goal}_times_at_goal")
+                    # with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
+                    #     pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
+                    # sampled_goals = []
+                    # for o in self.chain:
+                    #     sampled_goals.append(o.get_goal_for_rollout())
+                    #     if o.parent is None:
+                    #         pass
+                    #         # SAVE CLaSSifier
+                    #     else:
+                    #         dump(o.parent.pessimistic_classifier, 'filename.joblib')
+                    # with open(f"results/{self.experiment_name}/subgoals_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
+                    #     pickle.dump(sampled_goals, f)
+
 
         return per_episode_durations
 
