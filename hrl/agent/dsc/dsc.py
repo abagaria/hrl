@@ -109,6 +109,13 @@ class RobustDSC(object):
         times_at_goal = 0
 
         for episode in range(start_episode, start_episode + num_episodes):
+            # Save chain early for testing
+            with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
+                pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
+            with open(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
+                pickle.dump(self.chain, f)
+
+
             self.reset(episode)
 
             step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
