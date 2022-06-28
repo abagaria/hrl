@@ -9,6 +9,8 @@ from pfrl.replay_buffers import PrioritizedReplayBuffer
 
 from hrl.agent.dq_demonstrations.combined_replay_buffer import CombinedPrioritizedReplayBuffer
 
+import numpy as np
+
 class SupervisedCategoricalDoubleDQN(CategoricalDoubleDQN):
 
     def __init__(self, 

@@ -10,6 +10,8 @@ from pfrl.utils import batch_states as pfrl_batch_states
 from hrl.agent.dq_demonstrations.combined_replay_buffer import CombinedPrioritizedReplayBuffer
 from hrl.agent.dq_demonstrations.supervised_categorical_double import SupervisedCategoricalDoubleDQN
 
+from hrl.agent.dq_demonstrations.video_generator import VideoGenerator
+
 class SupervisedRainbow:
     def __init__(self, n_actions, n_atoms, v_min, v_max, noisy_net_sigma, lr,
                 n_steps, betasteps, replay_start_size, replay_buffer_size, 
@@ -58,6 +60,8 @@ class SupervisedRainbow:
 
         self.T = 0
         self.device = torch.device(f"cuda" if gpu > -1 else "cpu")
+
+        self.video_generator = VideoGenerator('logs/videos')
 
     @staticmethod
     def batch_states(states, device, phi):
@@ -120,7 +124,7 @@ class SupervisedRainbow:
         features = list(state._frames) + [goal._frames[-1]]
         return atari_wrappers.LazyFrames(features, stack_axis=0)
 
-    def rollout(self, env, state, episode, max_reward_so_far):
+    def rollout(self, env, state, episode, max_reward_so_far, make_video=False):
         """ Single episodic rollout of the agent's policy. """
 
         def is_close(pos1, pos2, tol):
@@ -140,9 +144,17 @@ class SupervisedRainbow:
         episode_reward = 0.
         episode_trajectory = []
 
+        # self.video_generator.clear_images()
+        self.video_generator.img_path = self.video_generator.base_path + "/{}".format(episode)
+
         while not done and not reset and not reached:
             action = self.act(state)
             next_state, reward, done, info = env.step(action)
+            if make_video:
+                img = env.render('rgb_array')
+                self.video_generator.save_env_image(img, action)
+
+
             reset = info.get("needs_reset", False)
 
             # reward, reached = rf(info)
@@ -164,6 +176,8 @@ class SupervisedRainbow:
 
         self.experience_replay(episode_trajectory)
         max_reward_so_far = max(episode_reward, max_reward_so_far)
+        # if make_video:
+        #     self.video_generator.create_video(episode)
         print(f"Episode: {episode}, T: {self.T}, Reward: {episode_reward}, Max reward: {max_reward_so_far}")        
 
         return episode_reward, episode_length, max_reward_so_far

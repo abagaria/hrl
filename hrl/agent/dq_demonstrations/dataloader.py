@@ -5,6 +5,8 @@ from PIL import Image, ImageOps
 from pfrl.wrappers.atari_wrappers import LazyFrames
 import numpy as np
 
+from tqdm import tqdm
+
 def load_trajectory(data_dir, trajectory_num, stack_num=4):
 
     trajectory_dir = os.path.join(data_dir, 'trajectories', 'revenge', '{}.txt'.format(trajectory_num))
@@ -14,6 +16,8 @@ def load_trajectory(data_dir, trajectory_num, stack_num=4):
         print("Trajectory not found at: {}".format(screen_dir))
         return
 
+    print("Loading trajectory from: {}".format(screen_dir))
+
     frames = deque([], maxlen=stack_num)
     transition = {}
     transition["reward"] = 0
@@ -22,7 +26,7 @@ def load_trajectory(data_dir, trajectory_num, stack_num=4):
     previous_state = None
 
     with open(trajectory_dir) as f:
-        for i, line in enumerate(f):
+        for i, line in tqdm(enumerate(f)):
             if i > 1:
                 data = line.rstrip('\n').replace(" ","").split(",")
                 transition["reward"] += int(data[1])
@@ -35,7 +39,7 @@ def load_trajectory(data_dir, trajectory_num, stack_num=4):
                 count += 1
 
                 if count == stack_num or transition["is_state_terminal"]:
-                    state = LazyFrames(list(frames))
+                    state = LazyFrames(list(frames), stack_axis=0)
                     if i != 2:
                         transition["next_state"] = state
                         transition["state"] = previous_state

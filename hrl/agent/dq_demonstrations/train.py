@@ -17,7 +17,7 @@ def make_env(env_name, seed, terminal_on_loss_of_life=False):
         atari_wrappers.make_atari(env_name, max_frames=30 * 60 * 60),
         episode_life=terminal_on_loss_of_life,
         clip_rewards=False,
-        frame_stack=False
+        frame_stack=True
     )
 
     env.seed(seed)
@@ -83,11 +83,12 @@ if __name__ == "__main__":
         demonstration_priority_bonus=args.demonstration_priority
     )
 
-    data_dir = os.path.expanduser("/users/ademello/data/ademello/atari_v1/")
-    for id in range(5000):
+    data_dir = os.path.expanduser("/home/anita/Documents/research/code/montezuma/atari_v1/")
+    for id in range(1500):
         trajectory = load_trajectory(data_dir, id, args.stack_num)
         if trajectory:
             rainbow_agent.add_demonstration_trajectory(trajectory)
+
 
     t0 = time.time()
 
@@ -97,6 +98,8 @@ if __name__ == "__main__":
     max_episodic_reward = 0
     current_episode_number = 0
 
+    episode = 0
+
     while current_step_number < args.num_training_steps:
 
         s0,_ = env.reset()
@@ -105,11 +108,13 @@ if __name__ == "__main__":
             env,
             s0,
             current_episode_number,
-            max_episodic_reward
+            max_episodic_reward,
+            (episode % 50 == 0)
         )
 
         current_episode_number += 1
         current_step_number += episodic_duration
+        episode += 1
 
     print(f"Finished after {(time.time() - t0) / 3600.} hrs")
 
