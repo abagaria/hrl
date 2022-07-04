@@ -1,0 +1,3 @@
+[submodule "rainbow_RBFDQN"]
+	path = rainbow_RBFDQN
+	url = git@github.com:SreehariRamMohan/rainbow_RBFDQN.git

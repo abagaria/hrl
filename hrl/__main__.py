@@ -8,12 +8,16 @@ import d4rl
 import torch
 import seeding
 import numpy as np
+import sys
 
 from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.dsc.dst import RobustDST
 
+'''
+python -m hrl  --experiment_name test --results_dir test --device cpu --environment antmaze-umaze-v0 --seed 0 --use_value_function --use_global_value_function --gestation_period 5 --episodes 1000 --use_diverse_starts --use_global_option_subgoals --init_classifier_type position-clf --lr_c 3e-4 --lr_a 3e-4
+'''
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

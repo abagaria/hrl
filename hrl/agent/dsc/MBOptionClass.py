@@ -1,3 +1,4 @@
+from hrl.agent.distrbf.RBFWrapper import RBFWrapper
 import torch
 import random
 import numpy as np
@@ -12,7 +13,7 @@ from hrl.agent.dsc.classifier.obs_init_classifier import ObsInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
 from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
-from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
+# from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
 
 
 class ModelBasedOption(object):
@@ -61,13 +62,21 @@ class ModelBasedOption(object):
         use_output_norm = self.use_model
 
         if not self.use_global_vf or global_init:
-            self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                    action_dim=self.mdp.action_space_size(),
-                                    max_action=1.,
-                                    name=f"{name}-td3-agent",
-                                    device=self.device,
-                                    lr_c=lr_c, lr_a=lr_a,
-                                    use_output_normalization=use_output_norm)
+            # self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
+            #                         action_dim=self.mdp.action_space_size(),
+            #                         max_action=1.,
+            #                         name=f"{name}-td3-agent",
+            #                         device=self.device,
+            #                         lr_c=lr_c, lr_a=lr_a,
+            #                         use_output_normalization=use_output_norm)
+
+            self.value_learner = RBFWrapper(env=self.mdp.env, state_dim=self.mdp.state_space_size()+2,
+                                action_dim=self.mdp.action_space_size(),
+                                max_action=1.,
+                                name=f"{name}-dist-rbf-agent",
+                                device=self.device,
+                                lr_c=lr_c, lr_a=lr_a,
+                                use_output_normalization=use_output_norm)
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
@@ -167,19 +176,19 @@ class ModelBasedOption(object):
                 optimistic_threshold=self.optimistic_threshold,
                 pessimistic_threshold=self.pessimistic_threshold
             )
-        if self.init_classifier_type == "ope-threshold":
-            return OPECriticInitiationClassifier(
-                self.mdp.state_space_size(),
-                self.mdp.action_space_size(),
-                self.solver,
-                self.get_goal_for_rollout,
-                self.get_augmented_state,
-                self.is_term_true,
-                device=self.device,
-                option_name=self.name,
-                optimistic_threshold=self.optimistic_threshold,
-                pessimistic_threshold=self.pessimistic_threshold
-            )
+        # if self.init_classifier_type == "ope-threshold":
+        #     return OPECriticInitiationClassifier(
+        #         self.mdp.state_space_size(),
+        #         self.mdp.action_space_size(),
+        #         self.solver,
+        #         self.get_goal_for_rollout,
+        #         self.get_augmented_state,
+        #         self.is_term_true,
+        #         device=self.device,
+        #         option_name=self.name,
+        #         optimistic_threshold=self.optimistic_threshold,
+        #         pessimistic_threshold=self.pessimistic_threshold
+        #     )
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -241,7 +250,7 @@ class ModelBasedOption(object):
             vf = self.value_function if self.use_vf else None
             return self.solver.act(state, goal, vf=vf)
 
-        assert isinstance(self.solver, TD3), f"{type(self.solver)}"
+        # assert isinstance(self.solver, TD3), f"{type(self.solver)}"
         augmented_state = self.get_augmented_state(state, goal)
         return self.solver.act(augmented_state, evaluation_mode=False)
 
