@@ -11,7 +11,7 @@ scipy==1.7.0
 seeding==0.1.0
 six==1.16.0
 threadpoolctl==2.1.0
-thundersvm==0.3.4
+thundersvm
 torch==1.9.0
 tqdm==4.61.1
 typing-extensions==3.10.0.0

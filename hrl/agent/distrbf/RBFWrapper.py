@@ -87,7 +87,6 @@ class RBFWrapper(object):
         self.actor.update(self.target_actor)
 
     def get_values(self, states):
-        breakpoint()
         return self.actor.get_best_qvalue_and_action(states)
 
 
