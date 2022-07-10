@@ -414,7 +414,6 @@ class ModelBasedOption(object):
         return self.mdp.extract_features_for_initiation_classifier(sample)
 
     def derive_positive_and_negative_examples(self, visited_states, pursued_goal):
-
         def state2info(s, v=None):
             sg = self.get_augmented_state(s, pursued_goal)
             return dict(

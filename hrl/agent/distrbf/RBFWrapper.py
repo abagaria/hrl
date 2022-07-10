@@ -70,7 +70,7 @@ class RBFWrapper(object):
         self.total_it = 0
 
     def act(self, state, evaluation_mode=False):
-        state = torch.from_numpy(state).float().unsqueeze(0)
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         _, selected_action, _ = self.actor.get_best_qvalue_and_action(state)
 
         if self.use_output_normalization:
@@ -87,6 +87,7 @@ class RBFWrapper(object):
         self.actor.update(self.target_actor)
 
     def get_values(self, states):
-        return self.actor.get_best_qvalue_and_action(states)
+        with torch.no_grad():
+            return self.actor.get_best_qvalue_and_action(states)[0]
 
 

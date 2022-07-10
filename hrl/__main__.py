@@ -16,7 +16,7 @@ from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.dsc.dst import RobustDST
 
 '''
-python -m hrl  --experiment_name test --results_dir test --device cpu --environment antmaze-umaze-v0 --seed 0 --use_value_function --use_global_value_function --gestation_period 5 --episodes 1000 --use_diverse_starts --use_global_option_subgoals --init_classifier_type position-clf --lr_c 3e-4 --lr_a 3e-4
+python -m hrl  --experiment_name test --results_dir results --device cpu --environment antmaze-umaze-v0 --seed 0 --use_value_function --use_global_value_function --gestation_period 5 --episodes 1000 --use_diverse_starts --use_global_option_subgoals --init_classifier_type position-clf --lr_c 3e-4 --lr_a 3e-4
 '''
 
 if __name__ == "__main__":
@@ -98,7 +98,7 @@ if __name__ == "__main__":
             "mdp":env,
             "gestation_period": args.gestation_period,
             "experiment_name": args.experiment_name,
-            "device": torch.device(args.device),
+            "device": torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
             "warmup_episodes": args.warmup_episodes,
             "max_steps": args.steps,
             "use_model": args.use_model,
