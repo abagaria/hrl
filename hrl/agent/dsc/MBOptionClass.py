@@ -13,6 +13,7 @@ from hrl.agent.dsc.classifier.obs_init_classifier import ObsInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
 from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
+from hrl.agent.dsc.classifier.distributional_critic_classifier import DistributionalCriticClassifier
 # from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
 
 
@@ -175,6 +176,18 @@ class ModelBasedOption(object):
                 self.get_augmented_state,
                 optimistic_threshold=self.optimistic_threshold,
                 pessimistic_threshold=self.pessimistic_threshold
+            )
+        if self.init_classifier_type == "dist-clf":
+            return DistributionalCriticClassifier(
+                self.solver, 
+                use_position=True,
+                goal_sampler=self.get_goal_for_rollout,
+                augment_func=self.get_augmented_state,
+                optimistic_threshold=self.optimistic_threshold,
+                pessimistic_threshold=self.pessimistic_threshold,
+                option_name=self.name,
+                threshold=10,
+                device=self.device # TODO sree actually get this from kwargs
             )
         # if self.init_classifier_type == "ope-threshold":
         #     return OPECriticInitiationClassifier(

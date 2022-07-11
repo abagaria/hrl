@@ -4,6 +4,7 @@ import scipy
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 
 from hrl.utils import flatten
 from sklearn.svm import OneClassSVM, SVC
@@ -23,10 +24,13 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         pessimistic_threshold,
         option_name,
         maxlen=100,
-        resample_goals=False
+        resample_goals=False,
+        threshold=None,
+        device=None
     ):
         self.agent = agent
         self.use_position = use_position
+        self.device = device
 
         self.critic_classifier = CriticInitiationClassifier(
             agent,
@@ -38,15 +42,10 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
 
         self.option_name = option_name
         self.resample_goals = resample_goals
+        self.threshold = threshold
 
         super().__init__(maxlen)
 
-    # TODO:
-    # look at state_critic_bayes_classifier.py for inspiration. 
-    # key lines of code (102)
-    # Predict the probability that the samples will flip
-    #probabilities = self.flipping_classifier(examples)
-    #weights = 1. / (probabilities + 1e-4)
     def get_weights(self, threshold, states): 
         '''
         Given state, threshold, value function, compute the flipping prob for each state
@@ -57,14 +56,13 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         '''
 
         # Predict the probability that the samples will flip
+        breakpoint()
         distribution = self.critic_classifier.agent.forward(states)
         distribution = distribution - threshold
         distribution = (distribution >= 0)
         probabilities = distribution.sum(axis=1)
         weights = 1. / (probabilities + 1e-4)
-
         return weights
-
 
     def add_positive_examples(self, states, infos):
         assert all(["value" in info for info in infos]), "need V(sg) for weights"
@@ -84,6 +82,7 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
 
         X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
         Y = np.concatenate((positive_labels, negative_labels))
+        breakpoint()
         W = self.get_sample_weights(plot=True)
 
         if negative_feature_matrix.shape[0] >= 10:
@@ -112,7 +111,7 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         ))
 
         # Extract what labels the old VF *would* have assigned
-        old_values = np.array([eg.info["value"] for eg in examples]).squeeze()
+        old_values = np.array([eg.info["value"].cpu() for eg in examples]).squeeze()
         old_nsteps = self.critic_classifier.value2steps(old_values)
         old_critic_labels = self.critic_classifier.pessimistic_classifier(old_nsteps)
 
@@ -125,66 +124,13 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
             new_goals = np.repeat(new_goal, axis=0, repeats=observations.shape[0])
             augmented_states = np.concatenate((observations, new_goals), axis=1)
 
-        new_values = self.agent.get_values(augmented_states).squeeze()
-        new_nsteps = self.critic_classifier.value2steps(new_values)
+        new_values = self.agent.get_values(torch.from_numpy(augmented_states).to(self.device).to(torch.float32)).squeeze()
+        new_nsteps = self.critic_classifier.value2steps(new_values.cpu().detach().numpy())
         new_critic_labels = self.critic_classifier.optimistic_classifier(new_nsteps)
-
-        # Train the flip predictor
-        self.flipping_classifier.fit(
-            examples,
-            assigned_labels,
-            old_critic_labels,
-            new_critic_labels
-        )
         
-        # Predict the probability that the samples will flip
-        probabilities = self.flipping_classifier(examples)
-        weights = 1. / (probabilities + 1e-4)
-
-        if plot:
-            self.plot_flipping_labels(
-                examples,
-                assigned_labels, 
-                old_critic_labels, 
-                new_critic_labels
-            )
-
-            self.plot_flipping_probabilities(
-                examples,
-                assigned_labels,
-                old_critic_labels,
-                new_critic_labels,
-                probabilities
-            )
-
+        # Compute the weights based on the probability that the samples will flip
+        breakpoint()
+        weights = self.get_weights(self.threshold, examples)
         return weights
 
-    def plot_initiation_classifier(self, env, replay_buffer, option_name, episode, experiment_name, seed):
-        def make_meshgrid(x, y, h=.02):
-            x_min, x_max = x.min() - 1, x.max() + 1
-            y_min, y_max = y.min() - 1, y.max() + 1
-            xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                                np.arange(y_min, y_max, h))
-            return xx, yy
-
-        def get_grid_states(mdp):
-            ss = []
-            x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
-            x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
-            for x in np.arange(x_low_lim, x_high_lim+1, 1):
-                for y in np.arange(y_low_lim, y_high_lim+1, 1):
-                    ss.append(np.array((x, y)))
-            return ss
-
-        def get_initiation_set_values(mdp):
-            values = []
-            x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
-            x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
-            for x in np.arange(x_low_lim, x_high_lim+1, 1):
-                for y in np.arange(y_low_lim, y_high_lim+1, 1):
-                    pos = np.array((x, y))
-                    init = self.optimistic_predict(pos)
-                    if hasattr(mdp.env, 'env'):
-                        init = init and not mdp.env.env._is_in_collision(pos)
-                    values.append(init)
-            return values
+   
