@@ -56,12 +56,16 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         '''
 
         # Predict the probability that the samples will flip
-        breakpoint()
-        distribution = self.critic_classifier.agent.forward(states)
-        distribution = distribution - threshold
-        distribution = (distribution >= 0)
-        probabilities = distribution.sum(axis=1)
-        weights = 1. / (probabilities + 1e-4)
+        with torch.no_grad():
+            states = states.to(self.device).to(torch.float32)
+            best_actions = self.critic_classifier.agent.actor.get_best_qvalue_and_action(states.to(torch.float32))[1]
+            best_actions = best_actions.to(self.device).to(torch.float32)
+            distribution = self.critic_classifier.agent.actor.forward(states, best_actions)
+            distribution = distribution - threshold
+            distribution = (distribution >= 0)
+            num_supports = (distribution.shape[1])
+            probabilities = distribution.sum(axis=1)/num_supports
+            weights = 1. / (probabilities + 1e-4)
         return weights
 
     def add_positive_examples(self, states, infos):
@@ -82,7 +86,6 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
 
         X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
         Y = np.concatenate((positive_labels, negative_labels))
-        breakpoint()
         W = self.get_sample_weights(plot=True)
 
         if negative_feature_matrix.shape[0] >= 10:
@@ -127,10 +130,9 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         new_values = self.agent.get_values(torch.from_numpy(augmented_states).to(self.device).to(torch.float32)).squeeze()
         new_nsteps = self.critic_classifier.value2steps(new_values.cpu().detach().numpy())
         new_critic_labels = self.critic_classifier.optimistic_classifier(new_nsteps)
-        
-        # Compute the weights based on the probability that the samples will flip
         breakpoint()
-        weights = self.get_weights(self.threshold, examples)
+        # Compute the weights based on the probability that the samples will flip
+        weights = self.get_weights(self.threshold, torch.from_numpy(augmented_states))
         return weights
 
    
