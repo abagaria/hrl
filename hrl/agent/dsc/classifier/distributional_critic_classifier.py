@@ -130,9 +130,8 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         new_values = self.agent.get_values(torch.from_numpy(augmented_states).to(self.device).to(torch.float32)).squeeze()
         new_nsteps = self.critic_classifier.value2steps(new_values.cpu().detach().numpy())
         new_critic_labels = self.critic_classifier.optimistic_classifier(new_nsteps)
-        breakpoint()
         # Compute the weights based on the probability that the samples will flip
         weights = self.get_weights(self.threshold, torch.from_numpy(augmented_states))
-        return weights
+        return weights.detach().cpu()
 
    
