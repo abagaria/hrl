@@ -147,14 +147,21 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
 
 
 def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None, option_idx=None):
-    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    
+    if ('RBF' in str(type(solver))):
+        replay_buffer = solver.actor.buffer_object
+        trans = replay_buffer.storage.get_all_transitions()
+        states = trans['obs']
+        states = [state[:-2] for state in states]
+        actions = trans['act']
+    else:
+        replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+        # Take out the original goal and append the new goal
+        states = [exp[0] for exp in replay_buffer]
+        states = [state[:-2] for state in states]
+        actions = [exp[1] for exp in replay_buffer]
 
     goal = goal[:2]  # Extracting the position from the goal vector
-
-    # Take out the original goal and append the new goal
-    states = [exp[0] for exp in replay_buffer]
-    states = [state[:-2] for state in states]
-    actions = [exp[1] for exp in replay_buffer]
 
     if len(states) > 100_000:
         print(f"Subsampling {len(states)} s-a pairs to 100,000")
@@ -183,7 +190,10 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy()
+        chunk_qvalues = chunk_qvalues.sum(axis=1)
+        if (len(chunk_qvalues.shape) > 1 and chunk_qvalues.shape[1] == 1):
+            chunk_qvalues = chunk_qvalues.squeeze(1)
         current_chunk_size = len(state_chunk)
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size

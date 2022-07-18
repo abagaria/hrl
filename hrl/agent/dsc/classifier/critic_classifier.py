@@ -129,7 +129,6 @@ class CriticInitiationClassifier(InitiationClassifier):
         # Take out the original goal
         states = [exp[0] for exp in replay_buffer]
         states = [state[:-2] for state in states]
-
         if len(states) > 100_000:
             print(f"Subsampling {len(states)} s-a pairs to 100,000")
             idx = np.random.randint(0, len(states), size=100_000)

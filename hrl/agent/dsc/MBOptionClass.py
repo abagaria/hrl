@@ -63,18 +63,20 @@ class ModelBasedOption(object):
         use_output_norm = self.use_model
 
         if not self.use_global_vf or global_init:
-            # self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-            #                         action_dim=self.mdp.action_space_size(),
-            #                         max_action=1.,
-            #                         name=f"{name}-td3-agent",
-            #                         device=self.device,
-            #                         lr_c=lr_c, lr_a=lr_a,
-            #                         use_output_normalization=use_output_norm)
 
-            self.value_learner = RBFWrapper(env=self.mdp.env, state_dim=self.mdp.state_space_size()+2,
+            if init_classifier_type == "dist-clf": 
+                self.value_learner = RBFWrapper(env=self.mdp.env, state_dim=self.mdp.state_space_size()+2,
+                                    action_dim=self.mdp.action_space_size(),
+                                    max_action=1.,
+                                    name=f"{name}-dist-rbf-agent",
+                                    device=self.device,
+                                    lr_c=lr_c, lr_a=lr_a,
+                                    use_output_normalization=use_output_norm)
+            else:
+                self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
                                 action_dim=self.mdp.action_space_size(),
                                 max_action=1.,
-                                name=f"{name}-dist-rbf-agent",
+                                name=f"{name}-td3-agent",
                                 device=self.device,
                                 lr_c=lr_c, lr_a=lr_a,
                                 use_output_normalization=use_output_norm)

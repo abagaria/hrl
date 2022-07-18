@@ -5,6 +5,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import itertools
 
 from hrl.utils import flatten
 from sklearn.svm import OneClassSVM, SVC
@@ -44,6 +45,9 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         self.resample_goals = resample_goals
         self.threshold = threshold
 
+        self.optimistic_predict_thresh = 0.4
+        self.pessimistic_predict_thresh = 0.6
+
         super().__init__(maxlen)
 
     def get_weights(self, threshold, states): 
@@ -77,6 +81,12 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         assert all(["value" in info for info in infos]), "need V(s) for weights"
         assert all(["augmented_state" in info for info in infos]), "need sg to recompute V(sg)"
         return super().add_negative_examples(states, infos)
+
+    @staticmethod
+    def construct_feature_matrix(examples):
+        examples = list(itertools.chain.from_iterable(examples))
+        positions = [example.pos for example in examples]
+        return np.array(positions)
 
     def train_two_class_classifier(self, nu=0.1):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
@@ -135,3 +145,71 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         return weights.detach().cpu()
 
    
+    def plot_initiation_classifier(self, env, option_name, episode, experiment_name, seed):
+        print(f"Plotting Critic Initiation Set Classifier for {option_name}")
+
+        chunk_size = 1000
+
+        # Take out the original goal
+        # states = [exp[0] for exp in self.agent.actor.]
+        # states = [state[:-2] for state in states]
+
+        if len(states) > 100_000:
+            print(f"Subsampling {len(states)} s-a pairs to 100,000")
+            idx = np.random.randint(0, len(states), size=100_000)
+            states = [states[i] for i in idx]
+
+        print(f"preparing {len(states)} states")
+        states = np.array(states)
+
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+
+        if num_chunks == 0:
+            return 0.
+
+        print("chunking")
+        state_chunks = np.array_split(states, num_chunks, axis=0)
+        steps = np.zeros((states.shape[0],))
+        
+        optimistic_predictions = np.zeros((states.shape[0],))
+        pessimistic_predictions = np.zeros((states.shape[0],))
+
+        current_idx = 0
+
+        for state_chunk in tqdm(state_chunks, desc="Plotting Critic Init Classifier"):
+            chunk_values = self.value_function(state_chunk)
+            chunk_steps = self.value2steps(chunk_values).squeeze()
+            current_chunk_size = len(state_chunk)
+
+            steps[current_idx:current_idx + current_chunk_size] = chunk_steps
+            optimistic_predictions[current_idx:current_idx + current_chunk_size] = self.optimistic_classifier(chunk_steps)
+            pessimistic_predictions[current_idx:current_idx + current_chunk_size] = self.pessimistic_classifier(chunk_steps)
+
+            current_idx += current_chunk_size
+        
+        print("plotting")
+        plt.figure(figsize=(20, 10))
+        
+        plt.subplot(1, 3, 1)
+        plt.scatter(states[:, 0], states[:, 1], c=steps)
+        plt.title(f"nSteps to termination region")
+        plt.colorbar()
+
+        plt.subplot(1, 3, 2)
+        plt.scatter(states[:, 0], states[:, 1], c=optimistic_predictions)
+        plt.title(f"Optimistic Classifier")
+        plt.colorbar()
+
+        plt.subplot(1, 3, 3)
+        plt.scatter(states[:, 0], states[:, 1], c=pessimistic_predictions)
+        plt.title(f"Pessimistic Classifier")
+        plt.colorbar()
+
+        plt.suptitle(f"{option_name}")
+        file_name = f"{option_name}_critic_init_clf_{seed}_episode_{episode}"
+        saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{file_name}.png')
+
+        print("saving")
+        plt.savefig(saving_path)
+        plt.close()
