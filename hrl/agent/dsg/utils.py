@@ -185,6 +185,55 @@ def visualize_consolidation_probabilities(dsg_trainer,
     plt.close()
 
 
+def visualize_all_events(dsg_trainer, episode, experiment_name, seed):
+    def _get_event_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.target_pos, event.target_info["room_number"]
+        trigger_positions = [eg.pos for eg in event.effect_set]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0), event.target_info["room_number"]
+
+    state = dsg_trainer.init_salient_event.target_obs
+    info = dsg_trainer.init_salient_event.target_info
+    connected_events = dsg_trainer._get_connected_events(state, info)
+    unconnected_events = dsg_trainer._get_unconnected_events(state, info)
+
+    connected_points = [_get_event_representative_point(e) for e in connected_events]
+    connected_x_coords = [point[0][0] for point in connected_points]
+    connected_y_coords = [point[0][1] for point in connected_points]
+    connected_room_numbers = [point[1] for point in connected_points]
+
+    unconnected_points = [_get_event_representative_point(e) for e in unconnected_events]
+    unconnected_x_coords = [point[0][0] for point in unconnected_points]
+    unconnected_y_coords = [point[0][1] for point in unconnected_points]
+    unconnected_room_numbers = [point[1] for point in unconnected_points]
+
+    plt.figure(figsize=(16, 10))
+
+    cmap = plt.cm.get_cmap("tab20")
+
+    plt.subplot(1, 2, 1)
+    plt.scatter(connected_x_coords, connected_y_coords, c=connected_room_numbers, s=100, cmap=cmap)
+    plt.colorbar()
+    plt.xlim((0, 150))
+    plt.ylim((140, 250))
+    plt.title("Connected Events")
+
+    plt.subplot(1, 2, 2)
+    plt.scatter(unconnected_x_coords, unconnected_y_coords, c=unconnected_room_numbers, s=100, cmap=cmap)
+    plt.colorbar()
+    plt.xlim((0, 150))
+    plt.ylim((140, 250))
+    plt.title("Unconnected Events")
+
+    plt.suptitle(f"T: {dsg_trainer.env.T}")
+    
+    prefix = "graph_events"
+    plt.savefig(f"plots/{experiment_name}/{seed}/value_function_plots/{prefix}_episode_{episode}.png")
+    plt.close()
+
+
 def plot_distance_table(node_distances, salient_events, episode, experiment_name, seed):
     def dict2matrix(distances, events):
         N = len(events)

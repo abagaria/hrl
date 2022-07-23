@@ -25,7 +25,7 @@ def chunked_inference(states, f, chunk_size=1000):
     values = np.zeros((len(states),))
     current_idx = 0
 
-    for state_chunk in tqdm(state_chunks, desc="Making VF plot"):
+    for state_chunk in tqdm(state_chunks, desc=f"Chunked inference on {f}"):
         chunk_values = f(state_chunk)
         current_chunk_size = len(state_chunk)
         values[current_idx:current_idx + current_chunk_size] = chunk_values

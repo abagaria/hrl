@@ -325,13 +325,13 @@ class ModelFreeOption(object):
             )
 
             # Truncate initiation trajectories around death transitions
-            if (not self.global_init) and self.failure_condition(info, check_falling=False):
-                self.derive_training_examples(visited_states,
-                                              visited_infos,
-                                              reached_term=False)
+            # if (not self.global_init) and self.failure_condition(info, check_falling=False):
+            #     self.derive_training_examples(visited_states,
+            #                                   visited_infos,
+            #                                   reached_term=False)
 
-                visited_infos = []
-                visited_states = []
+            #     visited_infos = []
+            #     visited_states = []
 
             state = next_state
 

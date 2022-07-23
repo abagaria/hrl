@@ -17,7 +17,7 @@ from ..dsc.dsc import RobustDSC
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.agent.bonus_based_exploration.RND_Agent import RNDAgent
 from hrl.agent.dsc.utils import plot_classifier_predictions
-from hrl.agent.dsg.utils import visualize_consolidation_probabilities
+from hrl.agent.dsg.utils import visualize_consolidation_probabilities, visualize_all_events
 from hrl.agent.dsg.utils import visualize_graph_nodes_with_expansion_probabilities, plot_distance_table
 from hrl.agent.dsg.utils import get_regions_in_first_screen, get_lineant_regions_in_first_screen
 
@@ -150,6 +150,8 @@ class DSGTrainer:
 
                 visualize_consolidation_probabilities(self, episode, 
                                                     self.dsc_agent.experiment_name, self.dsc_agent.seed)
+
+                visualize_all_events(self, episode, self.dsc_agent.experiment_name, self.dsc_agent.seed)
 
                 plot_distance_table(self.dsg_agent.node_distances, self.salient_events, episode,
                                     self.dsc_agent.experiment_name, self.dsc_agent.seed)

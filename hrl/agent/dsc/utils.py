@@ -28,7 +28,7 @@ def default_pos_to_info(pos):
     return dict(
         player_x=pos[0],
         player_y=pos[1],
-        has_key=False,
+        inventory="00000000",
         room_number=1,
         dead=False,
         falling=False,

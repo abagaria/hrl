@@ -51,15 +51,15 @@ class SalientEvent:
         ycond = abs(pos[1] - self.target_info["player_y"]) <= self.tolerance
         room_cond = info["room_number"] == self.target_info["room_number"]
 
-        key_cond = info["has_key"] == self.target_info["has_key"]
+        inventory_cond = info["inventory"] == self.target_info["inventory"]
         left_door_cond = info["left_door_open"] == self.target_info["left_door_open"]
         right_door_cond = info["right_door_open"] == self.target_info["right_door_open"]
 
-        return xcond and ycond and key_cond and room_cond and left_door_cond and right_door_cond
+        return xcond and ycond and inventory_cond and room_cond and left_door_cond and right_door_cond
 
     def __str__(self):
         info = self.target_info
-        if info["room_number"] == 1 and not info["has_key"]:
+        if info["room_number"] == 1 and info["inventory"] == "00000000":
             return f"SE({self.target_pos})"
         return f"SE({self.target_info})"
     
@@ -69,6 +69,9 @@ class SalientEvent:
     def distance(self, info):
         """ Distance from current salient event to the input salient event. """
         pos = info_to_pos(info)
-        x_dist = abs(pos[0] - self.target_info["player_x"])
-        y_dist = abs(pos[1] - self.target_info["player_y"])
-        return np.sqrt(x_dist**2 + y_dist**2)
+
+        if self.target_info["room_number"] == info["room_number"]:
+            x_dist = abs(pos[0] - self.target_info["player_x"])
+            y_dist = abs(pos[1] - self.target_info["player_y"])
+            return np.sqrt(x_dist**2 + y_dist**2)
+        return np.inf

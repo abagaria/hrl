@@ -33,7 +33,6 @@ class MontezumaInfoWrapper(Wrapper):
         info["lives"] = self.get_num_lives(ram)
         info["player_x"] = self.get_player_x(ram)
         info["player_y"] = self.get_player_y(ram)
-        info["has_key"] = self.get_has_key(ram)
         info["room_number"] = self.get_room_number(ram)
         info["jumping"] = self.get_is_jumping(ram)
         info["dead"] = self.get_is_player_dead(ram)
@@ -42,6 +41,7 @@ class MontezumaInfoWrapper(Wrapper):
         info["buggy_state"] = self.get_is_climbing_imaginary_ladder(ram)
         info["left_door_open"] = self.get_is_left_door_unlocked(ram)
         info["right_door_open"] = self.get_is_right_door_unlocked(ram)
+        info["inventory"] = self.get_player_inventory(ram)
 
         if update_lives:
             self.num_lives = info["lives"]
@@ -60,6 +60,10 @@ class MontezumaInfoWrapper(Wrapper):
 
     def get_num_lives(self, ram):
         return int(self.getByte(ram, 'ba'))
+
+    def get_player_inventory(self, ram):
+        # 'torch', 'sword', 'sword', 'key', 'key', 'key', 'key', 'hammer'
+        return format(self.getByte(ram, 'c1'), '08b')
     
     def get_is_falling(self, ram):
         return int(int(self.getByte(ram, 'd8')) != 0)
@@ -69,9 +73,6 @@ class MontezumaInfoWrapper(Wrapper):
 
     def get_room_number(self, ram):
         return int(self.getByte(ram, '83'))
-
-    def get_has_key(self, ram):
-        return int(self.getByte(ram, 'c1')) != 0
 
     def get_current_ale(self):
         # return self.env.unwrapped.ale
