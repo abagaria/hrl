@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import itertools
-
+from tqdm import tqdm
 from hrl.utils import flatten
 from sklearn.svm import OneClassSVM, SVC
 from .flipping_classifier import FlippingClassifier
@@ -49,6 +49,7 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         self.pessimistic_predict_thresh = 0.6
 
         super().__init__(maxlen)
+        
 
     def get_weights(self, threshold, states): 
         '''
@@ -149,10 +150,12 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         print(f"Plotting Critic Initiation Set Classifier for {option_name}")
 
         chunk_size = 1000
+        replay_buffer = self.agent.actor.buffer_object.storage
 
         # Take out the original goal
-        # states = [exp[0] for exp in self.agent.actor.]
-        # states = [state[:-2] for state in states]
+        trans = replay_buffer.get_all_transitions()
+        states = trans['obs']
+        states = [state[:-2] for state in states]
 
         if len(states) > 100_000:
             print(f"Subsampling {len(states)} s-a pairs to 100,000")
@@ -178,7 +181,8 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         current_idx = 0
 
         for state_chunk in tqdm(state_chunks, desc="Plotting Critic Init Classifier"):
-            chunk_values = self.value_function(state_chunk)
+            breakpoint()
+            chunk_values = self.agent.get_values(torch.from_numpy(state_chunk).to(self.device).to(torch.float32)).squeeze()
             chunk_steps = self.value2steps(chunk_values).squeeze()
             current_chunk_size = len(state_chunk)
 
