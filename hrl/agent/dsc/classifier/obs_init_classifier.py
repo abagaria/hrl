@@ -48,10 +48,16 @@ class ObsInitiationClassifier(InitiationClassifier):
         pessimistic_predictions = self.pessimistic_classifier.predict(X, threshold=0.75)
         return pessimistic_predictions.cpu().numpy()
 
+    def _untrained_predict(self, state):
+        if len(self.negative_examples) == 0 and len(self.positive_examples) > 0:
+            return True
+        return False
+
     def optimistic_predict(self, state):
         assert isinstance(state, (np.ndarray, torch.Tensor)), state
         assert isinstance(self.optimistic_classifier, BinaryMLPClassifier)
-        assert self.optimistic_classifier.is_trained
+        if not self.optimistic_classifier.is_trained:
+            return self._untrained_predict(state)
         if isinstance(state, np.ndarray):
             state = torch.as_tensor(state).float().to(self.device)
         label = self.optimistic_classifier.predict(state, threshold=0.5) == 1
@@ -60,7 +66,8 @@ class ObsInitiationClassifier(InitiationClassifier):
     def pessimistic_predict(self, state):
         assert isinstance(state, (np.ndarray, torch.Tensor)), state
         assert isinstance(self.pessimistic_classifier, BinaryMLPClassifier)
-        assert self.pessimistic_classifier.is_trained
+        if not self.pessimistic_classifier.is_trained:
+            return self._untrained_predict(state)
         if isinstance(state, np.ndarray):
             state = torch.as_tensor(state).float().to(self.device)
         label = self.pessimistic_classifier.predict(state, threshold=0.75) == 1
@@ -141,12 +148,15 @@ class ObsInitiationClassifier(InitiationClassifier):
     def get_first_state_in_classifier(self, trajectory):
         """ Extract the first state in the trajectory that is inside the initiation classifier. """
         observations = np.array([eg.obs for eg in trajectory])
-        predictions = self.pessimistic_predict(observations)
-        if predictions.any(): # grab the first positive obs in traj
-            return observations[predictions.squeeze()][0]
+        if self.pessimistic_classifier.is_trained:
+            predictions = self.pessimistic_predict(observations)
+            if predictions.any(): # grab the first positive obs in traj
+                return observations[predictions.squeeze()][0]
+        else:  # Happens when there are no negative egs
+            return observations[0]
 
     def get_states_inside_pessimistic_classifier_region(self):
-        if self.pessimistic_classifier is not None:
+        if self.pessimistic_classifier is not None and self.pessimistic_classifier.is_trained:
             observations = self.construct_feature_matrix(self.positive_examples)
             predictions = self.pessimistic_predict(observations).squeeze()
             positive_observations = observations[predictions==1]
@@ -154,8 +164,11 @@ class ObsInitiationClassifier(InitiationClassifier):
         return []
 
     def plot_initiation_classifier(self, env, replay_buffer, option_name, episode, experiment_name, seed):
-        self.plot_training_predictions(option_name, episode, experiment_name, seed)
-        self.plot_testing_predictions(env, replay_buffer, option_name, episode, experiment_name, seed)
+        if self.optimistic_classifier.is_trained and self.pessimistic_classifier.is_trained:
+            self.plot_training_predictions(option_name, episode, experiment_name, seed)
+            self.plot_testing_predictions(env, replay_buffer, option_name, episode, experiment_name, seed)
+        else:
+            print(f"{option_name}'s init classifiers not trained, skipping init plotting")
 
     def plot_training_predictions(self, option_name, episode, experiment_name, seed, goal=None):
         """ Plot the predictions on the traininng data. """
