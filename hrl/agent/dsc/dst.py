@@ -215,7 +215,7 @@ class RobustDST(object):
 
         assert self.distance_function_type == "euclidean", self.distance_function_type
         position = state[np.newaxis, :2]
-        distances = scipy.spatial.distance.cdist(position, goals)  # distance from one pos -> many goals
+        distances = scipy.spatial.distance.cdist(position, goals[:, :2])  # distance from one pos -> many goals
         distances = distances.squeeze(0).tolist()  # (1, N) -> list of N elements
         distances = [(option, distance) for option, distance in zip(self.mature_options, distances)]
         return distances
@@ -226,7 +226,7 @@ class RobustDST(object):
         if nearest_option:
             goal = nearest_option.initiation_classifier.sample()
 
-            if goal:
+            if goal is not None:
                 return nearest_option.extract_goal_dimensions(goal)
 
         return self.global_option.get_goal_for_rollout()
