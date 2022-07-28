@@ -12,6 +12,8 @@ from sklearn.svm import OneClassSVM, SVC
 from .flipping_classifier import FlippingClassifier
 from .critic_classifier import CriticInitiationClassifier
 from .position_classifier import PositionInitiationClassifier
+import warnings
+warnings.filterwarnings("ignore")
 
 class DistributionalCriticClassifier(PositionInitiationClassifier):
 
@@ -32,6 +34,7 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         self.agent = agent
         self.use_position = use_position
         self.device = device
+        self.goal_sampler = goal_sampler
 
         self.critic_classifier = CriticInitiationClassifier(
             agent,
@@ -50,6 +53,41 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
 
         super().__init__(maxlen)
         
+
+    def value_function(self, states):
+        """ Wrapper function to manage VF queries for single and batched states. """
+        assert isinstance(states, np.ndarray)
+        assert len(states.shape) in (1, 2), states.shape
+
+        def _single_vf(s, g):
+            sg = self.get_augmented_state(s, g)
+            sg = sg[np.newaxis, ...]  # Add a batch dimension
+            return self.agent.get_values(torch.from_numpy(sg).to(self.device).to(torch.float32)).squeeze()
+        
+        def _batch_vf(s, g):
+            assert s.shape[0] > 1, s.shape
+            g = np.repeat(g[np.newaxis, ...], repeats=len(s), axis=0)
+            sg = np.concatenate((s, g), axis=1)
+            return self.agent.get_values(torch.from_numpy(sg).to(self.device).to(torch.float32)).squeeze()
+
+        goal = self.goal_sampler()
+        if len(states.shape) == 1:
+            return _single_vf(states, goal)
+        return _batch_vf(states, goal)
+
+    def value2steps(self, value):
+        """ Assuming -1 step reward, convert a value prediction to a n_step prediction. """
+        def _clip(v):
+            if isinstance(v, np.ndarray):
+                v[v>0] = 0
+                return v
+            return v if v <= 0 else 0
+
+        gamma = self.agent.gamma
+        clipped_value = _clip(value)
+        numerator = np.log(1 + ((1-gamma) * np.abs(clipped_value)))
+        denominator = np.log(gamma)
+        return np.abs(numerator / denominator)
 
     def get_weights(self, threshold, states): 
         '''
@@ -181,9 +219,8 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         current_idx = 0
 
         for state_chunk in tqdm(state_chunks, desc="Plotting Critic Init Classifier"):
-            breakpoint()
-            chunk_values = self.agent.get_values(torch.from_numpy(state_chunk).to(self.device).to(torch.float32)).squeeze()
-            chunk_steps = self.value2steps(chunk_values).squeeze()
+            chunk_values = self.value_function(state_chunk)
+            chunk_steps = self.value2steps(chunk_values.detach().cpu().numpy()).squeeze()
             current_chunk_size = len(state_chunk)
 
             steps[current_idx:current_idx + current_chunk_size] = chunk_steps
