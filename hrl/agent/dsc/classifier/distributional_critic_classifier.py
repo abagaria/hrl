@@ -127,31 +127,6 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         positions = [example.pos for example in examples]
         return np.array(positions)
 
-    def train_two_class_classifier(self, nu=0.1):
-        positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
-        positive_labels = [1] * positive_feature_matrix.shape[0]
-        negative_labels = [0] * negative_feature_matrix.shape[0]
-
-        X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
-        Y = np.concatenate((positive_labels, negative_labels))
-        W = self.get_sample_weights(plot=True)
-
-        if negative_feature_matrix.shape[0] >= 10:
-            kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
-        else:
-            kwargs = {"kernel": "rbf", "gamma": "scale"}
-
-        self.optimistic_classifier = SVC(**kwargs)
-        self.optimistic_classifier.fit(X, Y, sample_weight=W)
-
-        training_predictions = self.optimistic_classifier.predict(X)
-        positive_training_examples = X[training_predictions == 1]
-
-        if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
-            self.pessimistic_classifier.fit(positive_training_examples)
-
     def get_sample_weights(self, plot=False):
 
         pos_egs = flatten(self.positive_examples)
@@ -222,13 +197,13 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
             chunk_values = self.value_function(state_chunk)
             chunk_steps = self.value2steps(chunk_values.detach().cpu().numpy()).squeeze()
             current_chunk_size = len(state_chunk)
-
+            chunk_values = chunk_values.detach().cpu().numpy()
             steps[current_idx:current_idx + current_chunk_size] = chunk_steps
-            optimistic_predictions[current_idx:current_idx + current_chunk_size] = self.optimistic_classifier(chunk_steps)
-            pessimistic_predictions[current_idx:current_idx + current_chunk_size] = self.pessimistic_classifier(chunk_steps)
+            optimistic_predictions[current_idx:current_idx + current_chunk_size] = (chunk_values > self.optimistic_predict_thresh)
+            pessimistic_predictions[current_idx:current_idx + current_chunk_size] = (chunk_values > self.pessimistic_predict_thresh)
 
             current_idx += current_chunk_size
-        
+
         print("plotting")
         plt.figure(figsize=(20, 10))
         
