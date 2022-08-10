@@ -128,10 +128,11 @@ class RobustDSC(object):
                 print("Goal found for the {} time! :)".format(times_at_goal+1))
                 print()
                 times_at_goal += 1
-                if times_at_goal % 5 == 0 and len(self.chain) > 1:
+                if len(self.chain) > 1:
                     with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
                         pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
                         self.save_chain(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal")
+                        print("Saved chain")
                     # with open(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
                     #     pickle.dump(self.chain, f)
                     # save(self.global_option.solver,
@@ -311,7 +312,7 @@ class RobustDSC(object):
         # TODO: save mdp params. for now I use the default in __main__
 
         # Save the global TD3 agent
-        save(self.chain[0].value_learner, base_fname + "_value_learner")
+        save(self.chain[0].global_value_learner, base_fname + "_value_learner")
         # Save chain parameters
         options_params = []
         for o in self.chain:
