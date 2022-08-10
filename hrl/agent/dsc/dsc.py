@@ -108,6 +108,9 @@ class RobustDSC(object):
         times_at_goal = 0
 
         for episode in range(start_episode, start_episode + num_episodes):
+            self.save_chain(f"results/{self.experiment_name}/chain_after_0_times_at_goal")
+            print("\nSaved chain\n")
+
             self.reset(episode)
 
             step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
