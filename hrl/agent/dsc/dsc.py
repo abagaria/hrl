@@ -9,7 +9,6 @@ from hrl.agent.dsc.MBOptionClass import ModelBasedOption
 from hrl.agent.td3.utils import save
 from joblib import dump
 
-
 class RobustDSC(object):
     def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, lr_c, lr_a,
@@ -136,11 +135,12 @@ class RobustDSC(object):
                 print("Goal found for the {} time! :)".format(times_at_goal+1))
                 print()
                 times_at_goal += 1
-                if times_at_goal % 5 == 0:
+                if times_at_goal % 5 == 0 and len(self.chain) > 1:
                     with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
                         pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
-                    with open(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
-                        pickle.dump(self.chain, f)
+                        self.save_chain(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal")
+                    # with open(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
+                    #     pickle.dump(self.chain, f)
                     # save(self.global_option.solver,
                     #      f"results/{self.experiment_name}/agent_after_{times_at_goal}_times_at_goal")
                     # with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
@@ -313,6 +313,61 @@ class RobustDSC(object):
             random_state = self.mdp.sample_random_state()
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
+
+    def save_chain(self, base_fname):
+        # TODO: save mdp params. for now I use the default in __main__
+
+        # Save the global TD3 agent
+        save(self.chain[0].value_learner, base_fname + "_value_learner")
+        # Save chain parameters
+        options_params = []
+        for o in self.chain:
+            options_params.append(dict())
+            options_params[-1]['name'] = o.name
+            options_params[-1]['lr_c'] = o.lr_c
+            options_params[-1]['lr_a'] = o.lr_a
+            options_params[-1]['use_vf'] = o.use_vf
+            options_params[-1]['use_global_vf'] = o.use_global_vf
+            options_params[-1]['timeout'] = o.timeout
+            options_params[-1]['use_model'] = o.use_model
+            options_params[-1]['max_steps'] = o.max_steps
+            options_params[-1]['global_init'] = o.global_init
+            options_params[-1]['dense_reward'] = o.dense_reward
+            options_params[-1]['buffer_length'] = o.buffer_length
+            options_params[-1]['max_num_children'] = o.max_num_children
+            options_params[-1]['multithread_mpc'] = o.multithread_mpc
+            options_params[-1]['init_classifier_type'] = o.init_classifier_type
+            options_params[-1]['optimistic_threshold'] = o.optimistic_threshold
+            options_params[-1]['pessimistic_threshold'] = o.pessimistic_threshold
+            options_params[-1]['seed'] = o.seed
+            options_params[-1]['option_idx'] = o.option_idx
+            options_params[-1]['num_goal_hits'] = o.num_goal_hits
+            options_params[-1]['num_executions'] = o.num_executions
+            options_params[-1]['gestation_period'] = o.gestation_period
+            options_params[-1]['is_last_option'] = o.is_last_option
+            options_params[-1]['path_to_model'] = o.path_to_model
+
+            options_params[-1]['parent_idx'] = o.parent.option_idx
+            options_params[-1]['success_curve'] = o.success_curve
+            options_params[-1]['effect_set'] = o.effect_set
+
+            # Save special classes
+            options_params[-1]['initiation_classifier'] = o.initiation_classifier
+
+            options_params[-1]['target_salient_event_data'] = {
+                "target_state": o.target_salient_event.target_state,
+                "event_idx": o.target_salient_event.event_idx,
+                "tolerance": o.target_salient_event.tolerance,
+                "intersection_event": o.target_salient_event.intersection_event,
+                "is_init_event": o.target_salient_event.is_init_event,
+                "trigger_points": o.target_salient_event.trigger_points,
+                "revised_by_mpc": o.target_salient_event.revised_by_mpc,
+            }
+            assert o.use_global_vf, "Saving o.value_learner for non-global options not implemented"
+
+        options_params_fname = base_fname + '_options_params.pkl'
+        with open(options_params_fname, 'wb') as f:
+            pickle.dump(options_params, f)
 
 def test_agent(exp, num_experiments, num_steps):
     def rollout():
