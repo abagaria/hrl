@@ -339,7 +339,6 @@ class RobustDSC(object):
             options_params[-1]['num_executions'] = o.num_executions
             options_params[-1]['gestation_period'] = o.gestation_period
             options_params[-1]['is_last_option'] = o.is_last_option
-            options_params[-1]['path_to_model'] = o.path_to_model
 
             options_params[-1]['parent_idx'] = o.parent.option_idx
             options_params[-1]['success_curve'] = o.success_curve
