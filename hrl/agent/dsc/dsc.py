@@ -343,7 +343,8 @@ class RobustDSC(object):
             options_params[-1]['gestation_period'] = o.gestation_period
             options_params[-1]['is_last_option'] = o.is_last_option
 
-            options_params[-1]['parent_idx'] = o.parent.option_idx
+            if o.parent is not None:
+                options_params[-1]['parent_idx'] = o.parent.option_idx
             options_params[-1]['success_curve'] = o.success_curve
             options_params[-1]['effect_set'] = o.effect_set
 
