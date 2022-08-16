@@ -1,6 +1,7 @@
 import gym
 import argparse
 
+from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.ope.utils import load_chain
 
 parser = argparse.ArgumentParser()
