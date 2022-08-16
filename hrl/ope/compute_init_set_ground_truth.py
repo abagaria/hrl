@@ -1,6 +1,7 @@
-from hrl.ope.utils import load_chain
-
+import gym
 import argparse
+
+from hrl.ope.utils import load_chain
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--base_fname", type=str, required=True)
