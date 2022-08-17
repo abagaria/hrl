@@ -323,6 +323,7 @@ class RobustDSC(object):
             options_params[-1]['name'] = o.name
             options_params[-1]['lr_c'] = o.lr_c
             options_params[-1]['lr_a'] = o.lr_a
+            options_params[-1]['device'] = o.device
             options_params[-1]['use_vf'] = o.use_vf
             options_params[-1]['use_global_vf'] = o.use_global_vf
             options_params[-1]['timeout'] = o.timeout
