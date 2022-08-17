@@ -60,7 +60,7 @@ def load_chain(base_fname):
                               device=options_params[0]["device"],
                               target_salient_event=target_salient_event,
                               name=options_params[0]["name"],
-                              path_to_model=options_params[0]["path_to_model"],
+                              # path_to_model=options_params[0]["path_to_model"],
                               global_solver=None,
                               use_vf=options_params[0]["use_vf"],
                               use_global_vf=options_params[0]["use_global_vf"],
