@@ -330,6 +330,7 @@ class RobustDSC(object):
             options_params[-1]['use_model'] = o.use_model
             options_params[-1]['max_steps'] = o.max_steps
             options_params[-1]['global_init'] = o.global_init
+            print("global init: ", o.global_init)
             options_params[-1]['dense_reward'] = o.dense_reward
             options_params[-1]['buffer_length'] = o.buffer_length
             options_params[-1]['max_num_children'] = o.max_num_children
