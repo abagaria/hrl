@@ -214,3 +214,35 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     plt.close()
 
     return qvalues.max()
+
+
+def plot_value_distribution(solver, state, goal, episode, option_name, seed, experiment_name):
+    def value2steps(value):
+        """ Assuming -1 step reward, convert a value prediction to a n_step prediction. """
+        def _clip(v):
+            if isinstance(v, np.ndarray):
+                v[v>0] = 0
+                return v
+            return v if v <= 0 else 0
+
+        gamma = solver.gamma
+        clipped_value = _clip(value)
+        numerator = np.log(1 + ((1-gamma) * np.abs(clipped_value)))
+        denominator = np.log(gamma)
+        return np.abs(numerator / denominator)
+    
+    augmented_state = np.concatenate((state, goal))
+    states = augmented_state[np.newaxis, :]
+    states = torch.as_tensor(states).float().to(solver.device)
+    values = solver.get_value_distribution(states)
+    values = values.detach().cpu().numpy().squeeze()
+    steps = value2steps(values)
+
+    plt.hist(steps)
+    plt.xlabel("Expected Number of Steps to Goal")
+    plt.title(f"Episode {episode} Goal {np.round(goal, 2)}")
+    fname = f"{option_name}_value_dist{seed}_episode_{episode}.png"
+    plt.savefig(f"results/{experiment_name}/value_function_plots/{fname}")
+    plt.close()
+
+

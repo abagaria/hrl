@@ -22,7 +22,7 @@ class ModelBasedOption(object):
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
                  option_idx, lr_c, lr_a, max_num_children=1, init_salient_event=None, target_salient_event=None,
                  path_to_model="", multithread_mpc=False, init_classifier_type="position-clf",
-                 optimistic_threshold=40, pessimistic_threshold=20):
+                 optimistic_threshold=40, pessimistic_threshold=20, agent_type="td3"):
         assert isinstance(mdp, GoalConditionedMDPWrapper), mdp
 
         self.mdp = mdp
@@ -63,9 +63,11 @@ class ModelBasedOption(object):
         use_output_norm = self.use_model
 
         if not self.use_global_vf or global_init:
+            assert agent_type in ("td3", "rbf"), agent_type
 
-            if init_classifier_type == "dist-clf": 
-                self.value_learner = RBFWrapper(env=self.mdp.env, state_dim=self.mdp.state_space_size()+2,
+            if agent_type == "rbf": 
+                self.value_learner = RBFWrapper(env=self.mdp.env,
+                                    state_dim=self.mdp.state_space_size()+2,
                                     action_dim=self.mdp.action_space_size(),
                                     max_action=1.,
                                     name=f"{name}-dist-rbf-agent",

@@ -52,6 +52,8 @@ if __name__ == "__main__":
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
     parser.add_argument("--use_skill_trees", action="store_true", default=False)
     parser.add_argument("--max_num_children", type=int, default=1, help="Max number of children per option in the tree")
+
+    parser.add_argument("--agent_type", type=str, default="td3")
     
     # Off policy init learning configs
     parser.add_argument("--init_classifier_type", type=str, default="position-clf")
@@ -118,7 +120,8 @@ if __name__ == "__main__":
             "max_num_children": args.max_num_children,
             "init_classifier_type": args.init_classifier_type, 
             "optimistic_threshold": args.optimistic_threshold,
-            "pessimistic_threshold": args.pessimistic_threshold
+            "pessimistic_threshold": args.pessimistic_threshold,
+            "agent_type": args.agent_type
     }
 
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)

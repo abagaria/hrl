@@ -53,6 +53,8 @@ class RBFWrapper(object):
         self.device = device
         self.actor = DistributionalNets(params, env, state_size=state_dim, action_size=action_dim, device=device)
         self.target_actor = DistributionalNets(params, env, state_size=state_dim, action_size=action_dim, device=device)
+
+        self.replay_buffer = self.actor.buffer_object
         
         ### Don't need nor use the fields below ###
         self.max_action = max_action
@@ -93,6 +95,13 @@ class RBFWrapper(object):
     def get_qvalues(self, states, actions):
         with torch.no_grad():
             return self.actor.forward(states, actions)
+
+    def get_value_distribution(self, states):
+        """ Get the value distribution for the input states. """
+        states = torch.as_tensor(states).float().to(self.device)
+        actions = self.actor.get_best_qvalue_and_action(states)[1]
+        distribution = self.actor.forward(states, actions)
+        return distribution 
 
     def plot_initiation_classifier(self, env, replay_buffer, option_name, episode, experiment_name, seed):
         print(f"Plotting Critic Initiation Set Classifier for {option_name}")

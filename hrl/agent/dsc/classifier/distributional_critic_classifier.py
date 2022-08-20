@@ -50,28 +50,49 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
 
         super().__init__(maxlen)
         
-
-    def get_weights(self, threshold, states): 
+    @torch.no_grad()
+    def get_weights(self, states, labels): 
         '''
         Given state, threshold, value function, compute the flipping prob for each state
         Return 1/flipping prob which is the weights
             The formula for weights is a little more complicated, see paper Akhil will send in 
             channel
-        return shape: (states.shape, ) 
-        '''
+        Args:
+          states (np.ndarray): num states, state_dim
+          labels (np.ndarray): num states, 
 
-        # Predict the probability that the samples will flip
-        with torch.no_grad():
-            states = states.to(self.device).to(torch.float32)
-            best_actions = self.critic_classifier.agent.actor.get_best_qvalue_and_action(states.to(torch.float32))[1]
-            best_actions = best_actions.to(self.device).to(torch.float32)
-            distribution = self.critic_classifier.agent.actor.forward(states, best_actions)
-            distribution = distribution - threshold
-            distribution = (distribution >= 0)
-            num_supports = (distribution.shape[1])
-            probabilities = distribution.sum(axis=1)/num_supports
-            weights = 1. / (probabilities + 1e-4)
+        '''
+        states = states.to(self.device).to(torch.float32)
+        best_actions = self.critic_classifier.agent.actor.get_best_qvalue_and_action(states.to(torch.float32))[1]
+        best_actions = best_actions.to(self.device).to(torch.float32)
+        value_distribution = self.critic_classifier.agent.actor.forward(states, best_actions).cpu().numpy()
+
+        # We have to mmake sure that the distribution and threshold are in the same units
+        step_distribution = self.value2steps(value_distribution)
+        
+        # Determine the threshold. It has units of # steps.
+        self.threshold = np.median(step_distribution)  # TODO: This should be a percentile based on class ratios
+        print(f"Set the threshold to {self.threshold}")
+
+        probabilities = self._compute_weights_unbatched(states, labels, step_distribution)
+        weights = 1. / (probabilities + 1e-1)
         return weights
+
+    def _compute_weights_unbatched(self, states, labels, values):
+        n_states = states.shape[0]
+        weights = np.zeros((n_states,))
+        for i in range(n_states):
+            label = labels[i]
+            state_value = values[i]
+            if label == 1:  # These signs are assuming that we are thresholding *steps*, not values.
+                flip_mass = state_value[state_value > self.threshold].sum()
+            else:
+                flip_mass = state_value[state_value < self.threshold].sum()
+            weights[i] = flip_mass / state_value.sum()
+        return weights
+
+    def _compute_weights_batched(self, states, labels, values):  # TODO
+        pass
 
     def add_positive_examples(self, states, infos):
         assert all(["value" in info for info in infos]), "need V(sg) for weights"
@@ -119,15 +140,11 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         pos_egs = flatten(self.positive_examples)
         neg_egs = flatten(self.negative_examples)
         examples = pos_egs + neg_egs
-        assigned_labels = np.concatenate((
-            np.ones((len(pos_egs),)),
-            np.zeros((len(neg_egs),))
-        ))
 
-        # Extract what labels the old VF *would* have assigned
-        old_values = np.array([eg.info["value"].cpu() for eg in examples]).squeeze()
-        old_nsteps = self.critic_classifier.value2steps(old_values)
-        old_critic_labels = self.critic_classifier.pessimistic_classifier(old_nsteps)
+        assigned_labels = np.concatenate((
+            +1 * np.ones((len(pos_egs),)),
+            -1 * np.ones((len(neg_egs),))
+        ))
 
         # Extract what labels the current VF would have assigned
         augmented_states = np.array([eg.info["augmented_state"] for eg in examples])
@@ -138,15 +155,44 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
             new_goals = np.repeat(new_goal, axis=0, repeats=observations.shape[0])
             augmented_states = np.concatenate((observations, new_goals), axis=1)
 
-        new_values = self.agent.get_values(torch.from_numpy(augmented_states).to(self.device).to(torch.float32)).squeeze()
-        new_nsteps = self.critic_classifier.value2steps(new_values.cpu().detach().numpy())
-        new_critic_labels = self.critic_classifier.optimistic_classifier(new_nsteps)
         # Compute the weights based on the probability that the samples will flip
-        weights = self.get_weights(self.threshold, torch.from_numpy(augmented_states))
-        return weights.detach().cpu()
+        weights = self.get_weights(torch.from_numpy(augmented_states), assigned_labels)
 
-   
-    def plot_initiation_classifier(self, env, option_name, episode, experiment_name, seed):
+        if plot:
+            # ipdb.set_trace()
+            x = [eg.info["player_x"] for eg in examples]
+            y = [eg.info["player_y"] for eg in examples]
+            c = assigned_labels.tolist()
+            s = (1. * weights).tolist()
+            plt.subplot(1, 2, 1)
+            plt.scatter(x[:len(pos_egs)], y[:len(pos_egs)], c=s[:len(pos_egs)])
+            plt.colorbar()
+            plt.clim((0, 10))
+            plt.subplot(1, 2, 2)
+            plt.scatter(x[len(pos_egs):], y[len(pos_egs):], c=s[len(pos_egs):])
+            plt.colorbar()
+            plt.clim((0, 10))
+            plt.savefig(f"results/weight_plots_{self.option_name}.png")
+            plt.close()
+
+        return weights
+
+    @staticmethod
+    def value2steps(value):
+        """ Assuming -1 step reward, convert a value prediction to a n_step prediction. """
+        def _clip(v):
+            if isinstance(v, np.ndarray):
+                v[v>0] = 0
+                return v
+            return v if v <= 0 else 0
+
+        gamma = .99
+        clipped_value = _clip(value)
+        numerator = np.log(1 + ((1-gamma) * np.abs(clipped_value)))
+        denominator = np.log(gamma)
+        return np.abs(numerator / denominator)
+
+    def plot_initiation_classifier(self, goal, option_name, episode, experiment_name, seed):
         print(f"Plotting Critic Initiation Set Classifier for {option_name}")
 
         chunk_size = 1000
@@ -181,14 +227,12 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         current_idx = 0
 
         for state_chunk in tqdm(state_chunks, desc="Plotting Critic Init Classifier"):
-            breakpoint()
-            chunk_values = self.agent.get_values(torch.from_numpy(state_chunk).to(self.device).to(torch.float32)).squeeze()
-            chunk_steps = self.value2steps(chunk_values).squeeze()
+            goal = np.repeat([goal], repeats=len(state_chunk), axis=0)
+            state_chunk = state_chunk[:, :2]
             current_chunk_size = len(state_chunk)
 
-            steps[current_idx:current_idx + current_chunk_size] = chunk_steps
-            optimistic_predictions[current_idx:current_idx + current_chunk_size] = self.optimistic_classifier(chunk_steps)
-            pessimistic_predictions[current_idx:current_idx + current_chunk_size] = self.pessimistic_classifier(chunk_steps)
+            optimistic_predictions[current_idx:current_idx + current_chunk_size] = self.optimistic_classifier.predict(state_chunk)
+            pessimistic_predictions[current_idx:current_idx + current_chunk_size] = self.pessimistic_classifier.predict(state_chunk)
 
             current_idx += current_chunk_size
         

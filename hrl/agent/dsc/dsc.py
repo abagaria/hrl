@@ -14,7 +14,8 @@ class RobustDSC(object):
                  experiment_name, device,
                  logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc,
                  max_num_children,
-                 init_classifier_type, optimistic_threshold, pessimistic_threshold):
+                 init_classifier_type, optimistic_threshold, pessimistic_threshold,
+                 agent_type):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -29,6 +30,7 @@ class RobustDSC(object):
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
         self.multithread_mpc = multithread_mpc
+        self.agent_type = agent_type
         
         self.init_classifier_type = init_classifier_type
         self.optimistic_threshold = optimistic_threshold
@@ -201,35 +203,40 @@ class RobustDSC(object):
                 assert isinstance(option, ModelBasedOption)
                 episode_label = episode if self.generate_init_gif else -1
 
-                if (self.init_classifier_type == "dist-clf"):
-                    option.initiation_classifier.plot_initiation_classifier(
-                        self.mdp,
-                        option.name, 
-                        episode_label,
-                        self.experiment_name,
-                        self.seed
-                    )
-                else: 
-                    option.initiation_classifier.plot_initiation_classifier(
-                        self.mdp,
-                        option.solver.replay_buffer, 
-                        option.name, 
-                        episode_label,
-                        self.experiment_name,
-                        self.seed
-                    )
+                # if (self.init_classifier_type == "dist-clf"):
+                #     option.initiation_classifier.plot_initiation_classifier(
+                #         option.get_goal_for_rollout(),
+                #         option.name, 
+                #         episode_label,
+                #         self.experiment_name,
+                #         self.seed
+                #     )
+                # else: 
+                #     option.initiation_classifier.plot_initiation_classifier(
+                #         self.mdp,
+                #         option.solver.replay_buffer, 
+                #         option.name, 
+                #         episode_label,
+                #         self.experiment_name,
+                #         self.seed
+                #     )
+                plot_two_class_classifier(option, episode_label, self.experiment_name, seed=self.seed)
 
             for option in options:
                 print(f"Plotting value function for {option}")
+                goal = option.get_goal_for_rollout()
                 if self.use_global_vf:
                     make_chunked_goal_conditioned_value_function_plot(option.global_value_learner,
-                                                                    goal=option.get_goal_for_rollout(),
+                                                                    goal=goal,
                                                                     episode=episode, seed=self.seed,
                                                                     experiment_name=self.experiment_name,
                                                                     option_idx=option.option_idx)
+                    plot_value_distribution(option.global_value_learner, state=self.mdp.start_state,
+                    goal=goal, episode=episode, seed=self.seed, experiment_name=self.experiment_name,
+                    option_name=option.name)
                 else:
                     make_chunked_goal_conditioned_value_function_plot(option.value_learner,
-                                                                    goal=option.get_goal_for_rollout(),
+                                                                    goal=goal,
                                                                     episode=episode, seed=self.seed,
                                                                     experiment_name=self.experiment_name)
 
@@ -254,7 +261,8 @@ class RobustDSC(object):
                                   multithread_mpc=self.multithread_mpc,
                                   init_classifier_type=self.init_classifier_type,
                                   optimistic_threshold=self.optimistic_threshold,
-                                  pessimistic_threshold=self.pessimistic_threshold)
+                                  pessimistic_threshold=self.pessimistic_threshold,
+                                  agent_type=self.agent_type)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -277,7 +285,8 @@ class RobustDSC(object):
                                   multithread_mpc=self.multithread_mpc,
                                   init_classifier_type=self.init_classifier_type,
                                   optimistic_threshold=self.optimistic_threshold,
-                                  pessimistic_threshold=self.pessimistic_threshold)
+                                  pessimistic_threshold=self.pessimistic_threshold,
+                                  agent_type=self.agent_type)
         return option
 
     def reset(self, episode):
