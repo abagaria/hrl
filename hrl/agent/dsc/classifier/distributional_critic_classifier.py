@@ -12,6 +12,8 @@ from sklearn.svm import OneClassSVM, SVC
 from .flipping_classifier import FlippingClassifier
 from .critic_classifier import CriticInitiationClassifier
 from .position_classifier import PositionInitiationClassifier
+import warnings
+warnings.filterwarnings("ignore")
 
 class DistributionalCriticClassifier(PositionInitiationClassifier):
 
@@ -32,6 +34,7 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         self.agent = agent
         self.use_position = use_position
         self.device = device
+        self.goal_sampler = goal_sampler
 
         self.critic_classifier = CriticInitiationClassifier(
             agent,
@@ -109,31 +112,6 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         examples = list(itertools.chain.from_iterable(examples))
         positions = [example.pos for example in examples]
         return np.array(positions)
-
-    def train_two_class_classifier(self, nu=0.1):
-        positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
-        positive_labels = [1] * positive_feature_matrix.shape[0]
-        negative_labels = [0] * negative_feature_matrix.shape[0]
-
-        X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
-        Y = np.concatenate((positive_labels, negative_labels))
-        W = self.get_sample_weights(plot=True)
-
-        if negative_feature_matrix.shape[0] >= 10:
-            kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
-        else:
-            kwargs = {"kernel": "rbf", "gamma": "scale"}
-
-        self.optimistic_classifier = SVC(**kwargs)
-        self.optimistic_classifier.fit(X, Y, sample_weight=W)
-
-        training_predictions = self.optimistic_classifier.predict(X)
-        positive_training_examples = X[training_predictions == 1]
-
-        if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
-            self.pessimistic_classifier.fit(positive_training_examples)
 
     def get_sample_weights(self, plot=False):
 
@@ -235,7 +213,7 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
             pessimistic_predictions[current_idx:current_idx + current_chunk_size] = self.pessimistic_classifier.predict(state_chunk)
 
             current_idx += current_chunk_size
-        
+
         print("plotting")
         plt.figure(figsize=(20, 10))
         
