@@ -12,8 +12,8 @@ args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
 
-test_option = chain[0]
-num_tries = 100
+test_option = chain[1]
+num_tries = 400
 successes = 0
 for i in range(num_tries):
     subgoal = test_option.get_goal_for_rollout()
