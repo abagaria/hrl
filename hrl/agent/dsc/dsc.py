@@ -136,6 +136,7 @@ class RobustDSC(object):
                         pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
                         self.save_chain(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal")
                         print("Saved chain")
+                        print("Chain length: {}".format(len(self.chain)))
                     # with open(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
                     #     pickle.dump(self.chain, f)
                     # save(self.global_option.solver,
