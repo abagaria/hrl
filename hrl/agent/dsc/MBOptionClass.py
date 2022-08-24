@@ -244,13 +244,17 @@ class ModelBasedOption(object):
 
         return self.extract_goal_dimensions(sampled_goal)
 
-    def rollout(self, *, goal, step_number, eval_mode=False):
+    def rollout(self, *, goal, step_number, eval_mode=False, initial_state_xy=None):
         """ Main option control loop. """
 
         num_steps = 0
         total_reward = 0
         visited_states = []
         option_transitions = []
+
+        if initial_state_xy is not None:
+            self.mdp.reset()
+            self.mdp.set_xy(initial_state_xy)
 
         state = deepcopy(self.mdp.cur_state)
 

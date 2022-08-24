@@ -10,3 +10,6 @@ parser.add_argument("--base_fname", type=str, required=True)
 args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
+
+subgoal = chain[0].get_goal_for_rollout()
+option_transitions, total_reward = chain[0].rollout(step_number=0, goal=subgoal)
