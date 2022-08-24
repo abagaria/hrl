@@ -104,7 +104,11 @@ def load_chain(base_fname):
         # Finished loading target_salient_event
 
         assert idx == current_option_params["option_idx"]
-        option = ModelBasedOption(parent=chain[current_option_params["parent_idx"]],
+        if "parent_idx" in current_option_params.keys():
+            parent = chain[current_option_params["parent_idx"]]
+        else:
+            parent = None
+        option = ModelBasedOption(parent=parent,
                                   mdp=mdp,
                                   buffer_length=current_option_params["buffer_length"],
                                   global_init=current_option_params["global_init"],
