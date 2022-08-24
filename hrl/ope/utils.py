@@ -20,10 +20,6 @@ def load_chain(base_fname):
         init_truncate=True,
         use_dense_reward=False)
 
-    ######################################
-    ##### Load and reconstruct chain #####
-    ######################################
-
     options_params_fname = base_fname + '_options_params.pkl'
     with open(options_params_fname, 'rb') as f:
         options_params = pickle.load(f)
@@ -39,51 +35,59 @@ def load_chain(base_fname):
                         use_output_normalization=options_params[0]["use_model"])
     load(value_learner, base_fname + "_value_learner")
 
-    # Load target_salient_event
+    ######################
+    # Load global_option #
+    ######################
+
+    global_option_params_fname = base_fname + '_global_option_params.pkl'
+
     target_salient_event = SalientEvent(
-        options_params[0]['target_salient_event_data']["target_state"],
-        options_params[0]['target_salient_event_data']["event_idx"],
-        options_params[0]['target_salient_event_data']["tolerance"],
-        options_params[0]['target_salient_event_data']["intersection_event"],
-        options_params[0]['target_salient_event_data']["is_init_event"],
+        global_option_params_fname['target_salient_event_data']["target_state"],
+        global_option_params_fname['target_salient_event_data']["event_idx"],
+        global_option_params_fname['target_salient_event_data']["tolerance"],
+        global_option_params_fname['target_salient_event_data']["intersection_event"],
+        global_option_params_fname['target_salient_event_data']["is_init_event"],
     )
-    target_salient_event.trigger_points = options_params[0]['target_salient_event_data']["trigger_points"]
-    target_salient_event.revised_by_mpc = options_params[0]['target_salient_event_data']["revised_by_mpc"]
+    target_salient_event.trigger_points = global_option_params_fname['target_salient_event_data']["trigger_points"]
+    target_salient_event.revised_by_mpc = global_option_params_fname['target_salient_event_data']["revised_by_mpc"]
     # Finished loading target_salient_event
-    option = ModelBasedOption(parent=None,
-                              mdp=mdp,
-                              buffer_length=options_params[0]["buffer_length"],
-                              global_init=options_params[0]["global_init"],
-                              gestation_period=options_params[0]["gestation_period"],
-                              timeout=options_params[0]["timeout"],
-                              max_steps=options_params[0]["max_steps"],
-                              device=options_params[0]["device"],
-                              target_salient_event=target_salient_event,
-                              name=options_params[0]["name"],
-                              # path_to_model=options_params[0]["path_to_model"],
-                              global_solver=None,
-                              use_vf=options_params[0]["use_vf"],
-                              use_global_vf=options_params[0]["use_global_vf"],
-                              use_model=options_params[0]["use_model"],
-                              dense_reward=options_params[0]["dense_reward"],
-                              global_value_learner=None,
-                              option_idx=0,
-                              lr_c=options_params[0]["lr_c"],
-                              lr_a=options_params[0]["lr_a"],
-                              multithread_mpc=options_params[0]["multithread_mpc"],
-                              init_classifier_type=options_params[0]["init_classifier_type"],
-                              optimistic_threshold=options_params[0]["optimistic_threshold"],
-                              pessimistic_threshold=options_params[0]["pessimistic_threshold"])
-    option.value_learner = value_learner # Hopefully I did not introduce a bug since the global option will initialize a new TD3 agent as value_learner which this line will replace
+    global_option = ModelBasedOption(
+        parent=None,
+        mdp=mdp,
+        buffer_length=global_option_params_fname["buffer_length"],
+        global_init=global_option_params_fname["global_init"],
+        gestation_period=global_option_params_fname["gestation_period"],
+        timeout=global_option_params_fname["timeout"],
+        max_steps=global_option_params_fname["max_steps"],
+        device=global_option_params_fname["device"],
+        target_salient_event=target_salient_event,
+        name=global_option_params_fname["name"],
+        # path_to_model=options_params[0]["path_to_model"],
+        global_solver=None,
+        use_vf=global_option_params_fname["use_vf"],
+        use_global_vf=global_option_params_fname["use_global_vf"],
+        use_model=global_option_params_fname["use_model"],
+        dense_reward=global_option_params_fname["dense_reward"],
+        global_value_learner=None,
+        option_idx=0,
+        lr_c=global_option_params_fname["lr_c"],
+        lr_a=global_option_params_fname["lr_a"],
+        multithread_mpc=global_option_params_fname["multithread_mpc"],
+        init_classifier_type=global_option_params_fname["init_classifier_type"],
+        optimistic_threshold=global_option_params_fname["optimistic_threshold"],
+        pessimistic_threshold=global_option_params_fname["pessimistic_threshold"])
+    global_option.value_learner = value_learner  # Hopefully I did not introduce a bug since the global option will initialize a new TD3 agent as value_learner which this line will replace
 
-    option.initiation_classifier = options_params[0]["initiation_classifier"]
-    option.success_curve = options_params[0]["success_curve"]
-    option.effect_set = options_params[0]["effect_set"]
+    global_option.initiation_classifier = global_option_params_fname["initiation_classifier"]
+    global_option.success_curve = global_option_params_fname["success_curve"]
+    global_option.effect_set = global_option_params_fname["effect_set"]
 
-    chain.append(option)
+    ######################################
+    ##### Load and reconstruct chain #####
+    ######################################
 
     idx = 1
-    for current_option_params in options_params[1:]:
+    for current_option_params in options_params:
         # Load target_salient_event
         # TODO: check if SalientEvent can just be pickled directly
         target_salient_event = SalientEvent(
@@ -131,4 +135,4 @@ def load_chain(base_fname):
 
         chain.append(option)
         idx += 1
-    return chain
+    return global_option, chain

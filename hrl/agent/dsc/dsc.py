@@ -316,7 +316,59 @@ class RobustDSC(object):
 
         # Save the global TD3 agent
         save(self.chain[0].global_value_learner, base_fname + "_value_learner")
-        # Save chain parameters
+
+        ######################
+        # Save global option #
+        ######################
+
+        global_option_params = dict()
+        global_option_params['name'] = self.global_option.name
+        global_option_params['lr_c'] = self.global_option.lr_c
+        global_option_params['lr_a'] = self.global_option.lr_a
+        global_option_params['device'] = self.global_option.device
+        global_option_params['use_vf'] = self.global_option.use_vf
+        global_option_params['use_global_vf'] = self.global_option.use_global_vf
+        global_option_params['timeout'] = self.global_option.timeout
+        global_option_params['use_model'] = self.global_option.use_model
+        global_option_params['max_steps'] = self.global_option.max_steps
+        global_option_params['global_init'] = self.global_option.global_init
+        global_option_params['dense_reward'] = self.global_option.dense_reward
+        global_option_params['buffer_length'] = self.global_option.buffer_length
+        global_option_params['max_num_children'] = self.global_option.max_num_children
+        global_option_params['multithread_mpc'] = self.global_option.multithread_mpc
+        global_option_params['init_classifier_type'] = self.global_option.init_classifier_type
+        global_option_params['optimistic_threshold'] = self.global_option.optimistic_threshold
+        global_option_params['pessimistic_threshold'] = self.global_option.pessimistic_threshold
+        global_option_params['seed'] = self.global_option.seed
+        global_option_params['option_idx'] = self.global_option.option_idx
+        global_option_params['num_goal_hits'] = self.global_option.num_goal_hits
+        global_option_params['num_executions'] = self.global_option.num_executions
+        global_option_params['gestation_period'] = self.global_option.gestation_period
+        global_option_params['is_last_option'] = self.global_option.is_last_option
+
+        global_option_params['success_curve'] = self.global_option.success_curve
+        global_option_params['effect_set'] = self.global_option.effect_set
+
+        # Save special classes
+        global_option_params['initiation_classifier'] = self.global_option.initiation_classifier
+
+        global_option_params['target_salient_event_data'] = {
+            "target_state": self.global_option.target_salient_event.target_state,
+            "event_idx": self.global_option.target_salient_event.event_idx,
+            "tolerance": self.global_option.target_salient_event.tolerance,
+            "intersection_event": self.global_option.target_salient_event.intersection_event,
+            "is_init_event": self.global_option.target_salient_event.is_init_event,
+            "trigger_points": self.global_option.target_salient_event.trigger_points,
+            "revised_by_mpc": self.global_option.target_salient_event.revised_by_mpc,
+        }
+
+        global_option_params_fname = base_fname + '_global_option_params.pkl'
+        with open(global_option_params_fname, 'wb') as f:
+            pickle.dump(global_option_params, f)
+
+        #########################
+        # Save chain parameters #
+        #########################
         options_params = []
         for o in self.chain:
             options_params.append(dict())
@@ -330,7 +382,6 @@ class RobustDSC(object):
             options_params[-1]['use_model'] = o.use_model
             options_params[-1]['max_steps'] = o.max_steps
             options_params[-1]['global_init'] = o.global_init
-            print("global init: ", o.global_init)
             options_params[-1]['dense_reward'] = o.dense_reward
             options_params[-1]['buffer_length'] = o.buffer_length
             options_params[-1]['max_num_children'] = o.max_num_children
