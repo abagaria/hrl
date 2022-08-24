@@ -12,11 +12,12 @@ args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
 
+test_option = chain[1]
 for i in range(10):
-    subgoal = chain[0].get_goal_for_rollout()
-    initial_state_xy = chain[0].initiation_classifier.sample()
-    initial_state_xy= chain[0].extract_goal_dimensions(initial_state_xy)
-    option_transitions, total_reward = chain[0].rollout(
+    subgoal = test_option.get_goal_for_rollout()
+    initial_state_xy = test_option.initiation_classifier.sample()
+    initial_state_xy= test_option.extract_goal_dimensions(initial_state_xy)
+    option_transitions, total_reward = test_option.rollout(
         step_number=0,
         goal=subgoal,
         initial_state_xy=np.array(initial_state_xy)
