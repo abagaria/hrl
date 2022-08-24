@@ -17,5 +17,5 @@ for i in range(10):
     option_transitions, total_reward = chain[0].rollout(
         step_number=0,
         goal=subgoal,
-        initial_state_xy=np.array([1.0, 9.0]))
+        initial_state_xy=np.array([3.0, 9.0]))
     print(total_reward)
