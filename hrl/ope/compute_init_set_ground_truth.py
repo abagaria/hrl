@@ -13,7 +13,9 @@ args = parser.parse_args()
 global_option, chain = load_chain(args.base_fname)
 
 test_option = chain[1]
-for i in range(10):
+num_tries = 100
+successes = 0
+for i in range(num_tries):
     subgoal = test_option.get_goal_for_rollout()
     initial_state_xy = test_option.initiation_classifier.sample()
     initial_state_xy= test_option.extract_goal_dimensions(initial_state_xy)
@@ -22,4 +24,6 @@ for i in range(10):
         goal=subgoal,
         initial_state_xy=np.array(initial_state_xy)
     )
-    print(total_reward)
+    if total_reward > -200:
+        successes += 1
+print("Success proba: {}".format(successes/num_tries))
