@@ -118,7 +118,7 @@ def load_chain(base_fname):
                                   device=current_option_params["device"],
                                   target_salient_event=target_salient_event,
                                   name=current_option_params["name"],
-                                  path_to_model=current_option_params["path_to_model"],
+                                  path_to_model="",
                                   global_solver=None,
                                   use_vf=current_option_params["use_vf"],
                                   use_global_vf=current_option_params["use_global_vf"],
