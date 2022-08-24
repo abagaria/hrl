@@ -11,5 +11,7 @@ args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
 
-subgoal = global_option.get_goal_for_rollout()
-option_transitions, total_reward = global_option.rollout(step_number=0, goal=subgoal)
+for i in range(10):
+    subgoal = chain[0].get_goal_for_rollout()
+    option_transitions, total_reward = chain[0].rollout(step_number=0, goal=subgoal)
+    print(total_reward)
