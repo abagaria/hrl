@@ -12,7 +12,7 @@ args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
 
-test_option = chain[1]
+test_option = chain[0]
 num_tries = 100
 successes = 0
 for i in range(num_tries):
