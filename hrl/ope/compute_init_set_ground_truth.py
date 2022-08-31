@@ -13,7 +13,7 @@ parser.add_argument("--base_fname", type=str, required=True)
 args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
-test_option = chain[0]
+test_option = chain[1]
 
 # def in_domain(s):
 #     return not ((s[0] < 6) and (2 < s[1] < 6))
@@ -56,6 +56,7 @@ for i in range(num_tries):
         goal=subgoal,
         initial_state_xy=np.array(initial_state_xy)
     )
+    print(total_reward)
     if total_reward > -200:
         successes += 1
 print("Success proba: {}".format(successes/num_tries))
