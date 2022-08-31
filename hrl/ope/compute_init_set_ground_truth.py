@@ -13,7 +13,7 @@ parser.add_argument("--base_fname", type=str, required=True)
 args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
-test_option = chain[1]
+test_option = chain[0]
 
 # def in_domain(s):
 #     return not ((s[0] < 6) and (2 < s[1] < 6))
