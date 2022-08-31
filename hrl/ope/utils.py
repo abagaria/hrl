@@ -107,7 +107,7 @@ def load_chain(base_fname):
         if "parent_idx" in current_option_params.keys():
             parent_idx = current_option_params["parent_idx"]
             parent_idx_in_chain = current_option_params["parent_idx"] - 1
-            # This is to deal with the fact that ihe idx of an option doesn't correspond to its location in the chain list
+            # This is to deal with the fact that ihe idx of an option doesn't corr\espond to its location in the chain list
             assert chain[parent_idx_in_chain].option_idx == parent_idx
             parent = chain[parent_idx_in_chain]
         else:
