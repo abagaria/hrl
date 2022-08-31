@@ -15,46 +15,47 @@ args = parser.parse_args()
 global_option, chain = load_chain(args.base_fname)
 test_option = chain[0]
 
-def in_domain(s):
-    return not ((s[0] < 6) and (2 < s[1] < 6))
+# def in_domain(s):
+#     return not ((s[0] < 6) and (2 < s[1] < 6))
+# elements = 30
+# ss = np.linspace(-2, 10, elements)
+# truth_mat = - np.ones((elements, elements))
+# classifier_mat = - np.ones((elements, elements))
+# for i0, s0 in enumerate(ss):
+#     for i1, s1 in enumerate(ss):
+#         s = np.array([s0, s1])
+#         if in_domain(s):
+#             full_state = deepcopy(test_option.mdp.cur_state)
+#             full_state[:2] = s
+#             classifier_mat[i0, i1] = test_option.is_init_true(full_state)
+#             subgoal = test_option.get_goal_for_rollout()
+#             option_transitions, total_reward = test_option.rollout(
+#                 step_number=0,
+#                 goal=subgoal,
+#                 initial_state_xy=np.array(s)
+#             )
+#             truth_mat[i0, i1] = int(total_reward > -200)
+#     truth_mat_fname = args.base_fname + '_truth_mat.pkl'
+#     with open(truth_mat_fname, 'wb') as f:
+#         pickle.dump(truth_mat, f)
+#     classifier_mat_fname = args.base_fname + '_classifier_mat.pkl'
+#     with open(classifier_mat_fname, 'wb') as f:
+#         pickle.dump(classifier_mat, f)
 
-elements = 30
-ss = np.linspace(-2, 10, elements)
-truth_mat = - np.ones((elements, elements))
-classifier_mat = - np.ones((elements, elements))
-for i0, s0 in enumerate(ss):
-    for i1, s1 in enumerate(ss):
-        s = np.array([s0, s1])
-        if in_domain(s):
-            full_state = deepcopy(test_option.mdp.cur_state)
-            full_state[:2] = s
-            classifier_mat[i0, i1] = test_option.is_init_true(full_state)
-            subgoal = test_option.get_goal_for_rollout()
-            option_transitions, total_reward = test_option.rollout(
-                step_number=0,
-                goal=subgoal,
-                initial_state_xy=np.array(s)
-            )
-            truth_mat[i0, i1] = int(total_reward > -200)
-    truth_mat_fname = args.base_fname + '_truth_mat.pkl'
-    with open(truth_mat_fname, 'wb') as f:
-        pickle.dump(truth_mat, f)
-    classifier_mat_fname = args.base_fname + '_classifier_mat.pkl'
-    with open(classifier_mat_fname, 'wb') as f:
-        pickle.dump(classifier_mat, f)
 
-#
-# num_tries = 100
-# successes = 0
-# for i in range(num_tries):
-#     subgoal = test_option.get_goal_for_rollout()
-#     initial_state_xy = test_option.initiation_classifier.sample()
-#     initial_state_xy = test_option.extract_goal_dimensions(initial_state_xy)
-#     option_transitions, total_reward = test_option.rollout(
-#         step_number=0,
-#         goal=subgoal,
-#         initial_state_xy=np.array(initial_state_xy)
-#     )
-#     if total_reward > -200:
-#         successes += 1
-# print("Success proba: {}".format(successes/num_tries))
+num_tries = 100
+successes = 0
+initial_state_xy = test_option.initiation_classifier.sample()
+initial_state_xy = test_option.extract_goal_dimensions(initial_state_xy)
+for i in range(num_tries):
+    subgoal = test_option.get_goal_for_rollout()
+    # initial_state_xy = test_option.initiation_classifier.sample()
+    # initial_state_xy = test_option.extract_goal_dimensions(initial_state_xy)
+    option_transitions, total_reward = test_option.rollout(
+        step_number=0,
+        goal=subgoal,
+        initial_state_xy=np.array(initial_state_xy)
+    )
+    if total_reward > -200:
+        successes += 1
+print("Success proba: {}".format(successes/num_tries))
