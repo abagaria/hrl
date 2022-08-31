@@ -16,10 +16,10 @@ global_option, chain = load_chain(args.base_fname)
 test_option = chain[1]
 
 def in_domain(s):
-    return not ((6 < s[0]) and (2 < s[1] < 6))
+    return not ((s[0] < 6) and (2 < s[1] < 6))
 
-elements = 10
-ss = np.linspace(0, 10, elements)
+elements = 30
+ss = np.linspace(-2, 10, elements)
 truth_mat = - np.ones((elements, elements))
 classifier_mat = - np.ones((elements, elements))
 for i0, s0 in enumerate(ss):
