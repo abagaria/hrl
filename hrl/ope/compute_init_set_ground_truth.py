@@ -38,10 +38,10 @@ for i0, s0 in enumerate(ss):
             truth_mat[i0, i1] = int(total_reward > -200)
     truth_mat_fname = args.base_fname + '_truth_mat.pkl'
     with open(truth_mat_fname, 'wb') as f:
-        pickle.dump(truth_mat_fname, f)
+        pickle.dump(truth_mat, f)
     classifier_mat_fname = args.base_fname + '_classifier_mat.pkl'
     with open(classifier_mat_fname, 'wb') as f:
-        pickle.dump(classifier_mat_fname, f)
+        pickle.dump(classifier_mat, f)
 
 #
 # num_tries = 100
