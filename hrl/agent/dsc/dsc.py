@@ -108,9 +108,6 @@ class RobustDSC(object):
         times_at_goal = 0
 
         for episode in range(start_episode, start_episode + num_episodes):
-            self.save_chain(f"results/{self.experiment_name}/chain_after_0_times_at_goal")
-            print("\nSaved chain\n")
-
             self.reset(episode)
 
             step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
@@ -127,34 +124,14 @@ class RobustDSC(object):
             self.log_success_metrics(episode)
 
             if step < 1000:
-                print()
-                print("Goal found for the {} time! :)".format(times_at_goal+1))
-                print()
+                print("\nGoal found for the {} time! :)\n".format(times_at_goal+1))
                 times_at_goal += 1
-                if len(self.chain) > 1:
+                if times_at_goal % 5 == 0:
                     with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
                         pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
                         self.save_chain(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal")
                         print("Saved chain")
                         print("Chain length: {}".format(len(self.chain)))
-                    # with open(f"results/{self.experiment_name}/chain_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
-                    #     pickle.dump(self.chain, f)
-                    # save(self.global_option.solver,
-                    #      f"results/{self.experiment_name}/agent_after_{times_at_goal}_times_at_goal")
-                    # with open(f"results/{self.experiment_name}/buffer_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
-                    #     pickle.dump(self.global_option.solver.replay_buffer.serialize(), f)
-                    # sampled_goals = []
-                    # for o in self.chain:
-                    #     sampled_goals.append(o.get_goal_for_rollout())
-                    #     if o.parent is None:
-                    #         pass
-                    #         # SAVE CLaSSifier
-                    #     else:
-                    #         dump(o.parent.pessimistic_classifier, 'filename.joblib')
-                    # with open(f"results/{self.experiment_name}/subgoals_after_{times_at_goal}_times_at_goal.pkl", "wb") as f:
-                    #     pickle.dump(sampled_goals, f)
-
-
         return per_episode_durations
 
     def log_success_metrics(self, episode):
