@@ -13,11 +13,11 @@ parser.add_argument("--base_fname", type=str, required=True)
 args = parser.parse_args()
 
 global_option, chain = load_chain(args.base_fname)
-test_option = chain[0]
+test_option = chain[1]
 
 def in_domain(s):
     return not ((s[0] < 6) and (2 < s[1] < 6))
-elements = 30
+elements = 20
 ss = np.linspace(-2, 10, elements)
 truth_mat = - np.ones((elements, elements))
 classifier_mat = - np.ones((elements, elements))
