@@ -195,8 +195,8 @@ class PositionInitiationClassifier(InitiationClassifier):
                 for y in np.arange(y_low_lim, y_high_lim+1, 1):
                     pos = np.array((x, y))
                     init = self.optimistic_predict(pos)
-                    if hasattr(mdp.env, 'env'):
-                        init = init and not mdp.env.env._is_in_collision(pos)
+                    # if hasattr(mdp.env, 'env'):
+                    #     init = init and not mdp.env.env._is_in_collision(pos)
                     values.append(init)
             return values
 
