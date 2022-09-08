@@ -211,14 +211,14 @@ class RobustDSC(object):
             for option in self.mature_options:
                 assert isinstance(option, ModelBasedOption)
                 episode_label = episode if self.generate_init_gif else -1
-                # option.initiation_classifier.plot_initiation_classifier(
-                #     self.mdp,
-                #     option.solver.replay_buffer,
-                #     option.name,
-                #     episode_label,
-                #     self.experiment_name,
-                #     self.seed
-                # )
+                option.initiation_classifier.plot_initiation_classifier(
+                    self.mdp,
+                    option.solver.replay_buffer,
+                    option.name,
+                    episode_label,
+                    self.experiment_name,
+                    self.seed
+                )
 
             for option in options:
                 print(f"Plotting value function for {option}")

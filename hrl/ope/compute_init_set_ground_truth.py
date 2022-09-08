@@ -17,6 +17,7 @@ test_option = chain[2]
 
 def in_domain(s):
     return not ((s[0] < 6) and (2 < s[1] < 6))
+
 elements = 20
 ss = np.linspace(-2, 10, elements)
 truth_mat = - np.ones((elements, elements))
