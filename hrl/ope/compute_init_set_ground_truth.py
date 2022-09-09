@@ -22,8 +22,9 @@ def in_domain(s):
 # ss = np.linspace(-2, 10, elements)
 # arr_size = elements
 
-ss = np.arange(-2, 10, 1)
+ss = np.arange(-2, 11, 1)
 arr_size = len(ss)
+
 
 truth_mat = - np.ones((arr_size, arr_size))
 classifier_mat = - np.ones((arr_size, arr_size))
