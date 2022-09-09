@@ -25,7 +25,7 @@ classifier_mat = - np.ones((elements, elements))
 for i0, s0 in enumerate(ss):
     for i1, s1 in enumerate(ss):
         pos = np.array([s0, s1])
-        if in_domain(s):
+        if in_domain(pos):
             full_state = deepcopy(test_option.mdp.cur_state)
             full_state[:2] = pos
             classifier_mat[i0, i1] = test_option.is_init_true(pos)
