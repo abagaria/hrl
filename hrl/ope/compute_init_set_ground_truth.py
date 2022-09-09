@@ -18,8 +18,10 @@ test_option = chain[1]
 def in_domain(s):
     return not ((s[0] < 6) and (2 < s[1] < 6))
 
-elements = 20
-ss = np.linspace(-2, 10, elements)
+# elements = 20
+# ss = np.linspace(-2, 10, elements)
+ss = np.arange(-2, 10, 1)
+
 truth_mat = - np.ones((elements, elements))
 classifier_mat = - np.ones((elements, elements))
 for i0, s0 in enumerate(ss):
