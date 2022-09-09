@@ -20,10 +20,13 @@ def in_domain(s):
 
 # elements = 20
 # ss = np.linspace(-2, 10, elements)
-ss = np.arange(-2, 10, 1)
+# arr_size = elements
 
-truth_mat = - np.ones((elements, elements))
-classifier_mat = - np.ones((elements, elements))
+ss = np.arange(-2, 10, 1)
+arr_size = len(ss)
+
+truth_mat = - np.ones((arr_size, arr_size))
+classifier_mat = - np.ones((arr_size, arr_size))
 for i0, s0 in enumerate(ss):
     for i1, s1 in enumerate(ss):
         pos = np.array([s0, s1])
