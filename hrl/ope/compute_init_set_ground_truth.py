@@ -28,6 +28,7 @@ arr_size = len(ss)
 
 truth_mat = - np.ones((arr_size, arr_size))
 classifier_mat = - np.ones((arr_size, arr_size))
+classifier_mat2 = - np.ones((arr_size, arr_size)) ############
 for i0, s0 in enumerate(ss):
     for i1, s1 in enumerate(ss):
         pos = np.array([s0, s1])
@@ -35,6 +36,7 @@ for i0, s0 in enumerate(ss):
             full_state = deepcopy(test_option.mdp.cur_state)
             full_state[:2] = pos
             classifier_mat[i0, i1] = test_option.is_init_true(pos)
+            classifier_mat2[i0, i1] = test_option.is_init_true(pos) ############
             subgoal = test_option.get_goal_for_rollout()
             option_transitions, total_reward = test_option.rollout(
                 step_number=0,
@@ -48,6 +50,9 @@ for i0, s0 in enumerate(ss):
     classifier_mat_fname = args.base_fname + '_classifier_mat_just_pos.pkl'
     with open(classifier_mat_fname, 'wb') as f:
         pickle.dump(classifier_mat, f)
+    classifier_mat_fname = args.base_fname + '_classifier_mat2_just_pos.pkl' ############
+    with open(classifier_mat_fname, 'wb') as f: ############
+        pickle.dump(classifier_mat, f) ############
 
 
 # num_tries = 100
