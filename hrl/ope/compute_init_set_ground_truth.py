@@ -24,22 +24,22 @@ truth_mat = - np.ones((elements, elements))
 classifier_mat = - np.ones((elements, elements))
 for i0, s0 in enumerate(ss):
     for i1, s1 in enumerate(ss):
-        s = np.array([s0, s1])
+        pos = np.array([s0, s1])
         if in_domain(s):
             full_state = deepcopy(test_option.mdp.cur_state)
-            full_state[:2] = s
-            classifier_mat[i0, i1] = test_option.is_init_true(full_state)
+            full_state[:2] = pos
+            classifier_mat[i0, i1] = test_option.is_init_true(pos)
             subgoal = test_option.get_goal_for_rollout()
             option_transitions, total_reward = test_option.rollout(
                 step_number=0,
                 goal=subgoal,
-                initial_state_xy=np.array(s)
+                initial_state_xy=np.array(pos)
             )
             truth_mat[i0, i1] = int(total_reward > -200)
-    truth_mat_fname = args.base_fname + '_truth_mat.pkl'
+    truth_mat_fname = args.base_fname + '_truth_mat_just_pos.pkl'
     with open(truth_mat_fname, 'wb') as f:
         pickle.dump(truth_mat, f)
-    classifier_mat_fname = args.base_fname + '_classifier_mat.pkl'
+    classifier_mat_fname = args.base_fname + '_classifier_mat_just_pos.pkl'
     with open(classifier_mat_fname, 'wb') as f:
         pickle.dump(classifier_mat, f)
 
