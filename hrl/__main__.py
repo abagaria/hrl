@@ -14,10 +14,11 @@ from hrl.wrappers.antmaze_wrapper import D4RLAntMazeWrapper
 from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.dsc.dst import RobustDST
+from hrl.agent.dsc.classifier.mlp_classifier import BinaryMLPClassifier
 
 '''
-python -m hrl  --experiment_name test --results_dir results --device 'cuda:0' --environment antmaze-umaze-v0 --seed 0 --use_value_function --use_global_value_function --episodes 1000 --use_diverse_starts --use_global_option_subgoals --init_classifier_type state-critic-clf  --lr_c 3e-4 --lr_a 3e-4 --logging_frequency 5
-
+interact -g 1 -q 3090-gcondo -m 40G -n 4
+python -m hrl  --experiment_name test --results_dir results --device 'cuda:0' --environment antmaze-umaze-v0 --seed 0 --use_value_function --use_global_value_function --episodes 1000 --use_diverse_starts --use_global_option_subgoals --init_classifier_type dist-clf  --lr_c 3e-4 --lr_a 3e-4 --logging_frequency 5 --agent rbf --gestation_period 2
 '''
 
 if __name__ == "__main__":

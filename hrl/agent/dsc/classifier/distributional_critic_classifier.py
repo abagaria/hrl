@@ -13,6 +13,8 @@ from .flipping_classifier import FlippingClassifier
 from .critic_classifier import CriticInitiationClassifier
 from .position_classifier import PositionInitiationClassifier
 import warnings
+from hrl.agent.dsc.classifier.mlp_classifier import BinaryMLPClassifier
+
 warnings.filterwarnings("ignore")
 
 class DistributionalCriticClassifier(PositionInitiationClassifier):
@@ -56,10 +58,8 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
     @torch.no_grad()
     def get_weights(self, states, labels): 
         '''
-        Given state, threshold, value function, compute the flipping prob for each state
-        Return 1/flipping prob which is the weights
-            The formula for weights is a little more complicated, see paper Akhil will send in 
-            channel
+        Given state, labels compute the weights to associate to each sample based on its uncertainty. 
+
         Args:
           states (np.ndarray): num states, state_dim
           labels (np.ndarray): num states, 
@@ -70,16 +70,58 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         best_actions = best_actions.to(self.device).to(torch.float32)
         value_distribution = self.critic_classifier.agent.actor.forward(states, best_actions).cpu().numpy()
 
-        # We have to mmake sure that the distribution and threshold are in the same units
-        step_distribution = self.value2steps(value_distribution)
-        
-        # Determine the threshold. It has units of # steps.
-        self.threshold = np.median(step_distribution)  # TODO: This should be a percentile based on class ratios
-        print(f"Set the threshold to {self.threshold}")
+        # how should we determine the proper threshold? Well one way is to look at states where our policy 
+        # was able to reach the target position. We can look at those value distributions and take mean of the 85% 
+        # percentiles. This seems to be a good strategy. 
 
-        probabilities = self._compute_weights_unbatched(states, labels, step_distribution)
-        weights = 1. / (probabilities + 1e-1)
+        threshold = np.mean(np.quantile(value_distribution[labels == 1], q=0.85, axis=1))
+
+        states_sans_goals = states[:, :-2]
+
+        base_proba_rate_no_weights = BinaryMLPClassifier(
+            states_sans_goals.shape[1],
+            self.device,
+        )
+
+        base_proba_rate_no_weights.fit(states_sans_goals, labels, W=None)
+        
+        P_Dp = base_proba_rate_no_weights.predict_proba(states_sans_goals).detach().cpu().numpy().squeeze()
+
+
+        pi_plus_1 = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from=1)
+        pi_minus_1 = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from=-1)
+        pi_minus_y = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from='-y', labels=labels)
+        weights = (((1 - pi_minus_1 - pi_plus_1)*P_Dp)/P_Dp)
+
         return weights
+
+
+    '''
+    Computes the flipping probability given the value distribution. 
+
+    distributions: passed in distributions [batch_size x 200]
+    threshold: float
+    flip_from: if +1, then probability of -1 given a +1 prediction ie, P(Y = -1 | Y = +1)
+               if -1, then probability of +1 given a -1 prediction ie, P(Y = +1 | Y = -1)
+               if '-y', then probability of +1 given a -1 prediction if label is -1 and a -1 given a +1 if label is +1. 
+    '''
+    def unbatched_compute_flipping_prob_value_distribution(self, distributions, threshold, flip_from, labels=[]):
+        if flip_from == '-y' and not (len(labels) == distributions.shape[0]):
+            raise Exception("if you want to compute pi_{-y} you must pass in a labels array with same as batch of distributions.")
+        proba = []
+        for i, distr in enumerate(distributions): 
+            index_arr = np.argmax(distr > threshold)
+            if flip_from == '-y': 
+                if (labels[i] == 1):
+                    proba.append((index_arr)*(1/distr.shape[0]))
+                elif (labels[i] == -1):
+                    proba.append((distr.shape[0]-index_arr)*(1/distr.shape[0]))
+            else: 
+                if flip_from == 1: 
+                    proba.append((index_arr)*(1/distr.shape[0]))
+                elif flip_from == -1:
+                    proba.append((distr.shape[0]-index_arr)*(1/distr.shape[0]))
+        return np.array(proba)
 
     def _compute_weights_unbatched(self, states, labels, values):
         n_states = states.shape[0]
@@ -112,6 +154,31 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         examples = list(itertools.chain.from_iterable(examples))
         positions = [example.pos for example in examples]
         return np.array(positions)
+
+    def train_two_class_classifier(self, nu=0.1):
+        positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+        negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
+        positive_labels = [1] * positive_feature_matrix.shape[0]
+        negative_labels = [0] * negative_feature_matrix.shape[0]
+
+        X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+        Y = np.concatenate((positive_labels, negative_labels))
+        W = self.get_sample_weights(plot=True)
+
+        if negative_feature_matrix.shape[0] >= 10:
+            kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
+        else:
+            kwargs = {"kernel": "rbf", "gamma": "scale"}
+
+        self.optimistic_classifier = SVC(**kwargs)
+        self.optimistic_classifier.fit(X, Y, sample_weight=W)
+
+        training_predictions = self.optimistic_classifier.predict(X)
+        positive_training_examples = X[training_predictions == 1]
+
+        if positive_training_examples.shape[0] > 0:
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
+            self.pessimistic_classifier.fit(positive_training_examples)
 
     def get_sample_weights(self, plot=False):
 
