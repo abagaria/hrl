@@ -40,8 +40,8 @@ class D4RLAntMazeWrapper(GoalConditionedMDPWrapper):
 		dones = distances <= self.goal_tolerance
 
 		rewards = np.zeros_like(distances)
-		rewards[dones==1] = +0.
-		rewards[dones==0] = -1.
+		rewards[dones==1] = 1.
+		rewards[dones==0] = 0.
 
 		return rewards, dones
 	

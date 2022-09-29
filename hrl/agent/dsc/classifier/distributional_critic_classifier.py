@@ -73,8 +73,8 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
         # how should we determine the proper threshold? Well one way is to look at states where our policy 
         # was able to reach the target position. We can look at those value distributions and take mean of the 85% 
         # percentiles. This seems to be a good strategy. 
-
-        threshold = np.mean(np.quantile(value_distribution[labels == 1], q=0.85, axis=1))
+        threshold = np.mean(np.quantile(value_distribution, q=0.5, axis=1)) 
+        #np.mean(np.quantile(value_distribution[labels == 1], q=0.85, axis=1))
 
         states_sans_goals = states[:, :-2]
 
@@ -82,19 +82,57 @@ class DistributionalCriticClassifier(PositionInitiationClassifier):
             states_sans_goals.shape[1],
             self.device,
         )
-
         base_proba_rate_no_weights.fit(states_sans_goals, labels, W=None)
-        
-        P_Dp = base_proba_rate_no_weights.predict_proba(states_sans_goals).detach().cpu().numpy().squeeze()
+    
+        with torch.no_grad(): 
+            P_Dp = base_proba_rate_no_weights.predict_proba(states_sans_goals).detach().cpu().numpy().squeeze()
+            pi_plus_1 = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from=1)
+            pi_minus_1 = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from=-1)
+            pi_minus_y = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from='-y', labels=labels)
+            weights = (((1 - pi_minus_1 - pi_plus_1)*P_Dp)/P_Dp) + np.finfo(np.float32).eps
 
+        self.plot_importance_weights(episode=1, thresh=threshold, states=states, labels=labels, weights=weights)
+        '''
+        TODO: plot the state[0] (x), state[1] (y) and the associated weight magnitude. As well as if this state was POS or NEG. 
 
-        pi_plus_1 = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from=1)
-        pi_minus_1 = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from=-1)
-        pi_minus_y = self.unbatched_compute_flipping_prob_value_distribution(value_distribution, threshold, flip_from='-y', labels=labels)
-        weights = (((1 - pi_minus_1 - pi_plus_1)*P_Dp)/P_Dp)
+        Look at 
+        def plot_testing_predictions(self, env, replay_buffer, option_name, episode, experiment_name, seed):
+        in obs_init_classifier.py. 
+
+        Start a training going with re-weighting. BUt I should do this after the plotting of weights so we 
+        have a debugging signal to see what is happening with the importance reweighting. 
+
+        On top of the plots print out the threshold we are using. Ideally this should go down as training 
+        progresses.
+        '''
 
         return weights
 
+
+
+    def plot_importance_weights(self, episode, thresh, states, labels, weights):
+        x_positions = states[:, 0].detach().cpu().numpy()
+        y_positions = states[:, 1].detach().cpu().numpy()
+
+        x_positions_positive = x_positions[labels == 1]
+        y_positions_positive = y_positions[labels == 1]
+        weights_positive = weights[labels == 1]
+
+        x_positions_negative = x_positions[labels == 0]
+        y_positions_negative = y_positions[labels == 0]
+        weights_negative = weights[labels == 0]
+
+        plt.figure(figsize=(16, 10))
+
+        plt.subplot(1, 2, 1)
+        plt.scatter(x_positions_positive, y_positions_positive, c=weights_positive, s=5, marker="P")
+        plt.scatter(x_positions_negative, y_positions_negative, c=weights_negative, s=5, marker="X")
+        plt.colorbar()
+        plt.title(f"Importance Re-weighting Episode: {episode} Threshold: {thresh}")
+
+        plt.suptitle("Sample Weights")
+        plt.savefig(f"plots/initiation_weights/episode_{episode}.png")
+        plt.close()
 
     '''
     Computes the flipping probability given the value distribution. 
