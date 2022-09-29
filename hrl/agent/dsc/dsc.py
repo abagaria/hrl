@@ -220,7 +220,14 @@ class RobustDSC(object):
                 #         self.experiment_name,
                 #         self.seed
                 #     )
+                
                 plot_two_class_classifier(option, episode_label, self.experiment_name, seed=self.seed)
+                plot_importance_weights(episode_label, 
+                                          option.initiation_classifier.threshold, 
+                                          option, 
+                                          option.initiation_classifier.states, 
+                                          option.initiation_classifier.labels, 
+                                          option.initiation_classifier.sample_weights)
 
             for option in options:
                 print(f"Plotting value function for {option}")

@@ -121,6 +121,31 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     plt.close()
 
 
+def plot_importance_weights(episode, thresh, option, states, labels, weights):
+        x_positions = states[:, 0].detach().cpu().numpy()
+        y_positions = states[:, 1].detach().cpu().numpy()
+
+        x_positions_positive = x_positions[labels == 1]
+        y_positions_positive = y_positions[labels == 1]
+        weights_positive = weights[labels == 1]
+
+        x_positions_negative = x_positions[labels == 0]
+        y_positions_negative = y_positions[labels == 0]
+        weights_negative = weights[labels == 0]
+
+        plt.figure(figsize=(16, 10))
+
+        plt.subplot(1, 2, 1)
+        plt.scatter(x_positions_positive, y_positions_positive, c=weights_positive, s=5, marker="P")
+        plt.scatter(x_positions_negative, y_positions_negative, c=weights_negative, s=5, marker="X")
+        plt.colorbar()
+        plt.title(f"Importance Re-weighting Option: {option} Episode: {episode} Threshold: {thresh}")
+
+        plt.suptitle("Sample Weights")
+        plt.savefig(f"plots/initiation_weights/option_{option}_episode_{episode}.png")
+        plt.close()
+
+
 def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_size=10000):
     assert option.initiation_distribution is not None
     data = mdp.dataset[:, :2]

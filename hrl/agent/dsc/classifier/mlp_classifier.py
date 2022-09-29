@@ -87,8 +87,8 @@ class BinaryMLPClassifier:
                                                       labels,
                                                       pos_weight=pos_weight,
                                                       weight=weights) 
-
             self.optimizer.zero_grad()
+            loss.requires_grad = True 
             loss.backward()
             self.optimizer.step()
 
