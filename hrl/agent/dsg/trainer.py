@@ -87,6 +87,8 @@ class DSGTrainer:
         # Whether we are currently expanding or consolidating the graph
         self.graph_mode = "consolidation"
 
+        self._consolidation_debug_log = {}
+
     # ---------------------------------------------------
     # Run loops
     # ---------------------------------------------------
@@ -130,12 +132,12 @@ class DSGTrainer:
             else:
                 ipdb.set_trace()
 
-            if len(self.predefined_events) > 0:
-                self.distance_classification_accuracies.append(
-                    self.dsg_agent.evaluate_distance_metric_accuracy(
-                       self.salient_events, self.dsg_agent.distance_metric
-                    )
-                ) 
+            # if len(self.predefined_events) > 0:
+            #     self.distance_classification_accuracies.append(
+            #         self.dsg_agent.evaluate_distance_metric_accuracy(
+            #            self.salient_events, self.dsg_agent.distance_metric
+            #         )
+            #     ) 
 
             t0 = time.time()
             with open(self.dsc_agent.log_file, "wb+") as f:
@@ -143,26 +145,26 @@ class DSGTrainer:
             print(f"[Episode={episode} Seed={self.dsc_agent.seed}] Took {time.time() - t0}s to save gc logs")
 
             if iteration > 0 and iteration % 5 == 0:
-                visualize_graph_nodes_with_expansion_probabilities(self.dsg_agent,
-                                                           episode,
-                                                           self.dsc_agent.experiment_name,
-                                                           self.dsc_agent.seed)
+                # visualize_graph_nodes_with_expansion_probabilities(self.dsg_agent,
+                #                                            episode,
+                #                                            self.dsc_agent.experiment_name,
+                #                                            self.dsc_agent.seed)
 
-                visualize_consolidation_probabilities(self, episode, 
-                                                    self.dsc_agent.experiment_name, self.dsc_agent.seed)
+                # visualize_consolidation_probabilities(self, episode, 
+                #                                     self.dsc_agent.experiment_name, self.dsc_agent.seed)
 
                 visualize_all_events(self, episode, self.dsc_agent.experiment_name, self.dsc_agent.seed)
 
-                plot_distance_table(self.dsg_agent.node_distances, self.salient_events, episode,
-                                    self.dsc_agent.experiment_name, self.dsc_agent.seed)
+                # plot_distance_table(self.dsg_agent.node_distances, self.salient_events, episode,
+                #                     self.dsc_agent.experiment_name, self.dsc_agent.seed)
 
-                if self.dsc_agent.rnd_data_path:
-                    for option in self.dsc_agent.mature_options:
-                        plot_classifier_predictions(
-                            option, self.dsc_agent.rnd_frames,
-                            self.dsc_agent.rnd_rams, episode, 
-                            self.dsc_agent.seed, self.dsc_agent.experiment_name
-                        )
+                # if self.dsc_agent.rnd_data_path:
+                #     for option in self.dsc_agent.mature_options:
+                #         plot_classifier_predictions(
+                #             option, self.dsc_agent.rnd_frames,
+                #             self.dsc_agent.rnd_rams, episode, 
+                #             self.dsc_agent.seed, self.dsc_agent.experiment_name
+                #         )
             
             iteration += 1  
 
@@ -366,6 +368,9 @@ class DSGTrainer:
 
             print("=" * 80); print(f"[Consolidation] Episode: {current_episode} Step: {self.env.T}"); print("=" * 80)
 
+            if current_episode > 0:
+                self.log_connected_and_unconnected_nodes(state, info, current_episode)
+
             while not done and not reset:
                 pos = info['player_x'], info['player_y']
                 event = self.select_goal_salient_event(state, info)
@@ -396,6 +401,20 @@ class DSGTrainer:
                 self.delete_potential_nodes_from_graph()
 
         return state, info
+    
+    def log_connected_and_unconnected_nodes(self, state, info, episode):
+        connected_nodes = self._get_connected_events(state, info)
+        unconnected_nodes = self._get_unconnected_events(state, info)
+        log = dict(
+            connected=[n.target_info for n in connected_nodes],
+            unconnected=[n.target_info for n in unconnected_nodes],
+            env_steps=self.env.T
+        )
+
+        self._consolidation_debug_log[episode] = log
+        # TODO(ab): don't reuse the RND logfile
+        with open(self.rnd_log_filename, 'wb+') as f:
+            pickle.dump(self._consolidation_debug_log, f)
 
     # ---------------------------------------------------
     # Salient Event Selection
@@ -494,7 +513,7 @@ class DSGTrainer:
                 unconnected_events, 
                 metric="empirical"
             )
-
+            
             scores = 1. / distance_matrix
             
             # Higher the temperature, wider the output distribution
@@ -505,7 +524,13 @@ class DSGTrainer:
 
             print(f"Unconnected Events: {unconnected_events} | Probs: {probabilities}")
 
-            selected_event = np.random.choice(unconnected_events, size=1, p=probabilities.squeeze())[0]
+            probabilities = probabilities.squeeze()
+
+            if len(probabilities.shape) > 1:
+                idx = random.choice(range(probabilities.shape[0]))
+                probabilities = probabilities[idx, :]
+
+            selected_event = np.random.choice(unconnected_events, size=1, p=probabilities)[0]
             assert isinstance(selected_event, SalientEvent), type(selected_event)
 
             return selected_event
