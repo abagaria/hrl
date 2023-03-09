@@ -150,6 +150,7 @@ if __name__ == "__main__":
     gpos3 = (130, 235)
     gpos4 = (77, 192)
     gpos5 = (23, 148)
+    gpos6 = (133, 148)
     
     g0 = load_goal_state(goal_dir_path, file="bottom_right_states.pkl")
     g1 = load_goal_state(goal_dir_path, file="top_bottom_right_ladder_states.pkl")
@@ -157,6 +158,12 @@ if __name__ == "__main__":
     g3 = load_goal_state(goal_dir_path, file="right_door_goal.pkl")
     g4 = load_goal_state(goal_dir_path, file="bottom_mid_ladder_goal.pkl")
     g5 = load_goal_state(goal_dir_path, file="bottom_left_goal.pkl")
+    g6 = load_goal_state(goal_dir_path, file="key_event_frames.pkl")
+    g7 = load_goal_state(goal_dir_path, file="bottom_right_state.pkl")
+    
+    key_event_info = pickle.load(
+        open(f"{goal_dir_path}/key_event_info.pkl", "rb")
+    )
 
     pfrl.utils.set_random_seed(args.seed)
 
@@ -167,10 +174,12 @@ if __name__ == "__main__":
     beta4 = SalientEvent(g3, default_pos_to_info(gpos3), tol=2.)
     beta5 = SalientEvent(g4, default_pos_to_info(gpos4), tol=2.)
     beta6 = SalientEvent(g5, default_pos_to_info(gpos5), tol=2.)
+    beta7 = SalientEvent(g6, key_event_info, tol=5.)
+    beta8 = SalientEvent(g7, default_pos_to_info(gpos6), tol=2.)
 
     predefined_events = []
     if args.use_predefined_events:
-        predefined_events = [beta1, beta2, beta3, beta4, beta5, beta6]
+        predefined_events = [beta1, beta2, beta3, beta4, beta5, beta6, beta7, beta8]
 
     dsc_agent = RobustDSC(env,
                           args.gestation_period,
@@ -220,6 +229,10 @@ if __name__ == "__main__":
     print(f"[Seed={args.seed}] Device count: {torch.cuda.device_count()} Device Name: {torch.cuda.get_device_name(0)}")
     
     t0 = time.time()
+
+    if args.disable_graph_expansion:
+        assert len(predefined_events) > 0
+        trainer.run_loop(0, int(1e5))
 
     # Create some possibly easy salient events using RND
     trainer.create_sparse_graph = False
