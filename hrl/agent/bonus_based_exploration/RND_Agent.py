@@ -11,6 +11,7 @@ from hrl.montezuma.dopamine_env import create_atari_environment
 from hrl.agent.bonus_based_exploration.helpers import ram_data_replay_buffer
 import matplotlib.pyplot as plt
 
+tf.compat.v1.disable_eager_execution()
 class RNDAgent(Runner):
     def __init__(self,
                base_dir,
