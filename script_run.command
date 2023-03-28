@@ -1,4 +1,4 @@
-python -um hrl.agent.dsg.train --experiment_name=noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr \
+python3 -um hrl.agent.dsg.train --experiment_name=noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr \
 --environment_name=MontezumaRevengeNoFrameskip-v4 \
 --gpu_id=0 \
 --seed=18 \

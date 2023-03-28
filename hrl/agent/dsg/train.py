@@ -42,7 +42,7 @@ def get_exploration_agent(rnd_base_dir):
     from hrl.agent.bonus_based_exploration.run_experiment import create_exploration_agent as create_agent
 
     _gin_files = [
-        os.path.expanduser("~/git-repos/hrl/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
+        os.path.expanduser("~/hrl-with-dsg/hrl/agent/bonus_based_exploration/configs/rainbow_rnd.gin")
     ]
 
     run_experiment.load_gin_configs(_gin_files, [])

@@ -4,7 +4,7 @@ import pickle
 import itertools
 from collections import deque
 
-import cudasift
+# import cudasift
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import cluster, svm
