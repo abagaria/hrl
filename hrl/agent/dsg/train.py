@@ -142,7 +142,7 @@ if __name__ == "__main__":
     s0, _ = env.reset()
     p0 = env.get_current_position()
 
-    goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/logs/goal_states")
+    goal_dir_path = os.path.join(os.path.expanduser("~"), "git-repos/hrl/goal_states")
     
     gpos = (123, 148)
     gpos1 = (132, 192)
