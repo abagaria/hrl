@@ -112,11 +112,11 @@ class ObsInitiationClassifier(InitiationClassifier):
         positions = [example.pos for example in examples]
         return np.array(positions)
 
-    def fit_initiation_classifier(self):
+    def fit_initiation_classifier(self, initiation_gvf=None, goal=None):
         if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
-            self.train_two_class_classifier()
+            self.train_two_class_classifier(initiation_gvf, goal)
     
-    def train_two_class_classifier(self):
+    def train_two_class_classifier(self, initiation_gvf=None, goal=None):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
         negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
         positive_labels = torch.ones((positive_feature_matrix.shape[0],), device=self.device)
@@ -128,7 +128,7 @@ class ObsInitiationClassifier(InitiationClassifier):
         if self.classifier.should_train(Y):
             # Re-train the common classifier from scratch
             self.classifier = BinaryMLPClassifier(self.obs_dim, self.device, threshold=None)
-            self.classifier.fit(X, Y)
+            self.classifier.fit(X, Y, initiation_gvf, goal)
 
             # Re-point the classifiers to the same object in memory
             self.optimistic_classifier = self.classifier
