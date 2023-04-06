@@ -142,3 +142,17 @@ dmypy.json
 cython_debug/
 
 results/
+*.out
+*.err
+*.txt
+*.png
+*.diff
+*.pkl
+*.edu
+*.gif
+*.swp
+~/data/*
+*.svg
+*.o
+*.e
+.onager/*
