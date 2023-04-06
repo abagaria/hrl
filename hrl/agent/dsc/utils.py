@@ -6,6 +6,8 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from treelib import Tree, Node
+from pfrl.replay_buffers.prioritized import PrioritizedReplayBuffer
+from hrl.utils import chunked_inference
 
 class SkillTree(object):
     def __init__(self, options):
@@ -204,3 +206,46 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     plt.close()
 
     return qvalues.max()
+
+
+def parse_replay(replay, n_goal_dims=2):
+    states = []
+    memory = replay.memory.data if isinstance(replay, PrioritizedReplayBuffer) else replay.memory
+    for transition in memory:
+        transition = transition[-1]  # n-step to single transition
+        states.append(transition['next_state'][:-n_goal_dims])
+    return states
+
+
+def visualize_initiation_gvf(
+    initiation_gvf,
+    target_policy,
+    goal,
+    episode,
+    experiment_name,
+    seed
+):
+    assert goal.shape == (2,), goal.shape
+    replay = initiation_gvf.initiation_replay_buffer
+    states = parse_replay(replay)
+    states = np.array([np.concatenate((state, goal), axis=0) for state in states])
+
+    @torch.no_grad()
+    def pi(states):
+        action_tensor = target_policy(states)
+        return action_tensor.cpu().numpy()
+
+    f = lambda x: initiation_gvf.policy_evaluation_module.get_values(x, target_policy)
+
+    values = chunked_inference(states, f, chunk_size=10_000)
+    
+    plt.scatter(states[:, 0], states[:, 1], c=values)
+    plt.colorbar()
+
+    g_str = np.round(goal, 2)
+    file_name = f"init_gvf_seed_{seed}_episode_{episode}_goal_{g_str}"
+    plt.title(f"GVF Targeting {g_str}")
+    saving_path = os.path.join('results', experiment_name, 'value_function_plots', f'{file_name}.png')
+
+    plt.savefig(saving_path)
+    plt.close()
