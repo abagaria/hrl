@@ -10,10 +10,7 @@ from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.wrappers.gc_mdp_wrapper import GoalConditionedMDPWrapper
 from hrl.agent.dsc.classifier.obs_init_classifier import ObsInitiationClassifier
 from hrl.agent.dsc.classifier.critic_classifier import CriticInitiationClassifier
-from hrl.agent.dsc.classifier.critic_bayes_classifier import CriticBayesClassifier
 from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClassifier
-from hrl.agent.dsc.classifier.obs_svm_init_classifier import ObsSVMInitiationClassifier
-from hrl.agent.dsc.classifier.state_critic_bayes_classifier import ObsWeightedInitiationClassifier
 
 
 class ModelBasedOption(object):
@@ -21,7 +18,7 @@ class ModelBasedOption(object):
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
                  option_idx, lr_c, lr_a, max_num_children=1, init_salient_event=None, target_salient_event=None,
                  path_to_model="", multithread_mpc=False, init_classifier_type="position-clf",
-                 optimistic_threshold=40, pessimistic_threshold=20):
+                 optimistic_threshold=40, pessimistic_threshold=20, initiation_gvf=None):
         assert isinstance(mdp, GoalConditionedMDPWrapper), mdp
 
         self.mdp = mdp
@@ -46,6 +43,7 @@ class ModelBasedOption(object):
         self.init_classifier_type = init_classifier_type
         self.optimistic_threshold = optimistic_threshold
         self.pessimistic_threshold = pessimistic_threshold
+        self.initiation_gvf = initiation_gvf
 
         # TODO
         self.overall_mdp = mdp
@@ -61,7 +59,8 @@ class ModelBasedOption(object):
         # Therefore, only use output norm if we are using MPC for action selection
         use_output_norm = self.use_model
 
-        if not self.use_global_vf or global_init:
+        if not self.use_global_vf:
+            print(f'Creating NEW local-policy for {name}')
             self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
                                     action_dim=self.mdp.action_space_size(),
                                     max_action=1.,
@@ -69,6 +68,8 @@ class ModelBasedOption(object):
                                     device=self.device,
                                     lr_c=lr_c, lr_a=lr_a,
                                     use_output_normalization=use_output_norm)
+        else:
+            self.value_learner = global_value_learner
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
@@ -136,32 +137,6 @@ class ModelBasedOption(object):
                 self.mdp.state_space_size(),
                 device=self.device,
             )
-        if self.init_classifier_type == "state-svm":
-            return ObsSVMInitiationClassifier()
-        if self.init_classifier_type == "pos-critic-clf":
-            return CriticBayesClassifier(
-                self.solver,
-                use_position=True,
-                goal_sampler=self.get_goal_for_rollout,
-                augment_func=self.get_augmented_state,
-                optimistic_threshold=self.optimistic_threshold,
-                pessimistic_threshold=self.pessimistic_threshold,
-                option_name=self.name,
-            )
-        if self.init_classifier_type == "state-critic-clf":
-            return ObsWeightedInitiationClassifier(
-                obs_dim=self.mdp.state_space_size(),
-                agent=self.solver,
-                goal_sampler=self.get_goal_for_rollout,
-                augment_func=self.get_augmented_state,
-                option_name=self.name,
-                optimistic_threshold=self.optimistic_threshold,
-                pessimistic_threshold=self.pessimistic_threshold
-            )
-        if self.init_classifier_type == "pos-ope-clf":
-            raise NotImplementedError()
-        if self.init_classifier_type == "state-ope-clf":
-            raise NotImplementedError()
         if self.init_classifier_type == "critic-threshold":
             return CriticInitiationClassifier(
                 self.solver,
@@ -170,22 +145,7 @@ class ModelBasedOption(object):
                 optimistic_threshold=self.optimistic_threshold,
                 pessimistic_threshold=self.pessimistic_threshold
             )
-        if self.init_classifier_type == "ope-threshold":
-            from hrl.agent.dsc.classifier.ope_critic_classifier import OPECriticInitiationClassifier
-
-            return OPECriticInitiationClassifier(
-                self.mdp.state_space_size(),
-                self.mdp.action_space_size(),
-                self.solver,
-                self.get_goal_for_rollout,
-                self.get_augmented_state,
-                self.is_term_true,
-                device=self.device,
-                option_name=self.name,
-                optimistic_threshold=self.optimistic_threshold,
-                pessimistic_threshold=self.pessimistic_threshold
-            )
-
+        
     # ------------------------------------------------------------
     # Learning Phase Methods
     # ------------------------------------------------------------
@@ -315,6 +275,13 @@ class ModelBasedOption(object):
             self.update_value_function(option_transitions,
                                     pursued_goal=goal,
                                     reached_goal=self.extract_goal_dimensions(state))
+            
+            if self.initiation_gvf is not None:
+                self.update_initiation_value_function(
+                    option_transitions,
+                    pursued_goal=goal,
+                    reached_goal=self.extract_goal_dimensions(state)
+                )
 
         is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(state_buffer=visited_states)
 
@@ -324,10 +291,6 @@ class ModelBasedOption(object):
 
         if not self.global_init and is_valid_data:
             self.derive_positive_and_negative_examples(visited_states, goal)
-
-        # Always be refining your initiation classifier
-        if not self.global_init and not eval_mode: # and self.get_training_phase() != "gestation":
-            self.initiation_classifier.fit_initiation_classifier()
 
         return option_transitions, total_reward
 
@@ -340,6 +303,17 @@ class ModelBasedOption(object):
 
         self.experience_replay(option_transitions, pursued_goal)
         self.experience_replay(option_transitions, reached_goal)
+
+    def update_initiation_value_function(self, option_transitions, reached_goal, pursued_goal):
+        """Update the goal-conditioned initiation general value function."""
+        
+        self.initiation_gvf.add_trajectory_to_replay(
+            self.relabel_trajectory(option_transitions, pursued_goal)
+        )
+
+        self.initiation_gvf.add_trajectory_to_replay(
+            self.relabel_trajectory(option_transitions, reached_goal)
+        )
 
     def initialize_value_function_with_global_value_function(self):
         self.value_learner.actor.load_state_dict(self.global_value_learner.actor.state_dict())
@@ -404,6 +378,37 @@ class ModelBasedOption(object):
             values = self.value_learner.get_values(augmented_states)
 
         return values
+    
+    def relabel_trajectory(self, trajectory, goal_state):
+        def initiation_reward_func(state, goal, threshold=0.6):
+            pos = self.extract_goal_dimensions(state)
+            goal_pos = self.extract_goal_dimensions(goal)
+            assert isinstance(pos, np.ndarray)
+            assert isinstance(goal_pos, np.ndarray)
+            assert pos.shape == goal_pos.shape == (2,), state.shape
+            success = np.linalg.norm(pos-goal_pos) <= threshold
+            return float(success), success
+
+        relabeled_trajectory = []
+
+        for state, action, _, next_state, _ in trajectory:
+            augmented_state = self.get_augmented_state(state, goal_state)
+            augmented_next_state = self.get_augmented_state(next_state, goal_state)
+
+            reward, reached = initiation_reward_func(next_state, goal_state)
+
+            relabeled_trajectory.append((
+                augmented_state, 
+                action,
+                reward,
+                augmented_next_state,
+                reached
+            ))
+
+            if reached:
+                break
+
+        return relabeled_trajectory
 
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
