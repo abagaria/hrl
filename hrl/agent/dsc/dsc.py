@@ -1,11 +1,14 @@
 import ipdb
+import time
 import pickle
 import numpy as np
 from copy import deepcopy
 from functools import reduce
 from collections import deque
 from hrl.agent.dsc.utils import *
+from hrl.agent.td3.TD3AgentClass import TD3
 from hrl.agent.dsc.MBOptionClass import ModelBasedOption
+from hrl.agent.dsc.classifier.initiation_gvf import GoalConditionedInitiationGVF
 
 
 class RobustDSC(object):
@@ -14,7 +17,8 @@ class RobustDSC(object):
                  experiment_name, device,
                  logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc,
                  max_num_children,
-                 init_classifier_type, optimistic_threshold, pessimistic_threshold):
+                 init_classifier_type, optimistic_threshold, pessimistic_threshold,
+                 use_initiation_gvf):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -29,6 +33,7 @@ class RobustDSC(object):
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
         self.multithread_mpc = multithread_mpc
+        self.use_initiation_gvf = use_initiation_gvf
         
         self.init_classifier_type = init_classifier_type
         self.optimistic_threshold = optimistic_threshold
@@ -44,6 +49,15 @@ class RobustDSC(object):
 
         self.mdp = mdp
         self.target_salient_event = self.mdp.get_original_target_events()[0]
+
+        self.uvfa_policy = self.create_uvfa_policy(lr_a, lr_c)
+
+        self.initiation_gvf = GoalConditionedInitiationGVF(
+            target_policy=self.uvfa_policy.actor,
+            n_actions=mdp.action_space_size(),
+            n_input_channels=mdp.state_space_size()+2,
+            batch_size=64,
+        ) if use_initiation_gvf else None
 
         self.global_option = self.create_global_model_based_option()
         self.goal_option = self.create_model_based_option(name="goal-option", parent=None)
@@ -99,6 +113,9 @@ class RobustDSC(object):
 
             self.manage_chain_after_rollout(selected_option)
             step_number += len(transitions)
+        
+        self.update_initiation_learners(n_updates=step_number)
+
         return step_number
 
     def run_loop(self, num_episodes, num_steps, start_episode=0):
@@ -122,6 +139,25 @@ class RobustDSC(object):
             self.log_success_metrics(episode)
 
         return per_episode_durations
+
+    def update_initiation_learners(self, n_updates):
+        """Update the initiation GVF and then update all the init-classifiers."""
+
+        if self.use_initiation_gvf:
+            t0 = time.time()
+            self.initiation_gvf.update(n_updates)
+            print(f'Took {time.time()-t0}s to update Initiation GVF')
+
+        t0 = time.time()
+        for option in self.chain:
+            assert isinstance(option, ModelBasedOption)
+            goal = option.get_goal_for_rollout()
+            print(f'Fitting {option} clf with goal {goal}')
+            option.initiation_classifier.fit_initiation_classifier(
+                self.initiation_gvf,
+                goal=goal if self.use_initiation_gvf else None
+            )
+        print(f'Took {time.time()-t0}s to update initiation classifiers.')
 
     def log_success_metrics(self, episode):
         individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
@@ -212,11 +248,21 @@ class RobustDSC(object):
             for option in options:
                 print(f"Plotting value function for {option}")
                 if self.use_global_vf:
+                    goal = option.get_goal_for_rollout()
                     make_chunked_goal_conditioned_value_function_plot(option.global_value_learner,
-                                                                    goal=option.get_goal_for_rollout(),
+                                                                    goal=goal,
                                                                     episode=episode, seed=self.seed,
                                                                     experiment_name=self.experiment_name,
                                                                     option_idx=option.option_idx)
+                    if self.use_initiation_gvf:
+                        visualize_initiation_gvf(
+                            self.initiation_gvf,
+                            self.uvfa_policy.actor,
+                            goal,
+                            episode,
+                            self.experiment_name,
+                            self.seed
+                        )
                 else:
                     make_chunked_goal_conditioned_value_function_plot(option.value_learner,
                                                                     goal=option.get_goal_for_rollout(),
@@ -238,13 +284,14 @@ class RobustDSC(object):
                                   use_global_vf=self.use_global_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
-                                  global_value_learner=self.global_option.value_learner,
+                                  global_value_learner=self.uvfa_policy,
                                   option_idx=option_idx,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
                                   multithread_mpc=self.multithread_mpc,
                                   init_classifier_type=self.init_classifier_type,
                                   optimistic_threshold=self.optimistic_threshold,
-                                  pessimistic_threshold=self.pessimistic_threshold)
+                                  pessimistic_threshold=self.pessimistic_threshold,
+                                  initiation_gvf=self.initiation_gvf)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -261,14 +308,24 @@ class RobustDSC(object):
                                   use_global_vf=self.use_global_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
-                                  global_value_learner=None,
+                                  global_value_learner=self.uvfa_policy,
                                   option_idx=0,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
                                   multithread_mpc=self.multithread_mpc,
                                   init_classifier_type=self.init_classifier_type,
                                   optimistic_threshold=self.optimistic_threshold,
-                                  pessimistic_threshold=self.pessimistic_threshold)
+                                  pessimistic_threshold=self.pessimistic_threshold,
+                                  initiation_gvf=self.initiation_gvf)
         return option
+    
+    def create_uvfa_policy(self, lr_a, lr_c):
+        return TD3(state_dim=self.mdp.state_space_size()+2,
+                   action_dim=self.mdp.action_space_size(),
+                   max_action=1.,
+                   name=f"uvfa-td3-agent",
+                   device=self.device,
+                   lr_c=lr_c, lr_a=lr_a,
+                   use_output_normalization=False)
 
     def reset(self, episode):
         self.mdp.reset()
