@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 from torch.utils.data import Dataset, DataLoader
 from hrl.agent.dsc.classifier.utils import ObsClassifierMLP
+from hrl.agent.dsc.classifier.initiation_gvf import GoalConditionedInitiationGVF
 
 
 class BinaryMLPClassifier:
@@ -53,16 +54,36 @@ class BinaryMLPClassifier:
         has_positives = len(y[y == 1]) > 0
         has_negatives = len(y[y != 1]) > 0
         return enough_data and has_positives and has_negatives
+    
+    @torch.no_grad()
+    def determine_instance_weights(
+        self,
+        states: np.ndarray,
+        labels: torch.Tensor,
+        init_gvf: GoalConditionedInitiationGVF,
+        goal: np.ndarray  # goal that was pursued in the last option rollout
+    ):
+        goal = goal.astype(np.float32, copy=False)
+        goals = np.repeat(goal[np.newaxis, ...], repeats=len(states), axis=0)
+        assert isinstance(states, np.ndarray), 'Conversion done in TD(0)'
+        assert isinstance(goal, np.ndarray), 'Conversion done in TD(0)'
+        assert states.dtype == goals.dtype == np.float32, (states.dtype, goals.dtype)
+        values = init_gvf.get_values(states, goals)
+        values = torch.as_tensor(values).float().to(self.device)  # TODO(ab): keep these on GPU
+        # weights = values.clip(0., 1.) # no need for clipping b/c of sigmoid in GVF
+        values[labels == 0] = 1. - values[labels == 0]
+        return values
 
-    def fit(self, X, y, W=None, n_epochs=5):
-        dataset = ClassifierDataset(X, y, W)
-        dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+    def fit(self, X, y, initiation_gvf=None, goal=None, n_epochs=5):
+        dataset = ClassifierDataset(X, y)
+        dataloader = DataLoader(
+            dataset, batch_size=self.batch_size, shuffle=True, drop_last=True)
 
         if self.should_train(y):
             losses = []
 
             for _ in range(n_epochs):
-                epoch_loss = self._train(dataloader)                
+                epoch_loss = self._train(dataloader, initiation_gvf, goal)                
                 losses.append(epoch_loss)
             
             self.is_trained = True
@@ -71,7 +92,7 @@ class BinaryMLPClassifier:
             print(mean_loss)
             self.losses.append(mean_loss)
 
-    def _train(self, loader):
+    def _train(self, loader, initiation_gvf=None, goal=None):
         """ Single epoch of training. """
         batch_losses = []
 
@@ -82,6 +103,14 @@ class BinaryMLPClassifier:
 
             if pos_weight is None or pos_weight.nelement == 0:
                 continue
+
+            if initiation_gvf is not None:
+                weights = self.determine_instance_weights(
+                    sample[0].detach().cpu().numpy(), # DataLoader converts to tensor, undoing that here
+                    labels,  # This is a tensor on the GPU
+                    initiation_gvf,
+                    goal
+                )
 
             logits = self.model(observations)
 
