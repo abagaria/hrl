@@ -1,4 +1,5 @@
 import os
+import torch
 import itertools
 import numpy as np
 
@@ -29,6 +30,8 @@ def chunked_inference(states, f, chunk_size=1000):
     for state_chunk in state_chunks:
         chunk_values = f(state_chunk)
         current_chunk_size = len(state_chunk)
+        if isinstance(chunk_values, torch.Tensor):
+            chunk_values = chunk_values.cpu().numpy()
         values[current_idx:current_idx + current_chunk_size] = chunk_values.squeeze()
         current_idx += current_chunk_size
 
