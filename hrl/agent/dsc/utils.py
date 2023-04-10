@@ -249,3 +249,9 @@ def visualize_initiation_gvf(
 
     plt.savefig(saving_path)
     plt.close()
+
+
+def softmax(scores, temperature):
+    from scipy import special
+    assert temperature > 0, temperature
+    return special.softmax(scores / temperature)
