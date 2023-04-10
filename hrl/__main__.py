@@ -53,6 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("--optimistic_threshold", type=float, default=0.5)
     parser.add_argument("--pessimistic_threshold", type=float, default=0.75)
     parser.add_argument("--use_initiation_gvf", action="store_true", default=False)
+    parser.add_argument("--use_reachability_goal_sampling", action="store_true", default=False)
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
@@ -118,7 +119,8 @@ if __name__ == "__main__":
             "init_classifier_type": args.init_classifier_type, 
             "optimistic_threshold": args.optimistic_threshold,
             "pessimistic_threshold": args.pessimistic_threshold,
-            "use_initiation_gvf": args.use_initiation_gvf
+            "use_initiation_gvf": args.use_initiation_gvf,
+            "use_reachability_goal_sampling": args.use_reachability_goal_sampling
     }
 
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)

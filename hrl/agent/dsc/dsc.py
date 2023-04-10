@@ -18,7 +18,7 @@ class RobustDSC(object):
                  logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc,
                  max_num_children,
                  init_classifier_type, optimistic_threshold, pessimistic_threshold,
-                 use_initiation_gvf):
+                 use_initiation_gvf, use_reachability_goal_sampling):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -34,6 +34,7 @@ class RobustDSC(object):
         self.use_dense_rewards = use_dense_rewards
         self.multithread_mpc = multithread_mpc
         self.use_initiation_gvf = use_initiation_gvf
+        self.use_reachability_goal_sampling = use_reachability_goal_sampling
         
         self.init_classifier_type = init_classifier_type
         self.optimistic_threshold = optimistic_threshold
@@ -79,7 +80,9 @@ class RobustDSC(object):
         # return current_option if current_option is not None else self.global_option
         for option in self.chain:
             if option.is_init_true(state):
-                subgoal = option.get_goal_for_rollout()
+                subgoal = option.get_goal_for_rollout(
+                    state if self.use_reachability_goal_sampling else None
+                )
                 if not option.is_at_local_goal(state, subgoal):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
@@ -151,11 +154,9 @@ class RobustDSC(object):
         t0 = time.time()
         for option in self.chain:
             assert isinstance(option, ModelBasedOption)
-            goal = option.get_goal_for_rollout()
-            print(f'Fitting {option} clf with goal {goal}')
             option.initiation_classifier.fit_initiation_classifier(
                 self.initiation_gvf,
-                goal=goal if self.use_initiation_gvf else None
+                goal=option.get_goal_for_rollout() if self.use_initiation_gvf else None
             )
         print(f'Took {time.time()-t0}s to update initiation classifiers.')
 
