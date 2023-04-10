@@ -3,6 +3,7 @@ import torch
 import random
 import numpy as np
 from copy import deepcopy
+import hrl.agent.dsc.utils as utils
 
 from scipy.spatial import distance
 from hrl.agent.dynamics.mpc import MPC
@@ -215,7 +216,7 @@ class ModelBasedOption(object):
 
         self.solver.step(state, action, reward, next_state, next_done)
 
-    def get_goal_for_rollout(self):
+    def get_goal_for_rollout(self, state=None):
         """ Sample goal to pursue for option rollout. """
 
         if self.parent is None and self.target_salient_event is not None:
@@ -225,7 +226,10 @@ class ModelBasedOption(object):
         parent = self.parent
 
         while parent is not None and sampled_goal is None:
-            sampled_goal = parent.initiation_classifier.sample()
+            if state is not None:
+                sampled_goal = self.reachability_sample(state)
+            else:
+                sampled_goal = parent.initiation_classifier.sample()
             parent = parent.parent
 
         if sampled_goal is not None:
@@ -235,6 +239,35 @@ class ModelBasedOption(object):
             return self.target_salient_event.get_target_position()
         
         raise ValueError(f"{self, self.parent, sampled_goal, parent}")
+    
+    def reachability_sample(self, state, sampling_method='sum_sampling'):
+        """Use the UVFA to pick the closest goal to pursue."""
+        goals = self.parent.initiation_classifier.get_states_inside_pessimistic_classifier_region()
+        if len(goals) > 0:
+            assert isinstance(goals, np.ndarray)
+            if len(goals) == 1:
+                return goals[0]
+            vf = self.value_function if self.initiation_gvf is None else self.initiation_gvf.get_values
+            values = vf(
+                goals=goals,
+                states=np.repeat(state[np.newaxis, ...], repeats=len(goals), axis=0)
+            ).squeeze()
+
+            if isinstance(values, torch.Tensor):
+                values = values.cpu().numpy()
+
+            if sampling_method == 'argmax':
+                return goals[np.argmax(values)]
+            elif sampling_method == 'softmax':
+                probs = utils.softmax(values, temperature=1)
+                idx = np.random.choice(len(goals), p=probs)
+                return goals[idx]
+            elif sampling_method == 'sum_sampling':
+                values += 1e-6  # Add a tiny number to prevent / by 0
+                probs = values / values.sum()
+                return goals[np.random.choice(len(goals), p=probs)]
+            else:
+                raise NotImplementedError(sampling_method)
 
     def rollout(self, *, goal, step_number, eval_mode=False):
         """ Main option control loop. """
