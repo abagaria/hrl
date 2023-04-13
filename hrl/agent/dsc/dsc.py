@@ -331,7 +331,7 @@ class RobustDSC(object):
     def reset(self, episode):
         self.mdp.reset()
 
-        if self.use_diverse_starts and episode > self.warmup_episodes:
+        if self.use_diverse_starts and episode > self.warmup_episodes and episode % self.evaluation_freq != 0:
             random_state = self.mdp.sample_random_state()
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
