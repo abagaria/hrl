@@ -1,0 +1,255 @@
+2023-04-19 01:13:41.887769: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-04-19 01:13:47.893160: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+/home/npermpre/.local/lib/python3.9/site-packages/flax/core/frozen_dict.py:169: FutureWarning: jax.tree_util.register_keypaths is deprecated, and will be removed in a future release. Please use `register_pytree_with_keys()` instead.
+  jax.tree_util.register_keypaths(
+WARNING:absl:DEPRECATION WARNING: Logger is being deprecated. Please switch to CollectorDispatcher!
+/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py:1694: UserWarning: `layer.apply` is deprecated and will be removed in a future version. Please use `layer.__call__` method instead.
+  warnings.warn('`layer.apply` is deprecated and '
+/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/legacy_tf_layers/core.py:332: UserWarning: `tf.layers.flatten` is deprecated and will be removed in a future version. Please use `tf.keras.layers.Flatten` instead.
+  warnings.warn('`tf.layers.flatten` is deprecated and '
+2023-04-19 01:14:08.374997: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1635] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10067 MB memory:  -> device: 0, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:82:00.0, compute capability: 6.1
+WARNING:tensorflow:From /home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/compat/v2_compat.py:107: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+WARNING:tensorflow:From /home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/compat/v2_compat.py:107: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+2023-04-19 01:14:08.776328: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1635] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10067 MB memory:  -> device: 0, name: NVIDIA GeForce GTX 1080 Ti, pci bus id: 0000:82:00.0, compute capability: 6.1
+WARNING:absl:use_staging=True is no longer supported
+2023-04-19 01:14:09.775738: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:353] MLIR V1 optimization pass is not enabled
+2023-04-19 01:14:17.071570: E tensorflow/compiler/xla/stream_executor/cuda/cuda_dnn.cc:417] Loaded runtime CuDNN library: 8.5.0 but source was compiled with: 8.6.0.  CuDNN library needs to have matching major version and equal or higher minor version. If using a binary install, upgrade your CuDNN library.  If building from sources, make sure the library loaded at runtime is compatible with the version specified during compile configuration.
+2023-04-19 01:14:17.075332: W tensorflow/core/framework/op_kernel.cc:1830] OP_REQUIRES failed at conv_ops.cc:1068 : UNIMPLEMENTED: DNN library is not found.
+2023-04-19 01:14:17.075406: I tensorflow/core/common_runtime/executor.cc:1197] [/job:localhost/replica:0/task:0/device:GPU:0] (DEBUG INFO) Executor start aborting (this does not indicate an error and you can ignore this message): UNIMPLEMENTED: DNN library is not found.
+	 [[{{node intrinsic_rnd/Conv/Conv2D}}]]
+2023-04-19 01:14:17.075440: I tensorflow/core/common_runtime/executor.cc:1197] [/job:localhost/replica:0/task:0/device:CPU:0] (DEBUG INFO) Executor start aborting (this does not indicate an error and you can ignore this message): UNIMPLEMENTED: DNN library is not found.
+	 [[{{node intrinsic_rnd/Conv/Conv2D}}]]
+	 [[intrinsic_rnd/truediv_1/_69]]
+2023-04-19 01:14:17.078867: E tensorflow/compiler/xla/stream_executor/cuda/cuda_dnn.cc:417] Loaded runtime CuDNN library: 8.5.0 but source was compiled with: 8.6.0.  CuDNN library needs to have matching major version and equal or higher minor version. If using a binary install, upgrade your CuDNN library.  If building from sources, make sure the library loaded at runtime is compatible with the version specified during compile configuration.
+2023-04-19 01:14:17.080061: W tensorflow/core/framework/op_kernel.cc:1830] OP_REQUIRES failed at conv_ops.cc:1068 : UNIMPLEMENTED: DNN library is not found.
+Traceback (most recent call last):
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/client/session.py", line 1378, in _do_call
+    return fn(*args)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/client/session.py", line 1361, in _run_fn
+    return self._call_tf_sessionrun(options, feed_dict, fetch_list,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/client/session.py", line 1454, in _call_tf_sessionrun
+    return tf_session.TF_SessionRun_wrapper(self._session, options, feed_dict,
+tensorflow.python.framework.errors_impl.UnimplementedError: 2 root error(s) found.
+  (0) UNIMPLEMENTED: DNN library is not found.
+	 [[{{node intrinsic_rnd/Conv/Conv2D}}]]
+	 [[intrinsic_rnd/truediv_1/_69]]
+  (1) UNIMPLEMENTED: DNN library is not found.
+	 [[{{node intrinsic_rnd/Conv/Conv2D}}]]
+0 successful operations.
+0 derived errors ignored.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 242, in <module>
+    trainer.graph_expansion_run_loop(warmup_iteration * args.n_expansion_episodes,
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/trainer.py", line 205, in graph_expansion_run_loop
+    init_state, observations, actions, rewards, visited_infos = self.exploration_rollout(state, episode)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/trainer.py", line 262, in exploration_rollout
+    observations, actions, rewards, intrinsic_rewards, visited_infos = self.rnd_agent.rollout(initial_state)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/RND_Agent.py", line 68, in rollout
+    intrinsic_reward = self.get_intrinsic_reward(observation)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/RND_Agent.py", line 114, in get_intrinsic_reward
+    scaled_intrinsic_reward = rf(
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rewards.py", line 421, in compute_intrinsic_reward
+    reward = self._sess.run(to_evaluate,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/client/session.py", line 968, in run
+    result = self._run(None, fetches, feed_dict, options_ptr,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/client/session.py", line 1191, in _run
+    results = self._do_run(handle, final_targets, final_fetches,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/client/session.py", line 1371, in _do_run
+    return self._do_call(_run_fn, feeds, fetches, targets, options,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/client/session.py", line 1397, in _do_call
+    raise type(e)(node_def, op, message)  # pylint: disable=no-value-for-parameter
+tensorflow.python.framework.errors_impl.UnimplementedError: Graph execution error:
+
+Detected at node 'intrinsic_rnd/Conv/Conv2D' defined at (most recent call last):
+    File "/usr/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+      return _run_code(code, main_globals, None,
+    File "/usr/lib/python3.9/runpy.py", line 87, in _run_code
+      exec(code, run_globals)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 128, in <module>
+      exploration_agent = get_exploration_agent(_rnd_base_dir)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 49, in get_exploration_agent
+      return create_runner(rnd_base_dir, create_agent, schedule='episode_wise')
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/run_experiment.py", line 133, in create_exploration_runner
+      return RNDAgent(base_dir, create_agent_fn)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/RND_Agent.py", line 21, in __init__
+      super(RNDAgent, self).__init__(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/dopamine/discrete_domains/run_experiment.py", line 229, in __init__
+      self._agent = create_agent_fn(self._sess, self._environment,
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/run_experiment.py", line 92, in create_exploration_agent
+      return intrinsic_rainbow_agent.RNDRainbowAgent(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rainbow_agent.py", line 201, in __init__
+      self.intrinsic_model = intrinsic_rewards.RNDIntrinsicReward(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rewards.py", line 407, in __init__
+      self.target_embedding = self._target_network(self.obs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rewards.py", line 433, in _target_network
+      net = slim.conv2d(obs, 32, [8, 8], stride=4,
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/ops/arg_scope.py", line 184, in func_with_args
+      return func(*args, **current_args)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/layers/layers.py", line 1171, in convolution2d
+      return convolution(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/ops/arg_scope.py", line 184, in func_with_args
+      return func(*args, **current_args)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/layers/layers.py", line 1089, in convolution
+      outputs = layer.apply(inputs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py", line 1697, in apply
+      return self.__call__(inputs, *args, **kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/legacy_tf_layers/base.py", line 568, in __call__
+      outputs = super(Layer, self).__call__(inputs, *args, **kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py", line 784, in __call__
+      outputs = call_fn(cast_inputs, *args, **kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/layers/convolutional.py", line 254, in call
+      outputs = self._convolution_op(inputs, self.kernel)
+Node: 'intrinsic_rnd/Conv/Conv2D'
+Detected at node 'intrinsic_rnd/Conv/Conv2D' defined at (most recent call last):
+    File "/usr/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+      return _run_code(code, main_globals, None,
+    File "/usr/lib/python3.9/runpy.py", line 87, in _run_code
+      exec(code, run_globals)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 128, in <module>
+      exploration_agent = get_exploration_agent(_rnd_base_dir)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 49, in get_exploration_agent
+      return create_runner(rnd_base_dir, create_agent, schedule='episode_wise')
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/run_experiment.py", line 133, in create_exploration_runner
+      return RNDAgent(base_dir, create_agent_fn)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/RND_Agent.py", line 21, in __init__
+      super(RNDAgent, self).__init__(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/dopamine/discrete_domains/run_experiment.py", line 229, in __init__
+      self._agent = create_agent_fn(self._sess, self._environment,
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/run_experiment.py", line 92, in create_exploration_agent
+      return intrinsic_rainbow_agent.RNDRainbowAgent(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rainbow_agent.py", line 201, in __init__
+      self.intrinsic_model = intrinsic_rewards.RNDIntrinsicReward(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+      return fn(*new_args, **new_kwargs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rewards.py", line 407, in __init__
+      self.target_embedding = self._target_network(self.obs)
+    File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rewards.py", line 433, in _target_network
+      net = slim.conv2d(obs, 32, [8, 8], stride=4,
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/ops/arg_scope.py", line 184, in func_with_args
+      return func(*args, **current_args)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/layers/layers.py", line 1171, in convolution2d
+      return convolution(
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/ops/arg_scope.py", line 184, in func_with_args
+      return func(*args, **current_args)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/layers/layers.py", line 1089, in convolution
+      outputs = layer.apply(inputs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py", line 1697, in apply
+      return self.__call__(inputs, *args, **kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/legacy_tf_layers/base.py", line 568, in __call__
+      outputs = super(Layer, self).__call__(inputs, *args, **kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py", line 784, in __call__
+      outputs = call_fn(cast_inputs, *args, **kwargs)
+    File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/layers/convolutional.py", line 254, in call
+      outputs = self._convolution_op(inputs, self.kernel)
+Node: 'intrinsic_rnd/Conv/Conv2D'
+2 root error(s) found.
+  (0) UNIMPLEMENTED: DNN library is not found.
+	 [[{{node intrinsic_rnd/Conv/Conv2D}}]]
+	 [[intrinsic_rnd/truediv_1/_69]]
+  (1) UNIMPLEMENTED: DNN library is not found.
+	 [[{{node intrinsic_rnd/Conv/Conv2D}}]]
+0 successful operations.
+0 derived errors ignored.
+
+Original stack trace for 'intrinsic_rnd/Conv/Conv2D':
+  File "/usr/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 128, in <module>
+    exploration_agent = get_exploration_agent(_rnd_base_dir)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 49, in get_exploration_agent
+    return create_runner(rnd_base_dir, create_agent, schedule='episode_wise')
+  File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+    return fn(*new_args, **new_kwargs)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/run_experiment.py", line 133, in create_exploration_runner
+    return RNDAgent(base_dir, create_agent_fn)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/RND_Agent.py", line 21, in __init__
+    super(RNDAgent, self).__init__(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+    return fn(*new_args, **new_kwargs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/dopamine/discrete_domains/run_experiment.py", line 229, in __init__
+    self._agent = create_agent_fn(self._sess, self._environment,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+    return fn(*new_args, **new_kwargs)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/run_experiment.py", line 92, in create_exploration_agent
+    return intrinsic_rainbow_agent.RNDRainbowAgent(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+    return fn(*new_args, **new_kwargs)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rainbow_agent.py", line 201, in __init__
+    self.intrinsic_model = intrinsic_rewards.RNDIntrinsicReward(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/gin/config.py", line 1582, in gin_wrapper
+    return fn(*new_args, **new_kwargs)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rewards.py", line 407, in __init__
+    self.target_embedding = self._target_network(self.obs)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/bonus_based_exploration/intrinsic_motivation/intrinsic_rewards.py", line 433, in _target_network
+    net = slim.conv2d(obs, 32, [8, 8], stride=4,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/ops/arg_scope.py", line 184, in func_with_args
+    return func(*args, **current_args)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/layers/layers.py", line 1171, in convolution2d
+    return convolution(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/ops/arg_scope.py", line 184, in func_with_args
+    return func(*args, **current_args)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tf_slim/layers/layers.py", line 1089, in convolution
+    outputs = layer.apply(inputs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py", line 1697, in apply
+    return self.__call__(inputs, *args, **kwargs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/legacy_tf_layers/base.py", line 568, in __call__
+    outputs = super(Layer, self).__call__(inputs, *args, **kwargs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py", line 784, in __call__
+    outputs = call_fn(cast_inputs, *args, **kwargs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/autograph/impl/api.py", line 689, in wrapper
+    return converted_call(f, args, kwargs, options=options)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/autograph/impl/api.py", line 377, in converted_call
+    return _call_unconverted(f, args, kwargs, options)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/autograph/impl/api.py", line 458, in _call_unconverted
+    return f(*args, **kwargs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/keras/layers/convolutional.py", line 254, in call
+    outputs = self._convolution_op(inputs, self.kernel)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/util/traceback_utils.py", line 150, in error_handler
+    return fn(*args, **kwargs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/util/dispatch.py", line 1176, in op_dispatch_handler
+    return dispatch_target(*args, **kwargs)
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/ops/nn_ops.py", line 1181, in convolution_v2
+    return convolution_internal(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/ops/nn_ops.py", line 1313, in convolution_internal
+    return op(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/ops/nn_ops.py", line 2787, in _conv2d_expanded_batch
+    return gen_nn_ops.conv2d(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/ops/gen_nn_ops.py", line 1144, in conv2d
+    _, _, _op, _outputs = _op_def_library._apply_op_helper(
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/framework/op_def_library.py", line 795, in _apply_op_helper
+    op = g._create_op_internal(op_type_name, inputs, dtypes=None,
+  File "/home/npermpre/.local/lib/python3.9/site-packages/tensorflow/python/framework/ops.py", line 3814, in _create_op_internal
+    ret = Operation(
+

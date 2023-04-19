@@ -143,7 +143,7 @@ class RNDRainbowAgent(
   """A Rainbow agent paired with an intrinsic bonus derived from RND."""
 
   def __init__(self,
-               sess,
+		  sess,
                num_actions,
                num_atoms=51,
                vmax=10.,

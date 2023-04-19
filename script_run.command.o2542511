@@ -1,0 +1,23 @@
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/logs 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/logs/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/logs/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/initiation_set_plots 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/value_function_plots 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/accepted_events 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/rejected_events 
+Creating classifier of type cnn
+Creating rainbow with sigma=0.5
+Created model-free option global-option with option_idx=0
+[DSGTrainer] Adding new SalientEvent  SE([ 77 235])
+[Seed=18] Device count: 1 Device Name: NVIDIA GeForce GTX 1080 Ti
+1
+<tensorflow.python.client.session.Session object at 0x14e1d4ac5a60>
+================================================================================
+[Expansion] Episode: 0 Step: 0
+================================================================================
+Attempting to expand SE([ 77 235])
+2
+<tensorflow.python.client.session.Session object at 0x14e1d4ac5a60>
