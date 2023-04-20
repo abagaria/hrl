@@ -12,8 +12,12 @@ from hrl.agent.dsc.datastructures import TrainingExample
 
 
 class ObsInitiationClassifier(InitiationClassifier):
-    def __init__(self, obs_dim, device, optimistic_threshold=0.5, pessimistic_threshold=0.75, maxlen=1000):
-        self.classifier = BinaryMLPClassifier(obs_dim, device, threshold=None)
+    def __init__(self, obs_dim, only_reweigh_negative_examples,
+                 device, optimistic_threshold=0.5, pessimistic_threshold=0.75, maxlen=1000):
+        self.classifier = BinaryMLPClassifier(
+            obs_dim, device, threshold=None,
+            only_reweigh_negative_examples=only_reweigh_negative_examples
+        )
         self.optimistic_threshold = optimistic_threshold
         self.pessimistic_threshold = pessimistic_threshold
         self.positive_examples = deque([], maxlen=maxlen)
@@ -23,6 +27,7 @@ class ObsInitiationClassifier(InitiationClassifier):
         self.obs_dim = obs_dim
         optimistic_classifier = self.classifier
         pessimistic_classifier = self.classifier
+        self.only_reweigh_negative_examples = only_reweigh_negative_examples
         
         super().__init__(optimistic_classifier, pessimistic_classifier)
 
@@ -127,7 +132,9 @@ class ObsInitiationClassifier(InitiationClassifier):
 
         if self.classifier.should_train(Y):
             # Re-train the common classifier from scratch
-            self.classifier = BinaryMLPClassifier(self.obs_dim, self.device, threshold=None)
+            self.classifier = BinaryMLPClassifier(
+                self.obs_dim, self.device,
+                self.only_reweigh_negative_examples, threshold=None)
             self.classifier.fit(X, Y, initiation_gvf, goal)
 
             # Re-point the classifiers to the same object in memory

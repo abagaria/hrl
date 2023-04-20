@@ -17,7 +17,8 @@ from hrl.agent.dsc.classifier.position_classifier import PositionInitiationClass
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
-                 option_idx, lr_c, lr_a, max_num_children=1, init_salient_event=None, target_salient_event=None,
+                 option_idx, lr_c, lr_a, only_reweigh_negative_examples,
+                 max_num_children=1, init_salient_event=None, target_salient_event=None,
                  path_to_model="", multithread_mpc=False, init_classifier_type="position-clf",
                  optimistic_threshold=40, pessimistic_threshold=20, initiation_gvf=None):
         assert isinstance(mdp, GoalConditionedMDPWrapper), mdp
@@ -45,6 +46,7 @@ class ModelBasedOption(object):
         self.optimistic_threshold = optimistic_threshold
         self.pessimistic_threshold = pessimistic_threshold
         self.initiation_gvf = initiation_gvf
+        self.only_reweigh_negative_examples = only_reweigh_negative_examples
 
         # TODO
         self.overall_mdp = mdp
@@ -137,6 +139,7 @@ class ModelBasedOption(object):
             return ObsInitiationClassifier(
                 self.mdp.state_space_size(),
                 device=self.device,
+                only_reweigh_negative_examples=self.only_reweigh_negative_examples
             )
         if self.init_classifier_type == "critic-threshold":
             return CriticInitiationClassifier(

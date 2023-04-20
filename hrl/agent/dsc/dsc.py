@@ -18,7 +18,8 @@ class RobustDSC(object):
                  logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc,
                  max_num_children,
                  init_classifier_type, optimistic_threshold, pessimistic_threshold,
-                 use_initiation_gvf, use_reachability_goal_sampling):
+                 use_initiation_gvf, use_reachability_goal_sampling,
+                 only_reweigh_negative_examples):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -35,6 +36,7 @@ class RobustDSC(object):
         self.multithread_mpc = multithread_mpc
         self.use_initiation_gvf = use_initiation_gvf
         self.use_reachability_goal_sampling = use_reachability_goal_sampling
+        self.only_reweigh_negative_examples = only_reweigh_negative_examples
         
         self.init_classifier_type = init_classifier_type
         self.optimistic_threshold = optimistic_threshold
@@ -288,6 +290,7 @@ class RobustDSC(object):
                                   global_value_learner=self.uvfa_policy,
                                   option_idx=option_idx,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
+                                  only_reweigh_negative_examples=self.only_reweigh_negative_examples,
                                   multithread_mpc=self.multithread_mpc,
                                   init_classifier_type=self.init_classifier_type,
                                   optimistic_threshold=self.optimistic_threshold,
@@ -312,6 +315,7 @@ class RobustDSC(object):
                                   global_value_learner=self.uvfa_policy,
                                   option_idx=0,
                                   lr_c=self.lr_c, lr_a=self.lr_a,
+                                  only_reweigh_negative_examples=self.only_reweigh_negative_examples,
                                   multithread_mpc=self.multithread_mpc,
                                   init_classifier_type=self.init_classifier_type,
                                   optimistic_threshold=self.optimistic_threshold,

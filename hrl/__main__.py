@@ -54,6 +54,7 @@ if __name__ == "__main__":
     parser.add_argument("--pessimistic_threshold", type=float, default=0.75)
     parser.add_argument("--use_initiation_gvf", action="store_true", default=False)
     parser.add_argument("--use_reachability_goal_sampling", action="store_true", default=False)
+    parser.add_argument("--only_reweigh_negative_examples", action="store_true", default=False)
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
@@ -120,7 +121,8 @@ if __name__ == "__main__":
             "optimistic_threshold": args.optimistic_threshold,
             "pessimistic_threshold": args.pessimistic_threshold,
             "use_initiation_gvf": args.use_initiation_gvf,
-            "use_reachability_goal_sampling": args.use_reachability_goal_sampling
+            "use_reachability_goal_sampling": args.use_reachability_goal_sampling,
+            "only_reweigh_negative_examples": args.only_reweigh_negative_examples
     }
 
     exp = RobustDST(**kwargs) if args.use_skill_trees else RobustDSC(**kwargs)

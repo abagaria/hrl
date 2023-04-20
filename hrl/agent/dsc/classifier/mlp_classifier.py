@@ -13,6 +13,7 @@ class BinaryMLPClassifier:
     def __init__(self,
                 obs_dim,
                 device,
+                only_reweigh_negative_examples: bool,
                 threshold=0.5,
                 batch_size=128):
         
@@ -20,6 +21,7 @@ class BinaryMLPClassifier:
         self.is_trained = False
         self.threshold = threshold
         self.batch_size = batch_size
+        self.only_reweigh_negative_examples = only_reweigh_negative_examples
 
         self.model = ObsClassifierMLP(obs_dim).to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters())
@@ -72,6 +74,11 @@ class BinaryMLPClassifier:
         values = torch.as_tensor(values).float().to(self.device)  # TODO(ab): keep these on GPU
         # weights = values.clip(0., 1.) # no need for clipping b/c of sigmoid in GVF
         values[labels == 0] = 1. - values[labels == 0]
+
+        if self.only_reweigh_negative_examples:
+            values[labels == 1] = 1.
+        # else values[labels==1] are already = V(s), which is what we want
+
         return values
 
     def fit(self, X, y, initiation_gvf=None, goal=None, n_epochs=5):
