@@ -57,7 +57,7 @@ class InitiationGVF:
         with torch.no_grad():
             q1, q2 = self.policy_evaluation_module.get_twin_values(
                 states, self.target_policy)
-        return torch.min(q1.squeeze(), q2.squeeze()), 0.5*torch.abs(q1.squeeze() - q2.squeeze())
+        return torch.unsqueeze(torch.min(q1.squeeze(), q2.squeeze()), dim=0), torch.unsqueeze(0.5*torch.abs(q1.squeeze() - q2.squeeze()), dim=0)
 
     def optimistic_predict(self, states: np.ndarray, bonuses=None) -> np.ndarray:
         values = self.policy_evaluation_module.get_values(

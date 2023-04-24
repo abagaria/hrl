@@ -261,7 +261,7 @@ def visualize_initiation_gvf(
     def f(x): return initiation_gvf.policy_evaluation_module.get_values(
         x, target_policy)
 
-    def g(x): return initiation_gvf.get_value_and_uncertainty(x)
+    def g(x): return initiation_gvf.get_value_and_uncertainty(x)[1]
 
     values = chunked_inference(states, f, chunk_size=10_000)
     values_uncertainty = chunked_inference(states, g, chunk_size=10_000)
@@ -280,12 +280,11 @@ def visualize_initiation_gvf(
     plt.figure()
     plt.scatter(states[:, 0], states[:, 1], c=values_uncertainty)
     plt.colorbar()
-    breakpoint()
     g_str = np.round(goal, 2)
     file_name = f"init_gvf_seed_{seed}_episode_{episode}_goal_{g_str}"
-    plt.title(f"GVF Targeting {g_str}")
+    plt.title(f"GVF Targeting Uncertainty Plot {g_str}")
     saving_path = os.path.join(
-        'results', experiment_name, 'value_function_uncertainty_plot', f'{file_name}.png')
+        'results', experiment_name, 'value_function_plots', f'{file_name}_uncertainty.png')
 
     plt.savefig(saving_path)
     plt.close()
