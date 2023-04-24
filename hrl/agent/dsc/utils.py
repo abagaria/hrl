@@ -9,6 +9,7 @@ from treelib import Tree, Node
 from pfrl.replay_buffers.prioritized import PrioritizedReplayBuffer
 from hrl.utils import chunked_inference
 
+
 class SkillTree(object):
     def __init__(self, options):
         self._tree = Tree()
@@ -22,7 +23,8 @@ class SkillTree(object):
             print(f"Adding {option} to the skill-tree")
             self.options.append(option)
             parent = option.parent.name if option.parent is not None else None
-            self._tree.create_node(tag=option.name, identifier=option.name, data=option, parent=parent)
+            self._tree.create_node(
+                tag=option.name, identifier=option.name, data=option, parent=parent)
 
     def get_option(self, option_name):
         if option_name in self._tree.nodes:
@@ -51,6 +53,7 @@ def make_meshgrid(x, y, h=.02):
                          np.arange(y_min, y_max, h))
     return xx, yy
 
+
 def get_grid_states(mdp):
     ss = []
     x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
@@ -70,22 +73,27 @@ def get_initiation_set_values(option):
             pos = np.array((x, y))
             init = option.is_init_true(pos)
             if hasattr(option.overall_mdp.env, 'env'):
-                init = init and not option.overall_mdp.env.env._is_in_collision(pos)
+                init = init and not option.overall_mdp.env.env._is_in_collision(
+                    pos)
             values.append(init)
     return values
+
 
 def plot_one_class_initiation_classifier(option):
 
     colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
 
-    X = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.positive_examples)
+    X = option.initiation_classifier.construct_feature_matrix(
+        option.initiation_classifier.positive_examples)
     X0, X1 = X[:, 0], X[:, 1]
     xx, yy = make_meshgrid(X0, X1)
-    Z1 = option.initiation_classifier.pessimistic_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
+    Z1 = option.initiation_classifier.pessimistic_classifier.decision_function(
+        np.c_[xx.ravel(), yy.ravel()])
     Z1 = Z1.reshape(xx.shape)
 
     color = colors[option.option_idx % len(colors)]
     plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
+
 
 def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True, seed=0):
     states = get_grid_states(option.overall_mdp)
@@ -93,22 +101,28 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
 
     x = np.array([state[0] for state in states])
     y = np.array([state[1] for state in states])
-    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(
+        y.min(), y.max(), 1000)
     xx, yy = np.meshgrid(xi, yi)
     rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
     zz = rbf(xx, yy)
-    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.coolwarm)
+    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(
+    ), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.coolwarm)
     plt.colorbar()
 
     # Plot trajectories
-    positive_examples = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.positive_examples)
-    negative_examples = option.initiation_classifier.construct_feature_matrix(option.initiation_classifier.negative_examples)
+    positive_examples = option.initiation_classifier.construct_feature_matrix(
+        option.initiation_classifier.positive_examples)
+    negative_examples = option.initiation_classifier.construct_feature_matrix(
+        option.initiation_classifier.negative_examples)
 
     if positive_examples.shape[0] > 0 and plot_examples:
-        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", c="black", alpha=0.3, s=10)
+        plt.scatter(positive_examples[:, 0], positive_examples[:, 1],
+                    label="positive", c="black", alpha=0.3, s=10)
 
     if negative_examples.shape[0] > 0 and plot_examples:
-        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", c="lime", alpha=1.0, s=10)
+        plt.scatter(negative_examples[:, 0], negative_examples[:, 1],
+                    label="negative", c="lime", alpha=1.0, s=10)
 
     if option.initiation_classifier.pessimistic_classifier is not None:
         plot_one_class_initiation_classifier(option)
@@ -116,9 +130,11 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-    name = option.name if episode is None else option.name + f"_{experiment_name}_{episode}"
+    name = option.name if episode is None else option.name + \
+        f"_{experiment_name}_{episode}"
     plt.title(f"{option.name} Initiation Set")
-    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{name}_initiation_classifier_{seed}.png')
+    saving_path = os.path.join(
+        'results', experiment_name, 'initiation_set_plots', f'{name}_initiation_classifier_{seed}.png')
     plt.savefig(saving_path)
     plt.close()
 
@@ -136,14 +152,16 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
     current_idx = 0
 
     for chunk_number, state_chunk in tqdm(enumerate(state_chunks)):
-        probabilities = np.exp(option.initiation_distribution.score_samples(state_chunk))
+        probabilities = np.exp(
+            option.initiation_distribution.score_samples(state_chunk))
         pvalues[current_idx:current_idx + len(state_chunk)] = probabilities
         current_idx += len(state_chunk)
 
     plt.scatter(data[:, 0], data[:, 1], c=pvalues)
     plt.colorbar()
     plt.title("Density Estimator Fitted on Pessimistic Classifier")
-    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots', f'{option.name}_initiation_distribution_{episode}.png')
+    saving_path = os.path.join('results', experiment_name, 'initiation_set_plots',
+                               f'{option.name}_initiation_distribution_{episode}.png')
     plt.savefig(saving_path)
     plt.close()
 
@@ -165,7 +183,8 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
         actions = [actions[i] for i in idx]
 
     print(f"preparing {len(states)} states")
-    states = np.array([np.concatenate((state, goal), axis=0) for state in states])
+    states = np.array([np.concatenate((state, goal), axis=0)
+                      for state in states])
 
     print(f"preparing {len(actions)} actions")
     actions = np.array(actions)
@@ -185,7 +204,8 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        chunk_qvalues = solver.get_qvalues(
+            state_chunk, action_chunk).cpu().numpy().squeeze(1)
         current_chunk_size = len(state_chunk)
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
@@ -199,7 +219,8 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     else:
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}_option_{option_idx}"
     plt.title(f"VF Targeting {np.round(goal, 2)}")
-    saving_path = os.path.join('results', experiment_name, 'value_function_plots', f'{file_name}.png')
+    saving_path = os.path.join(
+        'results', experiment_name, 'value_function_plots', f'{file_name}.png')
 
     print("saving")
     plt.savefig(saving_path)
@@ -210,7 +231,8 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
 
 def parse_replay(replay, n_goal_dims=2):
     states = []
-    memory = replay.memory.data if isinstance(replay, PrioritizedReplayBuffer) else replay.memory
+    memory = replay.memory.data if isinstance(
+        replay, PrioritizedReplayBuffer) else replay.memory
     for transition in memory:
         transition = transition[-1]  # n-step to single transition
         states.append(transition['next_state'][:-n_goal_dims])
@@ -228,24 +250,42 @@ def visualize_initiation_gvf(
     assert goal.shape == (2,), goal.shape
     replay = initiation_gvf.initiation_replay_buffer
     states = parse_replay(replay)
-    states = np.array([np.concatenate((state, goal), axis=0) for state in states])
+    states = np.array([np.concatenate((state, goal), axis=0)
+                      for state in states])
 
     @torch.no_grad()
     def pi(states):
         action_tensor = target_policy(states)
         return action_tensor.cpu().numpy()
 
-    f = lambda x: initiation_gvf.policy_evaluation_module.get_values(x, target_policy)
+    def f(x): return initiation_gvf.policy_evaluation_module.get_values(
+        x, target_policy)
+
+    def g(x): return initiation_gvf.get_value_and_uncertainty(x)
 
     values = chunked_inference(states, f, chunk_size=10_000)
-    
+    values_uncertainty = chunked_inference(states, g, chunk_size=10_000)
+
     plt.scatter(states[:, 0], states[:, 1], c=values)
     plt.colorbar()
-
     g_str = np.round(goal, 2)
     file_name = f"init_gvf_seed_{seed}_episode_{episode}_goal_{g_str}"
     plt.title(f"GVF Targeting {g_str}")
-    saving_path = os.path.join('results', experiment_name, 'value_function_plots', f'{file_name}.png')
+    saving_path = os.path.join(
+        'results', experiment_name, 'value_function_plots', f'{file_name}.png')
+
+    plt.savefig(saving_path)
+    plt.close()
+
+    plt.figure()
+    plt.scatter(states[:, 0], states[:, 1], c=values_uncertainty)
+    plt.colorbar()
+    breakpoint()
+    g_str = np.round(goal, 2)
+    file_name = f"init_gvf_seed_{seed}_episode_{episode}_goal_{g_str}"
+    plt.title(f"GVF Targeting {g_str}")
+    saving_path = os.path.join(
+        'results', experiment_name, 'value_function_uncertainty_plot', f'{file_name}.png')
 
     plt.savefig(saving_path)
     plt.close()
