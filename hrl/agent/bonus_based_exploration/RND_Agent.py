@@ -64,8 +64,6 @@ class RNDAgent(Runner):
         while True:
 
             observation, reward, is_terminal = self._run_one_step(action)
-            print("2")
-            print(self._sess)
 
             intrinsic_reward = self.get_intrinsic_reward(observation)
 

@@ -132,4 +132,4 @@ dependencies:
     - werkzeug==2.0.2
     - wrapt==1.13.3
     - zipp==3.7.0
-prefix: /users/abagaria/anaconda3/envs/dsg
+prefix: /home/npermpre/miniconda3/envs/dsg

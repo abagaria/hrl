@@ -238,8 +238,6 @@ if __name__ == "__main__":
     # Create some possibly easy salient events using RND
     trainer.create_sparse_graph = False
     for warmup_iteration in range(args.n_warmup_iterations):
-    	print("1")
-    	print(trainer.rnd_agent._sess)
     	trainer.graph_expansion_run_loop(warmup_iteration * args.n_expansion_episodes,
                                          num_episodes=args.n_expansion_episodes)
     trainer.create_sparse_graph = args.create_sparse_graph
