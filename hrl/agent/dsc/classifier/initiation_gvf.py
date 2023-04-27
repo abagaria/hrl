@@ -6,6 +6,7 @@ from pfrl.replay_buffers import ReplayBuffer
 from pfrl.replay_buffers.prioritized import PrioritizedReplayBuffer
 
 from hrl.agent.ope.td0 import ContinuousTDPolicyEvaluator
+from typing import Tuple
 
 
 class InitiationGVF:
@@ -42,6 +43,8 @@ class InitiationGVF:
             n_input_channels=n_input_channels
         )
 
+        self.state_goal_count_dict = {}
+
     def add_trajectory_to_replay(self, transitions):
         for state, action, rg, next_state, done in transitions:
             self.initiation_replay_buffer.append(
@@ -53,11 +56,36 @@ class InitiationGVF:
                 # extra_info=info
             )
 
-    def get_value_and_uncertainty(self, states: np.ndarray, bonuses=None) -> np.ndarray:
+    def update_pseudo_count(self, transition: np.ndarray, goal: np.ndarray):
+        """Update the pseudo-count for a given state-goal pair."""
+
+        for state, action, _, next_state, _ in transition:
+            # Discretize the state & goal to a grid.
+            # Why 0.6? Because that's the threshold we use for the goal.
+            pos_x = int(state[0]/0.6)
+            pos_y = int(state[1]/0.6)
+
+            goal_x = int(goal[0]/0.6)
+            goal_y = int(goal[1]/0.6)
+
+            if (pos_x, pos_y, goal_x, goal_y) not in self.state_goal_count_dict:
+                self.state_goal_count_dict[(pos_x, pos_y, goal_x, goal_y)] = 1
+            else:
+                self.state_goal_count_dict[(pos_x, pos_y, goal_x, goal_y)] += 1
+
+    def get_value_and_uncertainty(self, states: np.ndarray, bonuses=None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         with torch.no_grad():
             q1, q2 = self.policy_evaluation_module.get_twin_values(
                 states, self.target_policy)
-        return torch.unsqueeze(torch.min(q1.squeeze(), q2.squeeze()), dim=0), torch.unsqueeze(0.5*torch.abs(q1.squeeze() - q2.squeeze()), dim=0)
+            q_online, q_target = self.policy_evaluation_module.get_online_target_values(
+                states, self.target_policy)
+
+        Q = torch.min(q1.squeeze(), q2.squeeze())
+        Q1_Q2_diff = torch.unsqueeze(
+            0.5*torch.abs(q1.squeeze() - q2.squeeze()), dim=0)
+        Q_and_Q_targ_diff = torch.abs(q_online.squeeze() - q_target.squeeze())
+
+        return Q, Q1_Q2_diff, Q_and_Q_targ_diff
 
     def optimistic_predict(self, states: np.ndarray, bonuses=None) -> np.ndarray:
         values = self.policy_evaluation_module.get_values(

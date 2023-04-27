@@ -65,12 +65,12 @@ class ModelBasedOption(object):
         if not self.use_global_vf:
             print(f'Creating NEW local-policy for {name}')
             self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                    action_dim=self.mdp.action_space_size(),
-                                    max_action=1.,
-                                    name=f"{name}-td3-agent",
-                                    device=self.device,
-                                    lr_c=lr_c, lr_a=lr_a,
-                                    use_output_normalization=use_output_norm)
+                                     action_dim=self.mdp.action_space_size(),
+                                     max_action=1.,
+                                     name=f"{name}-td3-agent",
+                                     device=self.device,
+                                     lr_c=lr_c, lr_a=lr_a,
+                                     use_output_normalization=use_output_norm)
         else:
             self.value_learner = global_value_learner
 
@@ -96,7 +96,8 @@ class ModelBasedOption(object):
         if self.use_vf and not self.use_global_vf and self.parent is not None:
             self.initialize_value_function_with_global_value_function()
 
-        print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
+        print(
+            f"Created model-based option {self.name} with option_idx={self.option_idx}")
 
         self.is_last_option = False
 
@@ -149,7 +150,7 @@ class ModelBasedOption(object):
                 optimistic_threshold=self.optimistic_threshold,
                 pessimistic_threshold=self.pessimistic_threshold
             )
-        
+
     # ------------------------------------------------------------
     # Learning Phase Methods
     # ------------------------------------------------------------
@@ -162,11 +163,11 @@ class ModelBasedOption(object):
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
-        
+
         if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
-        return self.initiation_classifier.optimistic_predict(state) or self.pessimistic_is_init_true(state) 
+        return self.initiation_classifier.optimistic_predict(state) or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
         if self.parent is None:
@@ -240,9 +241,9 @@ class ModelBasedOption(object):
 
         if self.target_salient_event is not None:
             return self.target_salient_event.get_target_position()
-        
+
         raise ValueError(f"{self, self.parent, sampled_goal, parent}")
-    
+
     def reachability_sample(self, state, sampling_method='sum_sampling'):
         """Use the UVFA to pick the closest goal to pursue."""
         goals = self.parent.initiation_classifier.get_states_inside_pessimistic_classifier_region()
@@ -253,7 +254,8 @@ class ModelBasedOption(object):
             vf = self.value_function if self.initiation_gvf is None else self.initiation_gvf.get_values
             values = vf(
                 goals=goals,
-                states=np.repeat(state[np.newaxis, ...], repeats=len(goals), axis=0)
+                states=np.repeat(state[np.newaxis, ...],
+                                 repeats=len(goals), axis=0)
             ).squeeze()
 
             if isinstance(values, torch.Tensor):
@@ -282,7 +284,8 @@ class ModelBasedOption(object):
 
         state = deepcopy(self.mdp.cur_state)
 
-        print(f"[Step: {step_number}] Rolling out {self.name}, from {state[:2]} targeting {goal}")
+        print(
+            f"[Step: {step_number}] Rolling out {self.name}, from {state[:2]} targeting {goal}")
 
         self.num_executions += 1
 
@@ -300,7 +303,8 @@ class ModelBasedOption(object):
             step_number += 1
             total_reward += reward
             visited_states.append(state)
-            option_transitions.append((state, action, reward, next_state, next_done))
+            option_transitions.append(
+                (state, action, reward, next_state, next_done))
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
@@ -309,9 +313,9 @@ class ModelBasedOption(object):
 
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
-                                    pursued_goal=goal,
-                                    reached_goal=self.extract_goal_dimensions(state))
-            
+                                       pursued_goal=goal,
+                                       reached_goal=self.extract_goal_dimensions(state))
+
             if self.initiation_gvf is not None:
                 self.update_initiation_value_function(
                     option_transitions,
@@ -319,7 +323,8 @@ class ModelBasedOption(object):
                     reached_goal=self.extract_goal_dimensions(state)
                 )
 
-        is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(state_buffer=visited_states)
+        is_valid_data = self.max_num_children == 1 or self.is_valid_init_data(
+            state_buffer=visited_states)
 
         if reached_term and is_valid_data and not eval_mode:
             self.num_goal_hits += 1
@@ -342,20 +347,27 @@ class ModelBasedOption(object):
 
     def update_initiation_value_function(self, option_transitions, reached_goal, pursued_goal):
         """Update the goal-conditioned initiation general value function."""
-        
+
         self.initiation_gvf.add_trajectory_to_replay(
             self.relabel_trajectory(option_transitions, pursued_goal)
         )
+
+        self.initiation_gvf.update_pseudo_count(
+            option_transitions, pursued_goal)
 
         self.initiation_gvf.add_trajectory_to_replay(
             self.relabel_trajectory(option_transitions, reached_goal)
         )
 
     def initialize_value_function_with_global_value_function(self):
-        self.value_learner.actor.load_state_dict(self.global_value_learner.actor.state_dict())
-        self.value_learner.critic.load_state_dict(self.global_value_learner.critic.state_dict())
-        self.value_learner.target_actor.load_state_dict(self.global_value_learner.target_actor.state_dict())
-        self.value_learner.target_critic.load_state_dict(self.global_value_learner.target_critic.state_dict())
+        self.value_learner.actor.load_state_dict(
+            self.global_value_learner.actor.state_dict())
+        self.value_learner.critic.load_state_dict(
+            self.global_value_learner.critic.state_dict())
+        self.value_learner.target_actor.load_state_dict(
+            self.global_value_learner.target_actor.state_dict())
+        self.value_learner.target_critic.load_state_dict(
+            self.global_value_learner.target_critic.state_dict())
 
     def extract_goal_dimensions(self, goal):
         def _extract(goal):
@@ -368,7 +380,8 @@ class ModelBasedOption(object):
         return goal.pos
 
     def get_augmented_state(self, state, goal):
-        assert goal is not None and isinstance(goal, np.ndarray), f"goal is {goal}"
+        assert goal is not None and isinstance(
+            goal, np.ndarray), f"goal is {goal}"
 
         goal_position = self.extract_goal_dimensions(goal)
         return np.concatenate((state, goal_position))
@@ -376,7 +389,8 @@ class ModelBasedOption(object):
     def experience_replay(self, trajectory, goal_state):
         for state, action, reward, next_state, next_done in trajectory:
             augmented_state = self.get_augmented_state(state, goal=goal_state)
-            augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
+            augmented_next_state = self.get_augmented_state(
+                next_state, goal=goal_state)
             done = self.is_at_local_goal(next_state, goal_state)
 
             reward_func = self.overall_mdp.dense_gc_reward_func if self.dense_reward \
@@ -384,12 +398,14 @@ class ModelBasedOption(object):
             reward, global_done = reward_func(next_state, goal_state)
 
             if not self.use_global_vf or self.global_init:
-                self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
+                self.value_learner.step(
+                    augmented_state, action, reward, augmented_next_state, done)
 
             # Off-policy updates to the global option value function
             if not self.global_init:
                 assert self.global_value_learner is not None
-                self.global_value_learner.step(augmented_state, action, reward, augmented_next_state, global_done)
+                self.global_value_learner.step(
+                    augmented_state, action, reward, augmented_next_state, global_done)
 
     def value_function(self, states, goals):
         assert isinstance(states, np.ndarray)
@@ -406,7 +422,8 @@ class ModelBasedOption(object):
 
         goal_positions = goals[:, :2]
         augmented_states = np.concatenate((states, goal_positions), axis=1)
-        augmented_states = torch.as_tensor(augmented_states).float().to(self.device)
+        augmented_states = torch.as_tensor(
+            augmented_states).float().to(self.device)
 
         if self.use_global_vf and not self.global_init:
             values = self.global_value_learner.get_values(augmented_states)
@@ -414,7 +431,7 @@ class ModelBasedOption(object):
             values = self.value_learner.get_values(augmented_states)
 
         return values
-    
+
     def relabel_trajectory(self, trajectory, goal_state):
         def initiation_reward_func(state, goal, threshold=0.6):
             pos = self.extract_goal_dimensions(state)
@@ -429,12 +446,13 @@ class ModelBasedOption(object):
 
         for state, action, _, next_state, _ in trajectory:
             augmented_state = self.get_augmented_state(state, goal_state)
-            augmented_next_state = self.get_augmented_state(next_state, goal_state)
+            augmented_next_state = self.get_augmented_state(
+                next_state, goal_state)
 
             reward, reached = initiation_reward_func(next_state, goal_state)
 
             relabeled_trajectory.append((
-                augmented_state, 
+                augmented_state,
                 action,
                 reward,
                 augmented_next_state,
@@ -475,15 +493,22 @@ class ModelBasedOption(object):
         final_state = visited_states[-1]
 
         if self.is_term_true(final_state):
-            positive_states = [start_state] + visited_states[-self.buffer_length:]
-            positive_values = self.value_function(np.array(positive_states), pursued_goal)
-            positive_infos = [state2info(state, value) for state, value in zip(positive_states, positive_values)]
-            self.initiation_classifier.add_positive_examples(positive_states, positive_infos)
+            positive_states = [start_state] + \
+                visited_states[-self.buffer_length:]
+            positive_values = self.value_function(
+                np.array(positive_states), pursued_goal)
+            positive_infos = [state2info(state, value) for state, value in zip(
+                positive_states, positive_values)]
+            self.initiation_classifier.add_positive_examples(
+                positive_states, positive_infos)
         else:
             negative_states = [start_state]
-            negative_values = self.value_function(np.array(negative_states), pursued_goal)
-            negative_infos = [state2info(negative_states[0], negative_values[0])]
-            self.initiation_classifier.add_negative_examples(negative_states, negative_infos)
+            negative_values = self.value_function(
+                np.array(negative_states), pursued_goal)
+            negative_infos = [state2info(
+                negative_states[0], negative_values[0])]
+            self.initiation_classifier.add_negative_examples(
+                negative_states, negative_infos)
 
     def should_change_negative_examples(self):
         pass
@@ -500,8 +525,10 @@ class ModelBasedOption(object):
         if not length_condition:
             return False
 
-        sibling_cond = lambda o: o.get_training_phase() != "gestation" and o.initiation_classifier.is_initialized()
-        siblings = [option for option in self.get_sibling_options() if sibling_cond(option)]
+        def sibling_cond(o): return o.get_training_phase(
+        ) != "gestation" and o.initiation_classifier.is_initialized()
+        siblings = [option for option in self.get_sibling_options()
+                    if sibling_cond(option)]
 
         if len(siblings) > 0:
             assert self.parent is not None, "Root option has no siblings"
@@ -509,7 +536,8 @@ class ModelBasedOption(object):
             sibling_count = 0.
             for state in state_buffer:
                 for sibling in siblings:
-                    penalize = sibling.pessimistic_is_init_true(state) and not self.parent.pessimistic_is_init_true(state)
+                    penalize = sibling.pessimistic_is_init_true(
+                        state) and not self.parent.pessimistic_is_init_true(state)
                     sibling_count += penalize
 
             return 0 < (sibling_count / len(state_buffer)) <= 0.35

@@ -176,6 +176,17 @@ class ContinuousTDPolicyEvaluator(TDPolicyEvaluator):
 
         return q1.squeeze(), q2.squeeze()
 
+    @torch.no_grad()
+    def get_online_target_values(self, states: np.ndarray, target_policy) -> torch.Tensor:
+        assert isinstance(states, np.ndarray), type(states)
+        # assert states.dtype == np.float32, states.dtype
+        state_tensor = torch.as_tensor(states).float().to(self._device)
+        action_tensor = target_policy(state_tensor)
+        q1, q2 = self._online_q_network(state_tensor, action_tensor)
+        q1_target, q2_target = self._target_q_network(
+            state_tensor, action_tensor)
+        return torch.min(q1.squeeze(), q2.squeeze()), torch.min(q1_target.squeeze(), q2_target.squeeze())
+
     def train(self, target_policy):
         """Single minibatch update of the evaluation value-function."""
         transitions = batch_experiences(

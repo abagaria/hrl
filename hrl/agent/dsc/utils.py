@@ -258,10 +258,35 @@ def visualize_initiation_gvf(
         action_tensor = target_policy(states)
         return action_tensor.cpu().numpy()
 
+    '''
+    GVF values.
+    '''
     def f(x): return initiation_gvf.policy_evaluation_module.get_values(
         x, target_policy)
-
+    '''
+    The difference between the q1 and q1 values of the online network in the GVF. 
+    '''
     def g(x): return initiation_gvf.get_value_and_uncertainty(x)[1]
+    '''
+    The difference between the online and target GVF
+    '''
+    def x(x): return initiation_gvf.get_value_and_uncertainty(x)[2]
+    '''
+    Return a pseudo count based uncertainty metric
+    '''
+    def h(x):
+        pos_x = int(x[0]/0.6)
+        pos_y = int(x[1]/0.6)
+        goal_x = int(x[-2]/0.6)
+        goal_y = int(x[-1]/0.6)
+
+        count = np.finfo(np.float32).eps
+
+        if (pos_x, pos_y, goal_x, goal_y) in initiation_gvf.state_goal_count_dict:
+            count += initiation_gvf.pseudo_count[(pos_x,
+                                                  pos_y, goal_x, goal_y)]
+
+        return 1/torch.sqrt(torch.tensor(count))
 
     values = chunked_inference(states, f, chunk_size=10_000)
     values_uncertainty = chunked_inference(states, g, chunk_size=10_000)
