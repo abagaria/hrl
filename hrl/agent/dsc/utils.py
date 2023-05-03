@@ -275,21 +275,35 @@ def visualize_initiation_gvf(
     Return a pseudo count based uncertainty metric
     '''
     def h(x):
-        pos_x = int(x[0]/0.6)
-        pos_y = int(x[1]/0.6)
-        goal_x = int(x[-2]/0.6)
-        goal_y = int(x[-1]/0.6)
+        pos_x_arr = np.array(x[:, 0]/0.6).astype(int)
+        pos_y_arr = np.array(x[:, 1]/0.6).astype(int)
+        goal_x_arr = np.array(x[:, -2]/0.6).astype(int)
+        goal_y_arr = np.array(x[:, -1]/0.6).astype(int)
 
         count = np.finfo(np.float32).eps
 
-        if (pos_x, pos_y, goal_x, goal_y) in initiation_gvf.state_goal_count_dict:
-            count += initiation_gvf.pseudo_count[(pos_x,
-                                                  pos_y, goal_x, goal_y)]
+        uncertainty = []
 
-        return 1/torch.sqrt(torch.tensor(count))
+        # group each element of pos_x, pos_y, goal_x, goal_y into a tuple and iterate over them
+        for pos_x, pos_y, goal_x, goal_y in zip(pos_x_arr, pos_y_arr, goal_x_arr, goal_y_arr):
+            count = np.finfo(np.float32).eps
+            if (pos_x, pos_y, goal_x, goal_y) in initiation_gvf.state_goal_count_dict:
+                count = initiation_gvf.state_goal_count_dict[(pos_x,
+                                                              pos_y, goal_x, goal_y)]
+            uncertainty.append(1/np.sqrt(count))
+        return np.array(uncertainty)
 
     values = chunked_inference(states, f, chunk_size=10_000)
-    values_uncertainty = chunked_inference(states, g, chunk_size=10_000)
+    values_uncertainty_type_1 = chunked_inference(states, g, chunk_size=10_000)
+    values_uncertainty_type_2 = chunked_inference(states, x, chunk_size=10_000)
+    values_uncertainty_type_3 = chunked_inference(states, h, chunk_size=10_000)
+
+    '''
+    We have 3 methods of computing uncertainty
+    1. 0.5*|V_1 - V_2|
+    2. 0.5*|V(s) - V(s')|
+    3. 1/sqrt(N(s, g))
+    '''
 
     plt.scatter(states[:, 0], states[:, 1], c=values)
     plt.colorbar()
@@ -302,17 +316,22 @@ def visualize_initiation_gvf(
     plt.savefig(saving_path)
     plt.close()
 
-    plt.figure()
-    plt.scatter(states[:, 0], states[:, 1], c=values_uncertainty)
-    plt.colorbar()
-    g_str = np.round(goal, 2)
-    file_name = f"init_gvf_seed_{seed}_episode_{episode}_goal_{g_str}"
-    plt.title(f"GVF Targeting Uncertainty Plot {g_str}")
-    saving_path = os.path.join(
-        'results', experiment_name, 'value_function_plots', f'{file_name}_uncertainty.png')
+    def plot_uncertainty_type(uncertainty_type, values_uncertainty):
+        plt.figure()
+        plt.scatter(states[:, 0], states[:, 1], c=values_uncertainty)
+        plt.colorbar()
+        g_str = np.round(goal, 2)
+        file_name = f"init_gvf_seed_{seed}_episode_{episode}_goal_{g_str}"
+        plt.title(f"GVF Targeting Uncertainty {uncertainty_type} Plot {g_str}")
+        saving_path = os.path.join(
+            'results', experiment_name, 'value_function_plots', f'{file_name}_uncertainty_{uncertainty_type}.png')
 
-    plt.savefig(saving_path)
-    plt.close()
+        plt.savefig(saving_path)
+        plt.close()
+
+    plot_uncertainty_type("twin_diff", values_uncertainty_type_1)
+    plot_uncertainty_type("target_diff", values_uncertainty_type_2)
+    plot_uncertainty_type("N_count_uncertainty", values_uncertainty_type_3)
 
 
 def softmax(scores, temperature):

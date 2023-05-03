@@ -83,7 +83,8 @@ class InitiationGVF:
         Q = torch.min(q1.squeeze(), q2.squeeze())
         Q1_Q2_diff = torch.unsqueeze(
             0.5*torch.abs(q1.squeeze() - q2.squeeze()), dim=0)
-        Q_and_Q_targ_diff = torch.abs(q_online.squeeze() - q_target.squeeze())
+        Q_and_Q_targ_diff = 0.5 * \
+            torch.abs(q_online.squeeze() - q_target.squeeze())
 
         return Q, Q1_Q2_diff, Q_and_Q_targ_diff
 
