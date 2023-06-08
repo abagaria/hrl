@@ -120,7 +120,6 @@ class DSGTrainer:
         # Each iteration contains N episodes of expansion or M episodes of consolidation
         iteration = 0
         episode = start_episode
-        
         while episode < start_episode + num_episodes:
 
             if self.should_expand(episode) and self.graph_mode == "consolidation":
@@ -183,9 +182,11 @@ class DSGTrainer:
         for episode in range(start_episode, start_episode + num_episodes):
             state, info = self.env.reset()
             expansion_node = self.dsg_agent.get_node_to_expand()
+            print(self.dsg_agent)
             expansion_node.n_expansion_attempts += 1
             
-            print("=" * 80); print(f"[Expansion] Episode: {episode} Step: {self.env.T}"); print("=" * 80)
+            # self.env.T for Monte, self.env.step_count for Minigrid
+            print("=" * 80); print(f"[Expansion] Episode: {episode} Step: {self.env.step_count}"); print("=" * 80)
             print(f"Attempting to expand {expansion_node}")
 
             # Use the planner to get to the expansion node

@@ -124,6 +124,8 @@ class SkillGraphAgent:
         done = False
         reset = False
         
+        print(self.planner.does_path_exist(state, info, goal_vertex))
+        print(self.is_state_inside_vertex(state, info, goal_vertex))
         planner_condition = lambda s, i, g: self.planner.does_path_exist(s, i, g) and \
                                             not self.is_state_inside_vertex(s, i, g)
 

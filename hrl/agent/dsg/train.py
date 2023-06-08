@@ -13,6 +13,7 @@ from hrl.utils import create_log_dir
 from hrl.agent.dsc.dsc import RobustDSC
 from hrl.agent.dsg.dsg import SkillGraphAgent
 from hrl.agent.dsg.trainer import DSGTrainer
+from hrl.agent.dsg.minigrid import MinigridInfoWrapper, environment_builder
 from hrl.agent.dsc.utils import default_pos_to_info
 from hrl.salient_event.salient_event import SalientEvent
 from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
@@ -46,7 +47,7 @@ def get_exploration_agent(rnd_base_dir):
     ]
 
     run_experiment.load_gin_configs(_gin_files, [])
-    return create_runner(rnd_base_dir, create_agent, schedule='episode_wise')
+    return create_runner(rnd_base_dir, create_agent, schedule="episode_wise")
 
 
 if __name__ == "__main__":
@@ -126,9 +127,10 @@ if __name__ == "__main__":
     _rnd_log_file = os.path.join(_rnd_base_dir, "rnd_log.pkl")
 
     exploration_agent = get_exploration_agent(_rnd_base_dir)
-    
-    env = MontezumaInfoWrapper(
-            FrameStack(
+
+
+    env = MinigridInfoWrapper(
+    			FrameStack(
                 Reshape(
                     ContinuingTimeLimit(
                         exploration_agent._environment,
@@ -136,12 +138,12 @@ if __name__ == "__main__":
                 ),
                 channel_order="chw"
             ),
-            k=4, channel_order="chw"   
+            k=1, channel_order="chw"   
         )
-    )
-
+        )
+        
     s0, _ = env.reset()
-    p0 = env.get_current_position()
+    p0 = env.agent_pos
 
     goal_dir_path = "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/goal_states"
     

@@ -9,6 +9,7 @@ import tensorflow.compat.v1 as tf
 from hrl.montezuma.info_wrapper import MontezumaInfoWrapper
 from hrl.montezuma.dopamine_env import create_atari_environment
 from hrl.agent.bonus_based_exploration.helpers import ram_data_replay_buffer
+from hrl.agent.dsg.minigrid import MinigridInfoWrapper
 import matplotlib.pyplot as plt
 
 tf.compat.v1.disable_eager_execution()
@@ -16,19 +17,23 @@ class RNDAgent(Runner):
     def __init__(self,
                base_dir,
                create_agent_fn,
-               create_environment_fn=create_atari_environment):
+               create_environment_fn=create_atari_environment,
+               env_wrapper=MontezumaInfoWrapper):
         tf.logging.info('Creating episode wise runner...')
         super(RNDAgent, self).__init__(
             base_dir=base_dir,
             create_agent_fn=create_agent_fn,
-            create_environment_fn=create_environment_fn
-        )
-
-        self.env_wrapper = MontezumaInfoWrapper(self._environment)
-        self.env_wrapper.num_lives = self.env_wrapper.get_num_lives(self.env_wrapper.get_current_ram())
+            create_environment_fn=create_environment_fn)
+            
+        if (isinstance(self._environment, MinigridInfoWrapper)):
+        	self.env_wrapper = self._environment
+        self.env_wrapper = env_wrapper(self._environment)
         self.info_buffer = ram_data_replay_buffer.MontezumaRevengeReplayBuffer(self._agent._replay.memory._replay_capacity)
-
+        self.env_wrapper.num_lives = 0
         self.info_buffer.load(self._base_dir)
+        
+        if callable(getattr(self.env_wrapper, "get_current_ram", None)):
+        	self.env_wrapper.num_lives = self.env_wrapper.get_num_lives(self.env_wrapper.get_current_ram())
 
     def _initialize_episode_from_point(self, starting_state):
         return self._agent.begin_episode_from_point(starting_state)
@@ -64,8 +69,6 @@ class RNDAgent(Runner):
         while True:
 
             observation, reward, is_terminal = self._run_one_step(action)
-            print("2")
-            print(self._sess)
 
             intrinsic_reward = self.get_intrinsic_reward(observation)
 
@@ -76,12 +79,8 @@ class RNDAgent(Runner):
 
             info = self.env_wrapper.get_current_info(info={}, update_lives=True)
             visited_infos.append(info)
-            self.info_buffer.add(
-                info['player_x'],
-                info['player_y'], 
-                info['room_number'],
-                self._agent._replay.memory.cursor()
-            )
+            self.info_buffer.add(info['player_x'],info['player_y'], info['room_number'],
+	    		self._agent._replay.memory.cursor())
 
             if self._environment.game_over or (step_number == self._max_steps_per_episode):
                 # Stop the run loop once we reach the true end of episode

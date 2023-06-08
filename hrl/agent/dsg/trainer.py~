@@ -185,7 +185,8 @@ class DSGTrainer:
             expansion_node = self.dsg_agent.get_node_to_expand()
             expansion_node.n_expansion_attempts += 1
             
-            print("=" * 80); print(f"[Expansion] Episode: {episode} Step: {self.env.T}"); print("=" * 80)
+            # self.env.T for Monte, self.env.step_count for Minigrid
+            print("=" * 80); print(f"[Expansion] Episode: {episode} Step: {self.env.step_count}"); print("=" * 80)
             print(f"Attempting to expand {expansion_node}")
 
             # Use the planner to get to the expansion node

@@ -271,7 +271,7 @@ class Wrapper(Env):
 
 class ObservationWrapper(Wrapper):
     def reset(self, **kwargs):
-        observation = self.env.reset(**kwargs)
+        observation, _ = self.env.reset(**kwargs)
         return self.observation(observation)
 
     def step(self, action, clf):
@@ -305,10 +305,10 @@ class FrameStack(Wrapper):
         )
 
     def reset(self):
-        ob = self.env.reset()
-        for _ in range(self.k):
-            self.frames.append(ob)
-        return self._get_ob()
+    	ob = self.env.reset()
+    	for _ in range(self.k):
+    		self.frames.append(ob)
+    	return self._get_ob()
 
     def step(self, action, clf):
         ob, reward, done, info = self.env.step(action, clf)
@@ -333,7 +333,7 @@ class Reshape(ObservationWrapper):
         )
 
     def observation(self, frame):
-        return frame.reshape(self.observation_space.low.shape)
+    	return frame.reshape(self.observation_space.low.shape)
 
     
 

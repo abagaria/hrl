@@ -25,22 +25,19 @@ from hrl.agent.bonus_based_exploration.intrinsic_motivation import intrinsic_rai
 from hrl.agent.bonus_based_exploration.noisy_networks import noisy_dqn_agent
 from hrl.agent.bonus_based_exploration.noisy_networks import noisy_rainbow_agent
 from dopamine.discrete_domains import run_experiment
+from hrl.agent.dsg.minigrid import MinigridInfoWrapper, environment_builder
 import gin
 
 from pfrl.wrappers import atari_wrappers
 
 
 def make_env():
-    env = atari_wrappers.wrap_deepmind(
-        atari_wrappers.make_atari("MontezumaRevengeNoFrameskip-v4", max_frames=8000),
-        episode_life=False,
-        clip_rewards=False,
-        frame_stack=False
-    )
+	print("HERE LIES ENV")
+	env = environment_builder(level_name="MiniGrid-Empty-8x8-v0", max_frames=8000)
 
-    env.seed(0)
-
-    return env
+	env.seed(0)
+	print(env)
+	return env
 
 
 @gin.configurable
@@ -125,11 +122,11 @@ def create_exploration_runner(base_dir, create_agent_fn,
   assert base_dir is not None
   # Continuously runs training and eval till max num_iterations is hit.
   if schedule == 'continuous_train_and_eval':
-    return run_experiment.Runner(base_dir, create_agent_fn)
+    return run_experiment.Runner(base_dir, create_agent_fn, create_environment_fn=environment_builder)
   # Continuously runs training till maximum num_iterations is hit.
   elif schedule == 'continuous_train':
-    return run_experiment.TrainRunner(base_dir, create_agent_fn)
+    return run_experiment.TrainRunner(base_dir, create_agent_fnb, create_environment_fn=environment_builder)
   elif schedule == 'episode_wise':
-    return RNDAgent(base_dir, create_agent_fn)
+    return RNDAgent(base_dir, create_agent_fn, create_environment_fn=environment_builder, env_wrapper=MinigridInfoWrapper)
   else:
     raise ValueError('Unknown schedule: {}'.format(schedule))
