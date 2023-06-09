@@ -13,7 +13,7 @@ class MinigridInfoWrapper(Wrapper):
 
   def __init__(self, env):
     super().__init__(env)
-    self._timestep = 0
+    self._timestep = 0; self.game_over = False
 
     # Store the test-time start state when the environment is constructed
     self.official_start_obs, self.official_start_info = self.reset()
@@ -29,7 +29,7 @@ class MinigridInfoWrapper(Wrapper):
 	  # info = self._modify_info_dict(info={})
 
   def step(self, action):
-    obs, reward, terminated, runcated, info = self.env.step(action)
+    obs, reward, terminated, truncated, info = self.env.step(action)
     self._timestep += 1
     info = self._modify_info_dict(info, terminated, truncated)
     done = terminated or truncated
@@ -58,6 +58,8 @@ class MinigridInfoWrapper(Wrapper):
     info["left_door_open"] = determine_is_door_open(self)
     info["right_door_open"] = determine_is_door_open(self)
     return info
+
+  def get_current_info(self, info, update_lives=False): return self._modify_info_dict(info)
 
 
 class ResizeObsWrapper(ObservationWrapper):
@@ -177,6 +179,7 @@ def determine_is_door_open(env):
       tile = env.grid.get(i, j)
       if isinstance(tile, Door):
         return tile.is_open
+  return False
 
 def determine_directory(env):
 	return None

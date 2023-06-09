@@ -36,7 +36,7 @@ tf.train.AdamOptimizer.epsilon = 0.00001
 Runner.num_iterations = 200000
 Runner.training_steps = 250000  # agent steps
 Runner.evaluation_steps = 125000  # agent steps
-Runner.max_steps_per_episode = 27000  # agent steps
+Runner.max_steps_per_episode = 1000  # agent steps
 
 WrappedPrioritizedReplayBuffer.replay_capacity = 1000000
 WrappedPrioritizedReplayBuffer.batch_size = 32

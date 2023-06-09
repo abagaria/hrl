@@ -88,7 +88,7 @@ class RNDAgent(Runner):
 
             elif is_terminal:
                 # If we lose a life but the episode is not over, signal artificial end of episode to agent
-                self._agent._end_episode(reward)
+                self._agent.end_episode(reward)
                 action = self._agent.begin_episode(observation)
             else:
                 action = self._agent.step(reward, observation)

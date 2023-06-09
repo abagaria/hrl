@@ -1,0 +1,358 @@
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/logs 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/logs/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/logs/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/initiation_set_plots 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/value_function_plots 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/accepted_events 
+Successfully created the directory /ifs/CS/replicated/home/npermpre/hrl-with-dsg/plots/noOptionFilitering_keyDoorRoomConds_CNNInit_ImaginaryLUT_noChainLastOption_NoTrajSegment_NewEventCloseness_InventoryStr/18/rejected_events 
+Creating classifier of type cnn
+Creating rainbow with sigma=0.5
+Created model-free option global-option with option_idx=0
+[DSGTrainer] Adding new SalientEvent  SE([1 1])
+[Seed=18] Device count: 1 Device Name: NVIDIA GeForce GTX 1080 Ti
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 0 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: 24.92445710254833
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 1 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -75.32285955641419
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 2 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -83.59782568298397
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 3 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -78.27859428967349
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 4 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -112.88205877691507
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 5 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -117.06880527734756
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 6 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -97.730746668356
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 7 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -135.21474332734942
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 8 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 1.0	IntrinsicReward: -136.59203269914724
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 9 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -122.22074224683456
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 10 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -137.36182829434983
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 11 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -142.16832388890907
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 12 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -126.33136280544568
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 13 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -155.78033765341388
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 14 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 1.0	IntrinsicReward: -136.20324363320833
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 15 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -117.65186552339583
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 16 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -159.11045456677675
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 17 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 1.0	IntrinsicReward: -134.1466824254021
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 18 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -150.68177792662755
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 19 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -151.60127251339145
+Took 49.91143083572388s to update distance table with 20040 states and events {SE([1 1]), None}
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 20 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -165.24059766810387
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 21 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -122.26453734643292
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 22 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -162.52091220091097
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 23 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 1.0	IntrinsicReward: -152.19333907950204
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 24 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -164.31672015803633
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 25 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 1.0	IntrinsicReward: -169.37302012341388
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 26 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -141.18456741061527
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 27 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 1.0	IntrinsicReward: -180.11556390981423
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 28 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -173.38421383532113
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 29 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -117.48728498036508
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 30 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 2.0	IntrinsicReward: -184.48473600158468
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 31 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -178.4365761752706
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 32 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -146.0369483467657
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 33 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -170.18028695276007
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 34 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -179.76569343847223
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 35 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -158.72000745497644
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 36 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 2.0	IntrinsicReward: -179.27696168003604
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 37 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -170.2894600329164
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 38 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 0.0	IntrinsicReward: -172.91928582405671
+<hrl.agent.dsg.dsg.SkillGraphAgent object at 0x14feb59d10d0>
+================================================================================
+[Expansion] Episode: 39 Step: 0
+================================================================================
+Attempting to expand SE([1 1])
+[RND Rollout] Reward: 1.0	IntrinsicReward: -193.32278521428816
+Took 48.0782732963562s to update distance table with 20040 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -183.02332804887556
+Took 0.044124603271484375s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -166.46530276705744
+Took 0.024807214736938477s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -191.0756324243266
+Took 0.06106376647949219s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -129.76102908328176
+Took 0.04310727119445801s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -196.60733104590327
+Took 0.09948492050170898s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -187.792526252495
+Took 0.027112960815429688s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -138.30242805089802
+Took 0.052031517028808594s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -166.3853956507519
+Took 0.030328750610351562s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -216.404133326374
+Took 0.05460357666015625s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -193.03637379192514
+Took 0.07281613349914551s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 4.0	IntrinsicReward: -194.82785395439714
+Took 0.033711910247802734s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -183.8126243595034
+Took 0.07672476768493652s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -185.4663097736193
+Took 0.047551631927490234s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -216.2597564086318
+Took 0.04022097587585449s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 5.0	IntrinsicReward: -219.48753212671727
+Took 0.011604785919189453s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -205.73780262609944
+Took 0.011995792388916016s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -178.64337738521863
+Took 0.022845983505249023s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -213.08981091552414
+Took 0.01152944564819336s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -222.80812649801373
+Took 0.11425161361694336s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -166.86205399315804
+Took 0.014867067337036133s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -142.3943443177268
+Took 0.016953229904174805s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 5.0	IntrinsicReward: -242.99056448042393
+Took 0.012285947799682617s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 5.0	IntrinsicReward: -200.3139324580843
+Took 0.04271960258483887s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -208.74651166796684
+Took 0.06566715240478516s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 4.0	IntrinsicReward: -181.3372932341881
+Took 0.010973930358886719s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -217.69575296796393
+Took 0.012391328811645508s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -233.2915368359536
+Took 0.025113821029663086s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 1.0	IntrinsicReward: -216.11384641495533
+Took 0.04434704780578613s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -221.23078380944207
+Took 0.029163360595703125s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -220.87606843700632
+Took 0.011528253555297852s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 6.0	IntrinsicReward: -201.54989891825244
+Took 0.011657953262329102s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -216.26689943973906
+Took 0.03859114646911621s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -218.68953967146808
+Took 0.011109113693237305s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 0.0	IntrinsicReward: -173.33303098622127
+Took 0.04496121406555176s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -234.97603894968051
+Took 0.01586174964904785s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -204.16791848489083
+Took 0.01116037368774414s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 4.0	IntrinsicReward: -195.48551351213246
+Took 0.011614084243774414s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -199.356987427047
+Took 0.012444496154785156s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -221.47284484421834
+Took 0.0495913028717041s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -190.83845404390013
+Took 0.01577472686767578s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 4.0	IntrinsicReward: -230.83428895287216
+Took 0.016782522201538086s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 5.0	IntrinsicReward: -240.90764747466892
+Took 0.034767866134643555s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 6.0	IntrinsicReward: -175.67712269034382
+Took 0.011259794235229492s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 4.0	IntrinsicReward: -199.76261792494915
+Took 0.06741046905517578s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 3.0	IntrinsicReward: -224.27636786270887
+Took 0.04418039321899414s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 4.0	IntrinsicReward: -224.13935191126075
+Took 0.0394589900970459s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 2.0	IntrinsicReward: -233.11446253425675
+Took 0.01383519172668457s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 7.0	IntrinsicReward: -246.27939596027136
+Took 0.010901927947998047s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 7.0	IntrinsicReward: -192.0515031105606
+Took 0.014786243438720703s to update distance table with 1001 states and events {SE([1 1]), None}
+[RND Rollout] Reward: 6.0	IntrinsicReward: -194.63819951657206
+Took 0.022680282592773438s to update distance table with 1001 states and events {SE([1 1]), None}
+================================================================================

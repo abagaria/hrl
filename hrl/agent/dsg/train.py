@@ -138,7 +138,7 @@ if __name__ == "__main__":
                 ),
                 channel_order="chw"
             ),
-            k=1, channel_order="chw"   
+            k=4, channel_order="chw"   
         )
         )
         
@@ -183,6 +183,8 @@ if __name__ == "__main__":
     predefined_events = []
     if args.use_predefined_events:
         predefined_events = [beta1, beta2, beta3, beta4, beta5, beta6, beta7, beta8]
+
+    assert len(predefined_events) == 0, "No Predefined Event"
 
     dsc_agent = RobustDSC(env,
                           args.gestation_period,
