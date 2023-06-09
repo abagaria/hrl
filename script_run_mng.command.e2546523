@@ -1,0 +1,57 @@
+
+CommandNotFoundError: Your shell has not been properly configured to use 'conda activate'.
+To initialize your shell, run
+
+    $ conda init <SHELL_NAME>
+
+Currently supported shells are:
+  - bash
+  - fish
+  - tcsh
+  - xonsh
+  - zsh
+  - powershell
+
+See 'conda init --help' for more information and options.
+
+IMPORTANT: You may need to close and restart your shell after running 'conda init'.
+
+
+/home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/ale_py/roms/__init__.py:94: DeprecationWarning: Automatic importing of atari-py roms won't be supported in future releases of ale-py. Please migrate over to using `ale-import-roms` OR an ALE-supported ROM package. To make this warning disappear you can run `ale-import-roms --import-from-pkg atari_py.atari_roms`.For more information see: https://github.com/mgbellemare/Arcade-Learning-Environment#rom-management
+  _RESOLVED_ROMS = _resolve_roms()
+
+WARNING:tensorflow:From /home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/tensorflow/python/compat/v2_compat.py:111: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+/home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/tensorflow/python/keras/engine/base_layer_v1.py:1694: UserWarning: `layer.apply` is deprecated and will be removed in a future version. Please use `layer.__call__` method instead.
+  warnings.warn('`layer.apply` is deprecated and '
+/home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/tensorflow/python/keras/legacy_tf_layers/core.py:336: UserWarning: `tf.layers.flatten` is deprecated and will be removed in a future version. Please use `tf.keras.layers.Flatten` instead.
+  warnings.warn('`tf.layers.flatten` is deprecated and '
+WARNING:absl:use_staging=True is no longer supported
+Traceback (most recent call last):
+  File "/home/npermpre/miniconda3/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/npermpre/miniconda3/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/train.py", line 262, in <module>
+    trainer.run_loop(current_episode + 1, int(1e5))    
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/trainer.py", line 129, in run_loop
+    self.graph_consolidation_run_loop(episode, duration=consolidation_duration)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/agent/dsg/trainer.py", line 371, in graph_consolidation_run_loop
+    print("=" * 80); print(f"[Consolidation] Episode: {current_episode} Step: {self.env.T}"); print("=" * 80)
+  File "/home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/gymnasium/core.py", line 273, in __getattr__
+    return getattr(self.env, name)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/montezuma/wrappers.py", line 193, in __getattr__
+    return getattr(self.env, name)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/montezuma/wrappers.py", line 193, in __getattr__
+    return getattr(self.env, name)
+  File "/ifs/CS/replicated/home/npermpre/hrl-with-dsg/hrl/montezuma/wrappers.py", line 193, in __getattr__
+    return getattr(self.env, name)
+  File "/home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/gymnasium/core.py", line 273, in __getattr__
+    return getattr(self.env, name)
+  File "/home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/gymnasium/core.py", line 273, in __getattr__
+    return getattr(self.env, name)
+  File "/home/npermpre/miniconda3/envs/dsg-mng/lib/python3.9/site-packages/gymnasium/core.py", line 273, in __getattr__
+    return getattr(self.env, name)
+  [Previous line repeated 8 more times]
+AttributeError: 'EmptyEnv' object has no attribute 'T'
