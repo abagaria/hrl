@@ -424,6 +424,8 @@ class DSGTrainer:
 
     def select_goal_salient_event(self, state, info):
         """ Select goal node to target during graph consolidation. """
+        import ipdb
+        ipdb.set_trace()
         if random.random() > self.goal_selection_epsilon:
 
             if self.goal_selection_criterion == "closest":
