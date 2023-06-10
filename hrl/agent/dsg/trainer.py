@@ -366,7 +366,7 @@ class DSGTrainer:
         for current_episode in range(episode, episode+duration):
             done = False
             reset = False
-            state, info = self.env.reset()
+            state, info = self.env.reset(); import ipdb; ipdb.set_trace()
 
             print("=" * 80); print(f"[Consolidation] Episode: {current_episode} Step: {self.env.T}"); print("=" * 80)
 
@@ -422,7 +422,7 @@ class DSGTrainer:
     # Salient Event Selection
     # ---------------------------------------------------
 
-    def select_goal_salient_event(self, state, info):
+    def select_goal_salient_event(self, state, info): import ipdb; ipdb.set_trace()
         """ Select goal node to target during graph consolidation. """
         if random.random() > self.goal_selection_epsilon:
 

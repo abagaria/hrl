@@ -13,7 +13,7 @@ class MinigridInfoWrapper(Wrapper):
 
   def __init__(self, env):
     super().__init__(env)
-    self._timestep = 0; self.game_over = False
+    self._timestep = 0; self.game_over = False; self.step_count = 0; self.T = 0
 
     # Store the test-time start state when the environment is constructed
     self.official_start_obs, self.official_start_info = self.reset()
@@ -31,6 +31,8 @@ class MinigridInfoWrapper(Wrapper):
   def step(self, action):
     obs, reward, terminated, truncated, info = self.env.step(action)
     self._timestep += 1
+    self.T += 1
+    self.step_count += 1
     info = self._modify_info_dict(info, terminated, truncated)
     done = terminated or truncated
     return obs, reward, done, info
