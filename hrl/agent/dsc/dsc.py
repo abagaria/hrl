@@ -1,292 +1,341 @@
+# import ipdb
 import pickle
-from copy import deepcopy
-from functools import reduce
-from collections import deque
-
 import numpy as np
 
 from hrl.agent.dsc.utils import *
-from hrl.agent.dsc.MBOptionClass import ModelBasedOption
+from hrl.agent.dsc.chain import SkillChain
+from hrl.agent.dsc.option import ModelFreeOption
+from hrl.salient_event.salient_event import SalientEvent
 
 
 class RobustDSC(object):
-    def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
-                 use_diverse_starts, use_dense_rewards, lr_c, lr_a,
-                 experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
-
-        self.lr_c = lr_c
-        self.lr_a = lr_a
-
-        self.device = device
-        self.use_vf = use_vf
-        self.use_global_vf = use_global_vf
-        self.use_model = use_model
-        self.experiment_name = experiment_name
-        self.warmup_episodes = warmup_episodes
-        self.max_steps = max_steps
-        self.use_diverse_starts = use_diverse_starts
-        self.use_dense_rewards = use_dense_rewards
-        self.multithread_mpc = multithread_mpc
-
-        self.seed = seed
-        self.logging_freq = logging_freq
-        self.evaluation_freq = evaluation_freq
-        self.generate_init_gif = generate_init_gif
-
-        self.buffer_length = buffer_length
-        self.gestation_period = gestation_period
+    def __init__(self, mdp, gestation_period, buffer_length,
+                 experiment_name, gpu_id,
+                 init_event,
+                 use_oracle_rf, use_rf_on_pos_traj,
+                 use_rf_on_neg_traj, replay_original_goal_on_pos,
+                 use_pos_for_init,
+                 p_her, max_num_options, seed, log_filename,
+                 num_kmeans_clusters, sift_threshold,
+                 classifier_type, use_full_neg_traj, use_pessimistic_relabel,
+                 noisy_net_sigma, rnd_data_path):
 
         self.mdp = mdp
-        self.target_salient_event = self.mdp.get_original_target_events()[0]
+        self.seed = seed
+        self.p_her = p_her
 
-        self.global_option = self.create_global_model_based_option()
-        self.goal_option = self.create_model_based_option(name="goal-option", parent=None)
+        self.mdp = mdp
+        self.seed = seed
+        self.gpu_id = gpu_id
+        self.experiment_name = experiment_name
 
-        self.chain = [self.goal_option]
-        self.new_options = [self.goal_option]
+        self.use_oracle_rf = use_oracle_rf
+        self.use_rf_on_pos_traj = use_rf_on_pos_traj
+        self.use_rf_on_neg_traj = use_rf_on_neg_traj
+        self.replay_original_goal_on_pos = replay_original_goal_on_pos
+
+        self.max_num_options = max_num_options
+        self.use_pos_for_init = use_pos_for_init
+        
+        self.buffer_length = buffer_length
+        self.gestation_period = gestation_period
+        self.init_salient_event = init_event
+        self.num_kmeans_clusters = num_kmeans_clusters
+        self.sift_threshold = sift_threshold
+        self.noisy_net_sigma = noisy_net_sigma
+        self.classifier_type = classifier_type
+        self.use_full_neg_traj = use_full_neg_traj
+        self.use_pessimistic_relabel = use_pessimistic_relabel
+
+        self.global_option = self.create_global_option()
+
+        self.chains = []
+        self.new_options = []
         self.mature_options = []
+        self.current_option_idx = 1
 
-        self.log = {}
+        self.log_file = log_filename
+        self.rnd_data_path = rnd_data_path
+
+        if rnd_data_path:
+            _, ram_trajectories, frame_trajectories = get_saved_trajectories(
+                rnd_data_path, n_trajectories=100
+            )
+
+            self.rnd_rams = flatten(ram_trajectories)
+            self.rnd_frames = flatten(frame_trajectories)
+
+    # ------------------------------------------------------------
+    # Action selection methods
+    # ------------------------------------------------------------
 
     @staticmethod
-    def _pick_earliest_option(state, options):
+    def _pick_earliest_option(state, info, options):
+        cond = lambda x, y: x.is_init_true(*y) and not x.is_term_true(*y)
         for option in options:
-            if option.is_init_true(state) and not option.is_term_true(state):
+            if cond(option, (state, info)):
                 return option
 
-    def act(self, state):
-        # current_option = self._pick_earliest_option(state, self.chain)
-        # return current_option if current_option is not None else self.global_option
-        for option in self.chain:
-            if option.is_init_true(state):
-                subgoal = option.get_goal_for_rollout()
-                if not option.is_at_local_goal(state, subgoal):
-                    return option, subgoal
-        return self.global_option, self.global_option.get_goal_for_rollout()
+    def _get_chains_corresponding_to_goal(self, goal_info):
+        chains = [chain for chain in self.chains if chain.target_salient_event(goal_info)]
 
-    def random_rollout(self, num_steps):
-        step_number = 0
-        while step_number < num_steps and not self.mdp.cur_done:
-            state = deepcopy(self.mdp.cur_state)
-            action = self.mdp.action_space.sample()
-            next_state, reward, done, _ = self.mdp.step(action)
-            if self.use_model:
-                self.global_option.update_model(state, action, reward, next_state, done)
-            step_number += 1
-        return step_number
+        if len(chains) == 0:
+            for chain in self.chains:
+                for option in chain.options:
+                    if option.is_term_true(None, goal_info):
+                        chains.append(chain)
+        return chains
 
-    def dsc_rollout(self, num_steps):
-        step_number = 0
-        while step_number < num_steps and not self.mdp.cur_done:
-            state = deepcopy(self.mdp.cur_state)
+    def act(self, state, info, goal_info):
+        chains_targeting_goal = self._get_chains_corresponding_to_goal(goal_info)
+        for chain in chains_targeting_goal:
+            for option in chain.options:
+                if option.is_init_true(state, info) and not option.is_term_true(state, info):
+                    return option
+        return self.global_option
+
+    # ------------------------------------------------------------
+    # Run loop
+    # ------------------------------------------------------------
+
+    def dsc_rollout(self, state, info, goal_salient_event, episode,
+                    eval_mode=False, interrupt_handle=lambda state, info: False):
+        assert isinstance(goal_salient_event, SalientEvent)
+        assert len(self.chains) > 0, "Create skill chains b/w constructor and rollout"
+
+        done = False
+        reset = False
+        reached = False
+
+        episode_length = 0
+        episode_reward = 0.
+        rollout_trajectory = []
+        learned_options = []
+
+        while not done and not reset and not reached and not interrupt_handle(state, info):
+            selected_option = self.act(state, info, goal_salient_event.target_info)
+            next_state, done, reset, _, goal_pos, info, transitions = selected_option.rollout(
+                                                                                state,
+                                                                                info,
+                                                                                goal_salient_event,
+                                                                                eval_mode=eval_mode
+                                                                            )
+            infos = [transition[-1] for transition in transitions]  # these do not contain the start info
+            finished = self.manage_chain_after_option_rollout(selected_option, episode)
+
+            reward, reached = self.global_option.rf(self.mdp.get_current_position(),
+                                                    goal_salient_event.target_pos)
+
+            state = next_state
+            episode_reward += reward
+            episode_length += len(infos)
+            if finished: learned_options.append(selected_option)
+
+            rollout_trajectory.append({
+                "goal": goal_pos,
+                "trajectory": infos,
+                "option": selected_option.option_idx,
+            })
+
+        # Was returning `episode_reward, episode_length` as well
+
+        return state, info, done, reset, learned_options, rollout_trajectory
+
+    def run_loop(self, goal_salient_event, num_steps):
+        step = 0
+        episode = 0
+
+        _log_steps = []
+        _log_rewards = []
+
+        while step < num_steps:
+            state, info = self.mdp.reset()
+
+            _, _, _, _, _, reward, length = self.dsc_rollout(state, info, goal_salient_event, episode)
+
+            episode += 1
+            step += length
+
+            _log_steps.append(step)
+            _log_rewards.append(reward)
+
+            with open(self.log_file, "wb+") as f:
+                episode_metrics = {
+                                "step": _log_steps, 
+                                "reward": _log_rewards,
+                }
+                pickle.dump(episode_metrics, f)
+
+            print(f"Episode: {episode}, T: {step}, Reward: {reward}")
+
+            if episode > 0 and episode % 100 == 0:
+                for option in self.mature_options:
+                    if self.use_pos_for_init:
+                        plot_two_class_classifier(option, episode, self.experiment_name, seed=self.seed)
+                    else:
+                        option.initiation_classifier.plot_training_predictions(option.name, episode,
+                                                                               self.experiment_name, self.seed)
+
+    # ------------------------------------------------------------
+    # Managing the skill chains
+    # ------------------------------------------------------------
+
+    def should_create_children_options(self, parent_option):
+
+        if parent_option is None:
+            return False
+
+        return self.should_create_more_options() \
+               and parent_option.get_training_phase() == "initiation_done" \
+               and self.chains[parent_option.chain_id - 1].should_continue_chaining()
+
+    def should_create_more_options(self):
+        """ Continue chaining as long as any chain is still accepting new options. """
+        return any([chain.should_continue_chaining() for chain in self.chains])
+
+    def add_new_option_to_skill_chain(self, new_option):
+        self.new_options.append(new_option)
+        chain_idx = new_option.chain_id - 1
+        self.chains[chain_idx].options.append(new_option)
+
+    def finish_option_initiation_phase(self, option):
+        assert option.get_training_phase() == "initiation_done"
+        self.new_options.remove(option)
+        self.mature_options.append(option)
+
+    def manage_chain_after_option_rollout(self, option, episode):
+
+        if option in self.new_options and option.get_training_phase() != "gestation":
+            self.finish_option_initiation_phase(option)
+            should_create_children = self.should_create_children_options(option)
+            if should_create_children:
+                new_option = self.create_child_option(parent=option)
+                self.add_new_option_to_skill_chain(new_option)
             
-            selected_option, subgoal = self.act(state)
+            if self.use_pos_for_init:
+                plot_two_class_classifier(option, episode, self.experiment_name, seed=self.seed)
+            else:
+                option.initiation_classifier.plot_training_predictions(option.name, episode,
+                                                                       self.experiment_name, self.seed)
 
-            # Overwrite the subgoal for the global-option
-            if selected_option == self.global_option:
-                subgoal = self.pick_subgoal_for_global_option(state)
+                if self.rnd_data_path and option.target_salient_event:
+                    plot_classifier_predictions(
+                        option, self.rnd_frames, self.rnd_rams,
+                        episode, self.seed, self.experiment_name
+                    )
 
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
+            return True
 
-            if len(transitions) == 0:
-                break
-
-            self.manage_chain_after_rollout(selected_option)
-            step_number += len(transitions)
-        return step_number
-
-    def run_loop(self, num_episodes, num_steps, start_episode=0):
-        per_episode_durations = []
-        last_10_durations = deque(maxlen=10)
-
-        for episode in range(start_episode, start_episode + num_episodes):
-            self.reset(episode)
-
-            step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
-
-            last_10_durations.append(step)
-            per_episode_durations.append(step)
-            self.log_status(episode, last_10_durations)
-
-            if episode == self.warmup_episodes - 1 and self.use_model:
-                self.learn_dynamics_model(epochs=50)
-            elif episode >= self.warmup_episodes and self.use_model:
-                self.learn_dynamics_model(epochs=5)
-
-            self.log_success_metrics(episode)
-
-        return per_episode_durations
-
-    def log_success_metrics(self, episode):
-        individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
-        overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
-        self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
-
-        if episode % self.evaluation_freq == 0 and episode > self.warmup_episodes:
-            success, step_count = test_agent(self, 1, self.max_steps)
-
-            self.log[episode]["success"] = success
-            self.log[episode]["step-count"] = step_count[0]
-
-            with open(f"results/{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
-                pickle.dump(self.log, log_file)
-
-    def learn_dynamics_model(self, epochs=50, batch_size=1024):
-        self.global_option.solver.load_data()
-        self.global_option.solver.train(epochs=epochs, batch_size=batch_size)
-        for option in self.chain:
-            option.solver.model = self.global_option.solver.model
-
-    def is_chain_complete(self):
-        return all([option.get_training_phase() == "initiation_done" for option in self.chain]) and self.mature_options[-1].is_init_true(np.array([0,0]))
-
-    def should_create_new_option(self):  # TODO: Cleanup
-        if len(self.mature_options) > 0 and len(self.new_options) == 0:
-            return self.mature_options[-1].get_training_phase() == "initiation_done" and \
-                not self.contains_init_state()
         return False
 
-    def contains_init_state(self):
-        for option in self.mature_options:
-            if option.is_init_true(np.array([0,0])):  # TODO: Get test-time start state automatically
-                return True
-        return False
+    # ------------------------------------------------------------
+    # Convenience functions
+    # ------------------------------------------------------------
 
-    def manage_chain_after_rollout(self, executed_option):
+    def create_new_chain(self, *, init_event, target_event):
+        chain_id = len(self.chains) + 1
+        name = f"goal-option-{chain_id}"
+        root_option = self.create_local_option(name=name,
+                                               parent=None,
+                                               chain_idx=chain_id,
+                                               init_event=init_event,
+                                               target_event=target_event)
+        self.new_options.append(root_option)
 
-        if executed_option in self.new_options and executed_option.get_training_phase() != "gestation":
-            self.new_options.remove(executed_option)
-            self.mature_options.append(executed_option)
+        new_chain = SkillChain(options=[root_option], 
+                               chain_id=chain_id,
+							   target_salient_event=target_event,
+							   init_salient_event=init_event)
+        self.add_skill_chain(new_chain)
+        
+        return new_chain
 
-        if self.should_create_new_option():
-            name = f"option-{len(self.mature_options)}"
-            new_option = self.create_model_based_option(name, parent=self.mature_options[-1])
-            print(f"Creating {name}, parent {new_option.parent}, new_options = {self.new_options}, mature_options = {self.mature_options}")
-            self.new_options.append(new_option)
-            self.chain.append(new_option)
+    def add_skill_chain(self, new_chain):
+        if new_chain not in self.chains:
+            self.chains.append(new_chain)
 
-    def find_nearest_option_in_chain(self, state):
-        if len(self.mature_options) > 0:
-            distances = [(option, option.distance_to_state(state)) for option in self.mature_options]
-            nearest_option = sorted(distances, key=lambda x: x[1])[0][0]  # type: ModelBasedOption
-            return nearest_option
+    def create_local_option(self,
+                            name,
+                            init_event, 
+                            target_event,
+                            chain_idx,
+                            parent=None):
+        option = ModelFreeOption(name=name,
+                                 option_idx=self.current_option_idx,
+                                 parent=parent, 
+                                 timeout=np.inf, 
+                                 env=self.mdp,
+                                 global_init=False,
+                                 global_solver=self.global_option.solver,
+                                 gpu_id=self.gpu_id,
+                                 buffer_length=self.buffer_length,
+                                 gestation_period=self.gestation_period,
+                                 n_training_steps=int(2e6),  # TODO
+                                 init_salient_event=init_event,
+                                 target_salient_event=target_event,
+                                 
+                                 use_oracle_rf=self.use_oracle_rf,
+                                 use_rf_on_pos_traj=self.use_rf_on_pos_traj,
+                                 use_rf_on_neg_traj=self.use_rf_on_neg_traj,
+                                 replay_original_goal_on_pos=self.replay_original_goal_on_pos,
 
-    def pick_subgoal_for_global_option(self, state):
-        nearest_option = self.find_nearest_option_in_chain(state)
-        if nearest_option is not None:
-            return nearest_option.sample_from_initiation_region_fast_and_epsilon()
-        return self.global_option.get_goal_for_rollout()
-
-    def log_status(self, episode, last_10_durations):
-        print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
-
-        if episode % self.logging_freq == 0 and episode != 0:
-            options = self.mature_options + self.new_options
-
-            for option in self.mature_options:
-                episode_label = episode if self.generate_init_gif else -1
-                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
-
-            for option in options:
-                if self.use_global_vf:
-                    make_chunked_goal_conditioned_value_function_plot(option.global_value_learner,
-                                                                    goal=option.get_goal_for_rollout(),
-                                                                    episode=episode, seed=self.seed,
-                                                                    experiment_name=self.experiment_name,
-                                                                    option_idx=option.option_idx)
-                else:
-                    make_chunked_goal_conditioned_value_function_plot(option.value_learner,
-                                                                    goal=option.get_goal_for_rollout(),
-                                                                    episode=episode, seed=self.seed,
-                                                                    experiment_name=self.experiment_name)
-
-    def create_model_based_option(self, name, parent=None):
-        option_idx = len(self.chain) + 1 if parent is not None else 1
-        option = ModelBasedOption(parent=parent, mdp=self.mdp,
-                                  buffer_length=self.buffer_length,
-                                  global_init=False,
-                                  gestation_period=self.gestation_period,
-                                  timeout=200, max_steps=self.max_steps, device=self.device,
-                                  target_salient_event=self.target_salient_event,
-                                  name=name,
-                                  path_to_model="",
-                                  global_solver=self.global_option.solver,
-                                  use_vf=self.use_vf,
-                                  use_global_vf=self.use_global_vf,
-                                  use_model=self.use_model,
-                                  dense_reward=self.use_dense_rewards,
-                                  global_value_learner=self.global_option.value_learner,
-                                  option_idx=option_idx,
-                                  lr_c=self.lr_c, lr_a=self.lr_a,
-                                  multithread_mpc=self.multithread_mpc)
+                                 max_num_options=self.max_num_options,
+                                 use_pos_for_init=self.use_pos_for_init,
+                                 chain_id=chain_idx,
+                                 p_her=self.p_her,
+                                 num_kmeans_clusters=self.num_kmeans_clusters,
+                                 sift_threshold=self.sift_threshold,
+                                 classifier_type=self.classifier_type,
+                                 use_full_neg_traj=self.use_full_neg_traj,
+                                 use_pessimistic_relabel=self.use_pessimistic_relabel,
+                                 noisy_net_sigma=self.noisy_net_sigma)
+        self.current_option_idx += 1
         return option
 
-    def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
-        option = ModelBasedOption(parent=None, mdp=self.mdp,
-                                  buffer_length=self.buffer_length,
-                                  global_init=True,
-                                  gestation_period=self.gestation_period,
-                                  timeout=200, max_steps=self.max_steps, device=self.device,
-                                  target_salient_event=self.target_salient_event,
-                                  name="global-option",
-                                  path_to_model="",
-                                  global_solver=None,
-                                  use_vf=self.use_vf,
-                                  use_global_vf=self.use_global_vf,
-                                  use_model=self.use_model,
-                                  dense_reward=self.use_dense_rewards,
-                                  global_value_learner=None,
-                                  option_idx=0,
-                                  lr_c=self.lr_c, lr_a=self.lr_a,
-                                  multithread_mpc=self.multithread_mpc)
+    def create_global_option(self):
+        option = ModelFreeOption(name="global-option",
+                                 option_idx=0,
+                                 parent=None,
+                                 timeout=np.inf,
+                                 env=self.mdp,
+                                 global_init=True,
+                                 global_solver=None,
+                                 gpu_id=self.gpu_id,
+                                 buffer_length=self.buffer_length,
+                                 gestation_period=self.gestation_period,
+                                 n_training_steps=int(2e6),  # TODO
+                                 init_salient_event=self.init_salient_event,
+                                 target_salient_event=None,
+                                 
+                                 use_oracle_rf=self.use_oracle_rf,
+                                 use_rf_on_pos_traj=self.use_rf_on_pos_traj,
+                                 use_rf_on_neg_traj=self.use_rf_on_neg_traj,
+                                 replay_original_goal_on_pos=self.replay_original_goal_on_pos,
+
+                                 max_num_options=self.max_num_options,
+                                 use_pos_for_init=self.use_pos_for_init,
+                                 chain_id=0,
+                                 p_her=self.p_her,
+                                 num_kmeans_clusters=self.num_kmeans_clusters,
+                                 sift_threshold=self.sift_threshold,
+                                 classifier_type=self.classifier_type,
+                                 use_full_neg_traj=self.use_full_neg_traj,
+                                 use_pessimistic_relabel=self.use_pessimistic_relabel,
+                                 noisy_net_sigma=self.noisy_net_sigma)
         return option
 
-    def reset(self, episode):
-        self.mdp.reset()
+    def create_child_option(self, parent):
+        assert isinstance(parent, ModelFreeOption)
 
-        if self.use_diverse_starts and episode > self.warmup_episodes:
-            random_state = self.mdp.sample_random_state()
-            random_position = self.mdp.get_position(random_state)
-            self.mdp.set_xy(random_position)
+        # Create new option whose termination is the initiation of the option we just trained
+        prefix = f"option_{parent.name.split('_')[-1]}" if "goal_option" in parent.name else parent.name
+        name = prefix + "-{}".format(len(parent.children))
+        print("Creating {} with parent {}".format(name, parent.name))
 
-def test_agent(exp, num_experiments, num_steps):
-    def rollout():
-        step_number = 0
-        while step_number < num_steps and not exp.mdp.sparse_gc_reward_func(exp.mdp.cur_state, exp.mdp.goal_state)[1]:
-
-            state = deepcopy(exp.mdp.cur_state)
-            selected_option, subgoal = exp.act(state)
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
-            step_number += len(transitions)
-        return step_number
-
-    success = 0
-    step_counts = []
-
-    for _ in tqdm(range(num_experiments), desc="Performing test rollout"):
-        exp.mdp.reset()
-        steps_taken = rollout()
-        if steps_taken != num_steps:
-            success += 1
-        step_counts.append(steps_taken)
-
-    print("*" * 80)
-    print(f"Test Rollout Success Rate: {success / num_experiments}, Duration: {np.mean(step_counts)}")
-    print("*" * 80)
-
-    return success / num_experiments, step_counts
-
-def get_trajectory(exp, num_steps):
-    exp.mdp.reset()
-    
-    traj = []
-    step_number = 0
-    
-    while step_number < num_steps and not exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
-        state = deepcopy(exp.mdp.cur_state)
-        selected_option, subgoal = exp.act(state)
-        transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
-        step_number += len(transitions)
-        traj.append((selected_option.name, transitions))
-    return traj, step_number
+        new_option = self.create_local_option(name,
+                                              parent.init_salient_event,
+                                              parent.target_salient_event,
+                                              chain_idx=parent.chain_id,
+                                              parent=parent)
+        parent.children.append(new_option)
+        return new_option
