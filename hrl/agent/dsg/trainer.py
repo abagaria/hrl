@@ -126,7 +126,7 @@ class DSGTrainer:
                 self.graph_expansion_run_loop(episode, self.expansion_duration)
                 episode += self.expansion_duration
             elif len(self.salient_events) > 0:
-                self.graph_consolidation_run_loop(episode, duration=consolidation_duration)
+                print(self.salient_events); self.graph_consolidation_run_loop(episode, duration=consolidation_duration)
                 episode += consolidation_duration
             else:
                 ipdb.set_trace()
@@ -424,6 +424,8 @@ class DSGTrainer:
 
     def select_goal_salient_event(self, state, info):
         """ Select goal node to target during graph consolidation. """
+        import ipdb
+        ipdb.set_trace()
         if random.random() > self.goal_selection_epsilon:
 
             if self.goal_selection_criterion == "closest":
@@ -909,8 +911,7 @@ class DSGTrainer:
         def should_reject(obs, info):
             return info["uncontrollable"] or \
                    info["buggy_state"] or\
-                   is_inside_another_event(info) or \
-                   is_close_to_another_event(info)
+                   is_inside_another_event(info)
         
         if len(observations) > 3:
             first_pass_triples = [(obs, reward, info) for obs, reward, info in 
@@ -940,7 +941,7 @@ class DSGTrainer:
         """ Convert a list of discovered goal states to salient events. """
         added_events = []
         for obs, info, reward in discovered_goals:
-            event = SalientEvent(obs, info, tol=2.)
+            event = SalientEvent(obs, info, tol=0.) # Should be manually put in command line
             print("Accepted New Salient Event: ", event)
             added_events.append(event)
 

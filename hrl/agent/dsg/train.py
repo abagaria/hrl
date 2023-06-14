@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     pfrl.utils.set_random_seed(args.seed)
 
-    beta0 = SalientEvent(s0, default_pos_to_info(p0), tol=2.)
+    beta0 = SalientEvent(s0, default_pos_to_info(p0), tol=0.)
     beta1 = SalientEvent(g0, default_pos_to_info(gpos), tol=2.)
     beta2 = SalientEvent(g1, default_pos_to_info(gpos1), tol=2.)
     beta3 = SalientEvent(g2, default_pos_to_info(gpos2), tol=2.)

@@ -310,7 +310,7 @@ class FrameStack(Wrapper):
     		self.frames.append(ob)
     	return self._get_ob()
 
-    def step(self, action, clf):
+    def step(self, action, clf=None):
         ob, reward, done, info = self.env.step(action, clf)
         self.frames.append(ob)
         return self._get_ob(), reward, done, info
@@ -360,7 +360,7 @@ class ContinuingTimeLimit(Wrapper):
 
         self._elapsed_steps = None
 
-    def step(self, action, clf):
+    def step(self, action, clf=None):
         assert (
             self._elapsed_steps is not None
         ), "Cannot call env.step() before calling reset()"
