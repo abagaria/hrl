@@ -13,7 +13,7 @@ class MinigridInfoWrapper(Wrapper):
 
   def __init__(self, env):
     super().__init__(env)
-    self._timestep = 0; self.game_over = False; self.step_count = 0; self.T = 0
+    self._timestep = 0; self.game_over = False; self.step_count = 0; self.T = 0; self.imaginary_ladder_locations = set()
 
     # Store the test-time start state when the environment is constructed
     self.official_start_obs, self.official_start_info = self.reset()
@@ -28,14 +28,19 @@ class MinigridInfoWrapper(Wrapper):
   		return x, self._modify_info_dict(info={})
 	  # info = self._modify_info_dict(info={})
 
-  def step(self, action):
-    obs, reward, terminated, truncated, info = self.env.step(action)
-    self._timestep += 1
-    self.T += 1
-    self.step_count += 1
-    info = self._modify_info_dict(info, terminated, truncated)
-    done = terminated or truncated
-    return obs, reward, done, info
+  def step(self, action, clf=None):
+	  result = self.env.step(action)
+	  try: obs, reward, terminated, truncated, info = result
+	  except: 
+		  obs, reward, done, info = result
+		  terminated = info["terminated"]
+		  truncated = info["truncated"]
+	  self._timestep += 1
+	  self.T += 1
+	  self.step_count += 1
+	  info = self._modify_info_dict(info, terminated, truncated)
+	  done = terminated or truncated
+	  return obs, reward, done, info
 
   def _modify_info_dict(self, info, terminated=False, truncated=False):
     info['player_pos'] = tuple(self.env.agent_pos)
@@ -62,6 +67,7 @@ class MinigridInfoWrapper(Wrapper):
     return info
 
   def get_current_info(self, info, update_lives=False): return self._modify_info_dict(info)
+  def get_current_position(self): return self.env.agent_pos[0], self.env.agent_pos[1]
 
 
 class ResizeObsWrapper(ObservationWrapper):

@@ -126,7 +126,7 @@ class DSGTrainer:
                 self.graph_expansion_run_loop(episode, self.expansion_duration)
                 episode += self.expansion_duration
             elif len(self.salient_events) > 0:
-                self.graph_consolidation_run_loop(episode, duration=consolidation_duration)
+                print(self.salient_events); self.graph_consolidation_run_loop(episode, duration=consolidation_duration)
                 episode += consolidation_duration
             else:
                 ipdb.set_trace()
@@ -366,7 +366,7 @@ class DSGTrainer:
         for current_episode in range(episode, episode+duration):
             done = False
             reset = False
-            state, info = self.env.reset(); import ipdb; ipdb.set_trace()
+            state, info = self.env.reset()
 
             print("=" * 80); print(f"[Consolidation] Episode: {current_episode} Step: {self.env.T}"); print("=" * 80)
 
@@ -422,7 +422,7 @@ class DSGTrainer:
     # Salient Event Selection
     # ---------------------------------------------------
 
-    def select_goal_salient_event(self, state, info): import ipdb; ipdb.set_trace()
+    def select_goal_salient_event(self, state, info):
         """ Select goal node to target during graph consolidation. """
         if random.random() > self.goal_selection_epsilon:
 
@@ -909,8 +909,7 @@ class DSGTrainer:
         def should_reject(obs, info):
             return info["uncontrollable"] or \
                    info["buggy_state"] or\
-                   is_inside_another_event(info) or \
-                   is_close_to_another_event(info)
+                   is_inside_another_event(info)
         
         if len(observations) > 3:
             first_pass_triples = [(obs, reward, info) for obs, reward, info in 
@@ -940,7 +939,7 @@ class DSGTrainer:
         """ Convert a list of discovered goal states to salient events. """
         added_events = []
         for obs, info, reward in discovered_goals:
-            event = SalientEvent(obs, info, tol=2.)
+            event = SalientEvent(obs, info, tol=0.) # Should be manually put in command line
             print("Accepted New Salient Event: ", event)
             added_events.append(event)
 
