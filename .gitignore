@@ -1,13 +1,5 @@
-# results
-logs/
-plots
-ccv_logs/
-*.out
-*.err
-
 # VS Code
 .vscode/
-.onager/
 setup.cfg
 
 # Byte-compiled / optimized / DLL files
@@ -32,7 +24,6 @@ parts/
 sdist/
 var/
 wheels/
-~/data
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -121,7 +112,6 @@ celerybeat.pid
 .env
 .venv
 env/
-38env/
 venv/
 ENV/
 env.bak/
@@ -152,6 +142,3 @@ dmypy.json
 cython_debug/
 
 results/
-*.diff
-*.swp
-myscript*
