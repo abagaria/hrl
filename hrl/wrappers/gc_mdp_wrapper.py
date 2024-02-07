@@ -21,7 +21,6 @@ class GoalConditionedMDPWrapper(Wrapper):
         self.goal_tolerance = np.asarray(goal_tolerance)
 
         # set initial states
-        self.cur_state = deepcopy(self.reset())
         self.cur_done = False
 
     def get_start_state_salient_event(self):

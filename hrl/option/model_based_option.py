@@ -200,9 +200,6 @@ class ModelBasedOption(object):
         sampled_goal = self.parent.sample_from_initiation_region_fast_and_epsilon()
         assert sampled_goal is not None
 
-        if isinstance(sampled_goal, np.ndarray):
-            return sampled_goal.squeeze()
-
         return self.extract_goal_dimensions(sampled_goal)
 
     def rollout(self, step_number, rollout_goal=None, eval_mode=False):
